@@ -1,6 +1,5 @@
-# Project Name
+# First Tx
 
-A brief description of what this project does and who it's for.
 
 ## Prerequisites
 
@@ -15,7 +14,7 @@ To install FirstTx, follow these steps:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/username/project_name.git
+   git clone https://github.com/taimurey/mal-firstx-bot.git
    ```
 2. Navigate to the project directory:
    ```bash
@@ -38,5 +37,5 @@ To run firsttx, follow these steps:
 
 ## Contact
 
-If you want to contact me you can reach me at `taimoorshafique541@address.com>`.
+If you want to contact me you can reach me at `martian599@address.com`.
 
