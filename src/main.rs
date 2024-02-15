@@ -1,12 +1,4 @@
-use firstx::{
-    app::{
-        app,
-        embeds::{embed, license_checker},
-    },
-    raydium::subscribe::raydium_stream,
-};
-use log::info;
-use serde_json::json;
+use firstx::app::app;
 
 #[tokio::main]
 async fn main() {

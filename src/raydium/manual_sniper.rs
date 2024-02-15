@@ -1,119 +1,42 @@
-use crate::app::UserData;
-use crate::env::rpc_key;
-use crate::raydium::manual_sniper::sniper_txn_in;
-use crate::raydium::utils::parser::parse_signatures;
-use crate::raydium::utils::utils::{market_authority, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT};
-use log::{error, info};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use solana_client::nonblocking::pubsub_client::PubsubClient;
-use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_client::rpc_config::{RpcTransactionLogsConfig, RpcTransactionLogsFilter};
-
-use solana_program::pubkey::Pubkey;
-use solana_sdk::commitment_config::CommitmentConfig;
-use std::str::FromStr;
-use std::sync::Arc;
-
-use futures::{pin_mut, StreamExt};
-use solana_transaction_status::option_serializer::OptionSerializer;
-use solana_transaction_status::{
-    EncodedTransaction, UiInstruction, UiMessage, UiParsedInstruction,
+use std::{
+    str::FromStr,
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Deserialize)]
-#[allow(non_snake_case, dead_code)]
-pub struct ParsedInfo {
-    pub account: String,
-    pub mint: String,
-    pub source: String,
-    pub systemProgram: String,
-    pub tokenProgram: String,
-    pub wallet: String,
-}
+use futures_util::{pin_mut, StreamExt};
+use log::{error, info};
+use serde_json::Value;
+use solana_client::{
+    nonblocking::{pubsub_client::PubsubClient, rpc_client::RpcClient},
+    rpc_config::{RpcTransactionLogsConfig, RpcTransactionLogsFilter},
+};
+use solana_program::{native_token::sol_to_lamports, pubkey::Pubkey};
+use solana_sdk::commitment_config::CommitmentConfig;
+use solana_transaction_status::{
+    option_serializer::OptionSerializer, EncodedTransaction, UiInstruction, UiMessage,
+    UiParsedInstruction,
+};
+use tokio::time::sleep;
 
-#[derive(Debug, Deserialize)]
-#[allow(non_snake_case, dead_code)]
-pub struct ParsedObject {
-    pub info: ParsedInfo,
-    #[serde(rename = "type")]
-    pub type_: String,
-}
+use crate::{
+    app::{wallets::private_key, UserData},
+    env::rpc_key,
+    raydium::{
+        subscribe::{ParsedObject, PoolKeysSniper},
+        utils::{
+            parser::parse_signatures,
+            utils::{market_authority, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT},
+        },
+    },
+};
 
-#[derive(Debug, Deserialize)]
-#[allow(non_snake_case, dead_code)]
-pub struct Info {
-    pub amount: String,
-    pub authority: String,
-    pub destination: String,
-    pub source: String,
-}
+use super::swap::{
+    instructions::{SOLC_MINT, USDC_MINT},
+    swapper::{raydium_in, raydium_txn_backrun},
+};
 
-#[derive(Debug, Deserialize)]
-#[allow(non_snake_case, dead_code)]
-pub struct ParsedObject2 {
-    pub info: Info,
-    #[serde(rename = "type")]
-    pub type_: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Parsed19info {
-    pub account: String,
-    pub owner: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[allow(non_snake_case, dead_code)]
-pub struct Parsed19Object {
-    pub info: Parsed19info,
-    #[serde(rename = "type")]
-    pub type_: String,
-}
-#[derive(Debug, Deserialize)]
-#[allow(non_snake_case, dead_code)]
-pub struct Parsed2Object {
-    pub info: Parsed2info,
-    #[serde(rename = "type")]
-    pub type_: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Parsed2info {
-    pub destination: String,
-    pub lamports: u64,
-    pub source: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ParsedData {
-    pub id: String,
-    pub base_mint: String,
-    pub lp_mint: String,
-    pub decimals: u8,
-    pub authority: String,
-    pub openorders: String,
-    pub targetorders: String,
-    pub basevault: String,
-    pub quotevault: String,
-    pub message_id: String,
-}
-#[derive(Serialize)]
-pub struct MarketData {
-    pub market: String,
-    pub request_queue: String,
-    pub event_queue: String,
-    pub bids: String,
-    pub asks: String,
-    pub base_vault: String,
-    pub quote_vault: String,
-    pub base_mint: String,
-    pub quote_mint: String,
-    pub serum_signer: String,
-}
-
-pub async fn auto_sniper_stream(user_data: UserData) -> eyre::Result<()> {
+pub async fn raydium_stream(user_data: UserData) -> eyre::Result<()> {
     let rpc_client_url = rpc_key();
     let pubsub_client = PubsubClient::new(&rpc_client_url.clone()).await?;
     let rpc_client_url = rpc_client_url.replace("wss", "https");
@@ -294,42 +217,45 @@ pub async fn auto_sniper_stream(user_data: UserData) -> eyre::Result<()> {
                                         _ => println!("Transaction is not of type Accounts"),
                                     }
                                 }
-                                let mut open_time = 0;
-
-                                if let OptionSerializer::Some(log_messages) =
-                                    transaction_meta.log_messages.clone()
+                                if user_data.tokenOut.to_lowercase()
+                                    == pool_infos.base_mint.to_string().to_lowercase()
                                 {
-                                    // Define a regex pattern to match the open_time value
-                                    let re = regex::Regex::new(r"open_time: (\d+)").unwrap();
+                                    let mut open_time = 0;
 
-                                    for message in log_messages.iter() {
-                                        // Check if the message contains the open_time information
-                                        if let Some(captures) = re.captures(message) {
-                                            // Extract the open_time value from the captures
-                                            if let Some(open_time_match) = captures.get(1) {
-                                                // Convert the captured value to a numeric type (e.g., u64)
-                                                if let Ok(open_time_value) =
-                                                    open_time_match.as_str().parse::<u64>()
-                                                {
-                                                    open_time = open_time_value;
-                                                    // Calculate the time to sleep
+                                    if let OptionSerializer::Some(log_messages) =
+                                        transaction_meta.log_messages.clone()
+                                    {
+                                        // Define a regex pattern to match the open_time value
+                                        let re = regex::Regex::new(r"open_time: (\d+)").unwrap();
+
+                                        for message in log_messages.iter() {
+                                            // Check if the message contains the open_time information
+                                            if let Some(captures) = re.captures(message) {
+                                                // Extract the open_time value from the captures
+                                                if let Some(open_time_match) = captures.get(1) {
+                                                    // Convert the captured value to a numeric type (e.g., u64)
+                                                    if let Ok(open_time_value) =
+                                                        open_time_match.as_str().parse::<u64>()
+                                                    {
+                                                        open_time = open_time_value;
+                                                    }
                                                 }
                                             }
                                         }
                                     }
-                                }
 
-                                info!(
-                                    "Pool Infos: {}",
-                                    serde_json::to_string_pretty(&pool_infos).unwrap()
-                                );
+                                    info!(
+                                        "Pool Infos: {}",
+                                        serde_json::to_string_pretty(&pool_infos).unwrap()
+                                    );
 
-                                let data =
-                                    sniper_txn_in(pool_infos, rpc_client, open_time, user_data);
-                                match data.await {
-                                    Ok(_) => {}
-                                    Err(e) => {
-                                        error!("Error: {:?}", e);
+                                    let data =
+                                        sniper_txn_in(pool_infos, rpc_client, open_time, user_data);
+                                    match data.await {
+                                        Ok(_) => {}
+                                        Err(e) => {
+                                            error!("Error: {:?}", e);
+                                        }
                                     }
                                 }
                             }
@@ -343,39 +269,51 @@ pub async fn auto_sniper_stream(user_data: UserData) -> eyre::Result<()> {
     Ok(())
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct PoolKeysSniper {
-    pub id: String,
-    pub base_mint: String,
-    pub quote_mint: String,
-    pub lp_mint: String,
-    pub base_decimals: u8,
-    pub quote_decimals: u8,
-    pub lp_decimals: u8,
-    pub version: u8,
-    pub program_id: String,
-    pub authority: String,
-    pub open_orders: String,
-    pub target_orders: String,
-    pub base_vault: String,
-    pub quote_vault: String,
-    pub withdraw_queue: String,
-    pub lp_vault: String,
-    pub market_version: u8,
-    pub market_program_id: String,
-    pub market_id: String,
-    pub market_authority: String,
-    pub market_base_vault: String,
-    pub market_quote_vault: String,
-    pub market_bids: String,
-    pub market_asks: String,
-    pub market_event_queue: String,
-    pub lookup_table_account: String,
-}
-impl PoolKeysSniper {
-    pub fn new() -> Self {
-        Self {
-            ..Default::default()
-        }
-    }
+pub async fn sniper_txn_in(
+    pool_keys: PoolKeysSniper,
+    rpc_client: Arc<RpcClient>,
+    sleep_duration: u64,
+    record: UserData,
+) -> eyre::Result<()> {
+    let wallet = Arc::new(private_key(record.wallet));
+    let module = record.module;
+    let platform = record.platform;
+    let token_in = record.tokenIn;
+    let token_out = record.tokenOut;
+    let amount_in = sol_to_lamports(record.amount_sol);
+    let max_tx = record.max_tx;
+    let tx_delay = record.tx_delay;
+    let priority_fee = sol_to_lamports(record.priority_fee);
+    let ms_before_drop = record.ms_before_drop;
+    let sell_percent = record.autosell_percent;
+    let sell_ms = record.autosell_ms;
+
+    let token_in = if token_in.to_lowercase() == "sol" {
+        SOLC_MINT
+    } else {
+        USDC_MINT
+    };
+
+    let current_time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("SystemTime before UNIX EPOCH!")
+        .as_secs();
+
+    let sleep_duration = if sleep_duration > current_time {
+        println!(
+            "Sleep Duration: {:?} Mins",
+            (sleep_duration - current_time) / 60
+        );
+        Duration::from_secs(sleep_duration - current_time)
+    } else {
+        Duration::from_secs(0)
+    };
+
+    sleep(sleep_duration).await;
+
+    let swap_transaction = raydium_in(&wallet, pool_keys.clone(), amount_in, 1, priority_fee).await;
+
+    let backrun_swap = raydium_txn_backrun(rpc_client, &wallet, pool_keys).await;
+
+    Ok(())
 }

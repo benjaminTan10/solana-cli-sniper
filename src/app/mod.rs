@@ -1,15 +1,55 @@
 pub mod embeds;
+pub mod wallets;
+use colorize::AnsiColor;
+use csv;
+use demand::{DemandOption, Select};
+use log::{error, info};
+use serde::Deserialize;
+use solana_program::native_token::sol_to_lamports;
+use std::error::Error;
+use std::fs;
 use std::thread::sleep;
 
-use colorize::AnsiColor;
-use demand::{DemandOption, Input, Select, Theme};
-use log::{error, info};
+use crate::raydium::{
+    self,
+    manual_sniper::raydium_stream,
+    subscribe::auto_sniper_stream,
+    swap::{
+        instructions::{SOLC_MINT, USDC_MINT},
+        swapper::raydium_in,
+    },
+};
 
-use self::embeds::{embed, license_checker};
+use self::{
+    embeds::{embed, license_checker},
+    wallets::{private_key, wallet_logger},
+};
+
+#[warn(non_snake_case)]
+#[derive(Debug, Deserialize, Clone)]
+pub struct UserData {
+    pub module: String,
+    pub platform: String,
+    pub mode: String,
+    pub wallet: String,
+    #[serde(rename = "in")]
+    pub tokenIn: String,
+    #[serde(rename = "out")]
+    pub tokenOut: String,
+    pub amount_sol: f64,
+    pub max_tx: f64,
+    pub tx_delay: f64,
+    pub priority_fee: f64,
+    pub ms_before_drop: f64,
+    pub autosell_take_profit: f64,
+    pub autosell_stop_loss: f64,
+    pub autosell_percent: f64,
+    pub autosell_ms: f64,
+}
 
 pub async fn app() -> Result<(), Box<dyn std::error::Error>> {
     let _ = println!("{}", embed().blue());
-    let check = match license_checker().await {
+    let _ = match license_checker().await {
         Ok(_) => info!("License Verified"),
         Err(e) => {
             error!("{}", e);
@@ -29,17 +69,56 @@ pub async fn app() -> Result<(), Box<dyn std::error::Error>> {
 
     match selected_option {
         "[1] Start Tasks" => {
-            info!("Starting tasks...");
+            let _ = tasks_list().await?;
         }
         "[2] View Wallets" => {
-            // Call the function for viewing wallets here
+            let _ = wallet_logger("wallet_1".to_string()).await;
         }
         "[3] Join Discord" => {
-            // Call the function for joining Discord here
+            info!("Discord link: https://discord.gg/firsttx")
         }
         _ => {
             // Handle unexpected option here
         }
+    }
+
+    Ok(())
+}
+
+pub async fn tasks_list() -> Result<(), Box<dyn Error>> {
+    let mut select = Select::new(" ")
+        .description("Welcome, please select a CSV file for Task")
+        .filterable(true);
+
+    let entries = fs::read_dir("./tasks/")?;
+    for entry in entries {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_file() && path.extension() == Some(std::ffi::OsStr::new("csv")) {
+            select = select.option(DemandOption::new(path.to_string_lossy().to_string()));
+        }
+    }
+
+    let selected_option = select.run().expect("error running select");
+
+    // Open the selected CSV file
+    let mut rdr = csv::Reader::from_path(&selected_option)?;
+
+    // Read the CSV records
+    for result in rdr.deserialize() {
+        let record: UserData = result?;
+        // Handle the record here
+        println!("{:?}", record);
+    }
+
+    Ok(())
+}
+
+pub async fn tasks_handler(record: UserData) -> Result<(), Box<dyn Error>> {
+    if record.mode == "manual".to_string() {
+        let _ = raydium_stream(record).await;
+    } else {
+        let _ = auto_sniper_stream(record).await;
     }
 
     Ok(())

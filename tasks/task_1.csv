@@ -1,0 +1,2 @@
+module,platform,mode,wallet,in,out,amount_sol,max_tx,tx_delay,priority_fee,ms_before_drop,autosell_take_profit,autosell_stop_loss,autosell_percent,autosell_ms
+swap,raydium,spam,wallet 1,sol,sdfsdjsdfjsdfjsfjsf,2.5,0,0,0.0001,1000,0,0,100,0
