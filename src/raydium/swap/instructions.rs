@@ -92,7 +92,6 @@ pub struct SwapInstructionBaseIn {
 
 pub const SOLC_MINT: Pubkey = pubkey!("So11111111111111111111111111111111111111112");
 pub const USDC_MINT: Pubkey = pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
-pub const TAX_ACCOUNT: Pubkey = pubkey!("D5bBVBQDNDzroQpduEJasYL5HkvARD6TcNu3yJaeVK5W");
 /// Creates a 'swap base in' instruction.
 pub async fn swap_base_in(
     amm_program: &Pubkey,
@@ -241,7 +240,7 @@ pub async fn swap_base_out(
         AccountMeta::new_readonly(*market_vault_signer, false),
         // user
         AccountMeta::new(source_token_account, false),
-        AccountMeta::new(*wallet_address, false),
+        AccountMeta::new(destination_token_account, false),
         AccountMeta::new_readonly(*user_source_owner, true),
     ];
 
