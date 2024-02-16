@@ -14,7 +14,7 @@ pub fn private_key(wallet: String) -> Keypair {
 
 //read the private key from the json file
 fn private_key_env(wallet: String) -> String {
-    let private_key = fs::read_to_string(format!("./{}.json", wallet))
+    let private_key = fs::read_to_string(format!("./wallets/{}.json", wallet))
         .expect("Unable to read file, Check the file name and try again.");
     let private_key: serde_json::Value = serde_json::from_str(&private_key).unwrap();
 
