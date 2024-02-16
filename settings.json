@@ -1,4 +1,4 @@
 {
-    "WSS": "wss://mainnet.helius-rpc.com/?api-key=d9e80c44-bc75-4139-8cc7-084cefe506c7",
-    "RPC": "https://mainnet.helius-rpc.com/?api-key=d9e80c44-bc75-4139-8cc7-084cefe506c7"
+    "WSS": "ws://64.176.215.55:8900/",
+    "RPC": "http://64.176.215.55:8899/"
 }
