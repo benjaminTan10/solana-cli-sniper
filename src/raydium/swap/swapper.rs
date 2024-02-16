@@ -61,7 +61,7 @@ pub async fn raydium_in(
     )
     .await?;
 
-    let config = CommitmentLevel::Finalized;
+    let config = CommitmentLevel::Confirmed;
     let (latest_blockhash, _) = rpc_client
         .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
             commitment: config,
@@ -94,8 +94,6 @@ pub async fn raydium_in(
 
     let config = RpcSendTransactionConfig {
         skip_preflight: true,
-        preflight_commitment: Some(CommitmentLevel::Processed),
-        max_retries: Some(20),
         ..Default::default()
     };
 
@@ -246,7 +244,7 @@ pub async fn raydium_out(
     )
     .await?;
 
-    let config = CommitmentLevel::Finalized;
+    let config = CommitmentLevel::Confirmed;
     let (latest_blockhash, _) = rpc_client
         .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
             commitment: config,
@@ -286,8 +284,6 @@ pub async fn raydium_out(
 
     let config = RpcSendTransactionConfig {
         skip_preflight: true,
-        preflight_commitment: Some(CommitmentLevel::Processed),
-        max_retries: Some(20),
         ..Default::default()
     };
 
