@@ -108,7 +108,7 @@ pub async fn tasks_list() -> Result<(), Box<dyn Error>> {
     for result in rdr.deserialize() {
         let record: UserData = result?;
         // Handle the record here
-        println!("{:?}", record);
+        let _ = tasks_handler(record).await;
     }
 
     Ok(())

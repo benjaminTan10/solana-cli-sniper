@@ -1,14 +1,24 @@
 use std::fs;
 
-use log::info;
+use log::{error, info};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{bs58, signature::Keypair, signer::Signer};
 
 pub fn private_key(wallet: String) -> Keypair {
     let key = &private_key_env(wallet);
-    let secret_key = bs58::decode(key).into_vec().unwrap();
+    let secret_key = match bs58::decode(key).into_vec() {
+        Ok(v) => v,
+        Err(e) => {
+            panic!("Error: {}", e);
+        }
+    };
     let secret_key = secret_key.as_slice();
-    let secret_key = Keypair::from_bytes(secret_key).unwrap();
+    let secret_key = match Keypair::from_bytes(secret_key) {
+        Ok(v) => v,
+        Err(e) => {
+            panic!("Error: {}", e);
+        }
+    };
     return secret_key;
 }
 
