@@ -21,7 +21,6 @@ use tokio::time::sleep;
 
 use crate::{
     app::{wallets::private_key, UserData},
-    env::rpc_key,
     raydium::{
         subscribe::{ParsedObject, PoolKeysSniper},
         utils::{
@@ -29,6 +28,7 @@ use crate::{
             utils::{market_authority, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT},
         },
     },
+    rpc::{rpc_key, wss_key},
 };
 
 use super::swap::{
@@ -37,7 +37,7 @@ use super::swap::{
 };
 
 pub async fn raydium_stream(user_data: UserData) -> eyre::Result<()> {
-    let rpc_client_url = rpc_key();
+    let rpc_client_url = wss_key();
     let pubsub_client = PubsubClient::new(&rpc_client_url.clone()).await?;
     let rpc_client_url = rpc_client_url.replace("wss", "https");
     let rpc_client = Arc::new(RpcClient::new(rpc_client_url));
@@ -311,9 +311,22 @@ pub async fn sniper_txn_in(
 
     sleep(sleep_duration).await;
 
-    let swap_transaction = raydium_in(&wallet, pool_keys.clone(), amount_in, 1, priority_fee).await;
+    let swap_transaction =
+        match raydium_in(&wallet, pool_keys.clone(), amount_in, 1, priority_fee).await {
+            Ok(v) => v,
+            Err(e) => {
+                error!("Error: {:?}", e);
+                return Err(eyre::eyre!("Error: {:?}", e));
+            }
+        };
 
-    let backrun_swap = raydium_txn_backrun(rpc_client, &wallet, pool_keys).await;
+    let backrun_swap = match raydium_txn_backrun(rpc_client, &wallet, pool_keys).await {
+        Ok(v) => v,
+        Err(e) => {
+            error!("Error: {:?}", e);
+            return Err(eyre::eyre!("Error: {:?}", e));
+        }
+    };
 
     Ok(())
 }

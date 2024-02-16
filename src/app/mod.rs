@@ -5,7 +5,6 @@ use csv;
 use demand::{DemandOption, Select};
 use log::{error, info};
 use serde::Deserialize;
-use solana_program::native_token::sol_to_lamports;
 use std::error::Error;
 use std::fs;
 use std::thread::sleep;
@@ -72,7 +71,7 @@ pub async fn app() -> Result<(), Box<dyn std::error::Error>> {
             let _ = tasks_list().await?;
         }
         "[2] View Wallets" => {
-            let _ = wallet_logger("wallet_1".to_string()).await;
+            let _ = wallet_logger().await;
         }
         "[3] Join Discord" => {
             info!("Discord link: https://discord.gg/firsttx")
@@ -116,9 +115,15 @@ pub async fn tasks_list() -> Result<(), Box<dyn Error>> {
 
 pub async fn tasks_handler(record: UserData) -> Result<(), Box<dyn Error>> {
     if record.mode == "manual".to_string() {
-        let _ = raydium_stream(record).await;
+        let _ = match raydium_stream(record).await {
+            Ok(_) => info!("Manual Sniper Started"),
+            Err(e) => error!("{}", e),
+        };
     } else {
-        let _ = auto_sniper_stream(record).await;
+        let _ = match auto_sniper_stream(record).await {
+            Ok(_) => info!("Auto Sniper Started"),
+            Err(e) => error!("{}", e),
+        };
     }
 
     Ok(())

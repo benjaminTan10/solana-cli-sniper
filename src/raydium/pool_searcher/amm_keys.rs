@@ -4,7 +4,7 @@ use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::pubkey::Pubkey;
 
 use crate::{
-    env::rpc_key,
+    rpc::rpc_key,
     raydium::{
         subscribe::PoolKeysSniper,
         utils::utils::{

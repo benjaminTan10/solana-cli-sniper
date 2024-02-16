@@ -1,3 +1,3 @@
 pub mod app;
-pub mod env;
+pub mod rpc;
 pub mod raydium;

@@ -1,8 +1,8 @@
 use crate::app::UserData;
-use crate::env::rpc_key;
 use crate::raydium::manual_sniper::sniper_txn_in;
 use crate::raydium::utils::parser::parse_signatures;
 use crate::raydium::utils::utils::{market_authority, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT};
+use crate::rpc::{rpc_key, wss_key};
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -114,7 +114,7 @@ pub struct MarketData {
 }
 
 pub async fn auto_sniper_stream(user_data: UserData) -> eyre::Result<()> {
-    let rpc_client_url = rpc_key();
+    let rpc_client_url = wss_key();
     let pubsub_client = PubsubClient::new(&rpc_client_url.clone()).await?;
     let rpc_client_url = rpc_client_url.replace("wss", "https");
     let rpc_client = Arc::new(RpcClient::new(rpc_client_url));

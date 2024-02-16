@@ -9,7 +9,7 @@ use solana_client::{
 };
 use solana_program::pubkey::Pubkey;
 
-use crate::{env::rpc_key, raydium::subscribe::PoolKeysSniper};
+use crate::{rpc::rpc_key, raydium::subscribe::PoolKeysSniper};
 
 #[allow(non_snake_case)]
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
@@ -292,7 +292,10 @@ impl SPL_MINT_LAYOUT {
         use std::io::Read;
 
         let mut buf = [0u8; 8];
-        input.read_exact(&mut buf)?;
+        let _ = match input.read_exact(&mut buf) {
+            Ok(_) => Ok(u64::from_le_bytes(buf)),
+            Err(e) => Err(eyre::eyre!("Error: {}", e)),
+        };
         Ok(u64::from_le_bytes(buf))
     }
     fn unpack_u8(input: &mut &[u8]) -> eyre::Result<u8> {
