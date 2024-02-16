@@ -118,7 +118,7 @@ pub async fn raydium_in(
             .confirm_transaction_with_spinner(
                 &result,
                 &rpc_client_1.get_latest_blockhash().await.unwrap(),
-                solana_sdk::commitment_config::CommitmentConfig::confirmed(),
+                solana_sdk::commitment_config::CommitmentConfig::processed(),
             )
             .await
         {
