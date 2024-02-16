@@ -39,8 +39,7 @@ use super::swap::{
 pub async fn raydium_stream(user_data: UserData) -> eyre::Result<()> {
     let rpc_client_url = wss_key();
     let pubsub_client = PubsubClient::new(&rpc_client_url.clone()).await?;
-    let rpc_client_url = rpc_client_url.replace("wss", "https");
-    let rpc_client = Arc::new(RpcClient::new(rpc_client_url));
+    let rpc_client = Arc::new(RpcClient::new(rpc_key()));
 
     let raydium_liquidity = vec!["7YttLkHDoNj9wyDur5pM1ejNaAvT9X4eqaYcHQqtj2G5".to_string()];
 
