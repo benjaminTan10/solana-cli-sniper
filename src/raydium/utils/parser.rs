@@ -1,3 +1,4 @@
+use log::debug;
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcTransactionConfig};
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_transaction_status::{
@@ -22,6 +23,7 @@ pub async fn parse_signatures(
         match rpc_client
             .get_transaction_with_config(
                 &solana_sdk::signature::Signature::from_str(&confirmed_sigs).unwrap(),
+                // encoding_1,
                 config,
             )
             .await
@@ -29,6 +31,7 @@ pub async fn parse_signatures(
             Ok(signs) => {
                 if let Some(transaction_meta) = signs.transaction.meta {
                     let transaction = signs.transaction.transaction;
+                    debug!("Transaction: {:?}", transaction_meta);
                     return Some((transaction_meta, transaction));
                 } else {
                     println!("Transaction is null");
