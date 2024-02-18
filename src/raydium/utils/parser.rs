@@ -1,15 +1,11 @@
-use log::debug;
-use solana_client::{rpc_client::RpcClient, rpc_config::RpcTransactionConfig};
+use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcTransactionConfig};
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_transaction_status::{
     EncodedTransaction, UiTransactionEncoding, UiTransactionStatusMeta,
 };
-use std::{
-    str::FromStr,
-    time::{Duration, Instant},
-};
+use std::str::FromStr;
 
-use crate::rpc::rpc_key;
+use crate::rpc::{self, rpc_key};
 
 pub async fn parse_signatures(
     confirmed_sigs: &String,
@@ -23,17 +19,18 @@ pub async fn parse_signatures(
         max_supported_transaction_version: Some(0),
     };
 
-    let start_time = Instant::now();
+    let mut attempts = 0;
     loop {
-        match rpc_client.get_transaction_with_config(
-            &solana_sdk::signature::Signature::from_str(&confirmed_sigs).unwrap(),
-            // encoding_1,
-            config,
-        ) {
+        match rpc_client
+            .get_transaction_with_config(
+                &solana_sdk::signature::Signature::from_str(&confirmed_sigs).unwrap(),
+                config,
+            )
+            .await
+        {
             Ok(signs) => {
                 if let Some(transaction_meta) = signs.transaction.meta {
                     let transaction = signs.transaction.transaction;
-                    debug!("Transaction: {:?}", transaction_meta);
                     return Some((transaction_meta, transaction));
                 } else {
                     println!("Transaction is null");
@@ -41,10 +38,11 @@ pub async fn parse_signatures(
                 }
             }
             Err(err) => {
-                if start_time.elapsed() >= Duration::from_secs(60) {
+                attempts += 1;
+                if attempts >= 15 {
                     println!(
-                        "Error getting transaction after 60 seconds: {:?} - Signature {}",
-                        err, confirmed_sigs
+                        "Error getting transaction after {} attempts: {:?} - Signature {}",
+                        attempts, err, confirmed_sigs
                     );
                     return None;
                 }

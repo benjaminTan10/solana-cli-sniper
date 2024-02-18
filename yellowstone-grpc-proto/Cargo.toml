@@ -1,0 +1,23 @@
+[package]
+name = "yellowstone-grpc-proto"
+version = "1.12.0+solana.1.17.16"
+edition = "2021"
+description = "Yellowstone gRPC Geyser Protobuf Definitions"
+license = "Apache-2.0"
+
+[dependencies]
+bincode = "1.3.3"
+
+prost-types = "0.12.3"
+tonic = "0.10.2"
+bytes = "1.3.0"
+thiserror = "1.0.56"
+solana-account-decoder = "1.17.20"
+solana-sdk = "1.17.20"
+solana-transaction-status = "1.17.20"
+prost = "0.12.1"
+
+[build-dependencies]
+anyhow = "1.0.77"
+protobuf-src = "1.1.0"
+tonic-build = "0.11.0"

@@ -1,13 +1,16 @@
 pub mod embeds;
 pub mod wallets;
-use colorize::AnsiColor;
 use csv;
-use demand::{DemandOption, Select};
+use demand::{DemandOption, Input, Select, Theme};
 use log::{error, info};
 use serde::Deserialize;
-use std::error::Error;
+use solana_program::pubkey::Pubkey;
+use solana_sdk::bs58;
+use solana_sdk::signature::Keypair;
 use std::fs;
 use std::thread::sleep;
+use std::{error::Error, str::FromStr};
+use termcolor::{Color, ColorSpec, WriteColor};
 
 use crate::raydium::{
     self,
@@ -47,34 +50,43 @@ pub struct UserData {
 }
 
 pub async fn app() -> Result<(), Box<dyn std::error::Error>> {
-    let _ = println!("{}", embed().blue());
-    let _ = match license_checker().await {
-        Ok(_) => info!("License Verified"),
-        Err(e) => {
-            error!("{}", e);
-            sleep(std::time::Duration::from_secs(10));
-            std::process::exit(1);
-        }
-    };
+    let _ = println!("{}", embed());
+    // let _ = match license_checker().await {
+    //     Ok(_) => info!("License Verified"),
+    //     Err(e) => {
+    //         error!("{}", e);
+    //         sleep(std::time::Duration::from_secs(10));
+    //         std::process::exit(1);
+    //     }
+    // };
 
-    let ms = Select::new("FirstTx")
-        .description("Welcome, please select the mode (1-3)")
+    let theme = Theme {
+        title: ColorSpec::new().set_fg(Some(Color::Blue)).clone(),
+        ..Theme::default()
+    };
+    let ms = Select::new("Main Menu")
+        .description("Select the Mode")
+        .theme(&theme)
         .filterable(true)
-        .option(DemandOption::new("[1] Start Tasks"))
-        .option(DemandOption::new("[2] View Wallets"))
-        .option(DemandOption::new("[3] Join Discord"));
+        .option(DemandOption::new("[1] Wrap SOL"))
+        .option(DemandOption::new("[2] Generate Volume"))
+        .option(DemandOption::new("[3] View Wallets"));
 
     let selected_option = ms.run().expect("error running select");
 
     match selected_option {
-        "[1] Start Tasks" => {
-            let _ = tasks_list().await?;
+        "[1] Wrap SOL" => {
+            println!(
+                "Bot Requires Wrapped SOL, wrap it using the following Link:
+            \n\
+            https://arcane-deployer.vercel.app/"
+            )
         }
-        "[2] View Wallets" => {
+        "[2] Generate Volume" => {
+            let _ = volume_generator().await;
+        }
+        "[3] View Wallets" => {
             let _ = wallet_logger().await;
-        }
-        "[3] Join Discord" => {
-            info!("Discord link: https://discord.gg/firsttx")
         }
         _ => {
             // Handle unexpected option here
@@ -125,6 +137,39 @@ pub async fn tasks_handler(record: UserData) -> Result<(), Box<dyn Error>> {
             Err(e) => error!("{}", e),
         };
     }
+
+    Ok(())
+}
+
+pub async fn token_env() -> Result<Pubkey, Box<dyn Error>> {
+    let t = Input::new("Pool Address:")
+        .placeholder("5eSB1...vYF49")
+        .prompt("Input: ");
+
+    let mint_address = t.run().expect("error running input");
+
+    let token_pubkey = Pubkey::from_str(&mint_address)?;
+
+    Ok(token_pubkey)
+}
+pub async fn private_key_env() -> Result<Keypair, Box<dyn Error>> {
+    let t = Input::new("Private Key: ")
+        .placeholder("5eSB1...vYF49")
+        .prompt("Input: ");
+
+    let private_key = t.run().expect("error running input");
+
+    let secret_key = bs58::decode(private_key.clone()).into_vec()?;
+
+    let wallet = Keypair::from_bytes(&secret_key)?;
+
+    Ok(wallet)
+}
+
+pub async fn volume_generator() -> Result<(), Box<dyn Error>> {
+    let pool_address = token_env().await?;
+
+    let wallet = private_key_env().await?;
 
     Ok(())
 }
