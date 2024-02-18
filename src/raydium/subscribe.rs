@@ -140,7 +140,7 @@ pub async fn auto_sniper_stream(user_data: UserData) -> eyre::Result<()> {
         tokio::spawn(async move {
             let signature = &logs_response.value.signature;
 
-            let parsed_sigs = parse_signatures(&rpc_client, &signature).await;
+            let parsed_sigs = parse_signatures(&signature).await;
 
             if let Some((transaction_meta, transaction)) = parsed_sigs {
                 if let OptionSerializer::Some(inner_instructions) =

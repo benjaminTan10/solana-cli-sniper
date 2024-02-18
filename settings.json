@@ -1,4 +1,4 @@
 {
-    "WSS": "ws://64.176.215.55:8900/",
-    "RPC": "http://64.176.215.55:8899/"
+    "WSS": "ws://newyork.rpcnode.io/premium/",
+    "RPC": "http://newyork.rpcnode.io/premium/"
 }
