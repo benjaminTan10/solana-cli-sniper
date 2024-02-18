@@ -4,7 +4,10 @@ use solana_sdk::commitment_config::CommitmentConfig;
 use solana_transaction_status::{
     EncodedTransaction, UiTransactionEncoding, UiTransactionStatusMeta,
 };
-use std::str::FromStr;
+use std::{
+    str::FromStr,
+    time::{Duration, Instant},
+};
 
 use crate::rpc::rpc_key;
 
@@ -20,7 +23,7 @@ pub async fn parse_signatures(
         max_supported_transaction_version: Some(0),
     };
 
-    let mut attempts = 0;
+    let start_time = Instant::now();
     loop {
         match rpc_client.get_transaction_with_config(
             &solana_sdk::signature::Signature::from_str(&confirmed_sigs).unwrap(),
@@ -38,11 +41,10 @@ pub async fn parse_signatures(
                 }
             }
             Err(err) => {
-                attempts += 1;
-                if attempts >= 15 {
+                if start_time.elapsed() >= Duration::from_secs(60) {
                     println!(
-                        "Error getting transaction after {} attempts: {:?} - Signature {}",
-                        attempts, err, confirmed_sigs
+                        "Error getting transaction after 60 seconds: {:?} - Signature {}",
+                        err, confirmed_sigs
                     );
                     return None;
                 }
