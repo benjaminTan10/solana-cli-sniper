@@ -318,22 +318,22 @@ pub async fn sniper_txn_in(
 
     sleep(sleep_duration).await;
 
-    let swap_transaction =
-        match raydium_in(&wallet, pool_keys.clone(), amount_in, 1, priority_fee, args).await {
-            Ok(v) => v,
-            Err(e) => {
-                error!("Error: {:?}", e);
-                return Err(eyre::eyre!("Error: {:?}", e));
-            }
-        };
+    // let swap_transaction =
+    //     match raydium_in(&wallet, pool_keys.clone(), amount_in, 1, priority_fee, args).await {
+    //         Ok(v) => v,
+    //         Err(e) => {
+    //             error!("Error: {:?}", e);
+    //             return Err(eyre::eyre!("Error: {:?}", e));
+    //         }
+    //     };
 
-    let backrun_swap = match raydium_txn_backrun(rpc_client, &wallet, pool_keys).await {
-        Ok(v) => v,
-        Err(e) => {
-            error!("Error: {:?}", e);
-            return Err(eyre::eyre!("Error: {:?}", e));
-        }
-    };
+    // let backrun_swap = match raydium_txn_backrun(rpc_client, &wallet, pool_keys).await {
+    //     Ok(v) => v,
+    //     Err(e) => {
+    //         error!("Error: {:?}", e);
+    //         return Err(eyre::eyre!("Error: {:?}", e));
+    //     }
+    // };
 
     Ok(())
 }

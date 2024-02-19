@@ -21,7 +21,7 @@ pub fn connection() -> RpcClient {
 }
 
 pub fn rpc_key() -> String {
-    let rpc_url = env::var("RPC_ENDPOINT").unwrap_or("http://172.17.0.1:8899".to_string());
+    let rpc_url = env::var("RPC_ENDPOINT").unwrap_or("http://64.176.215.55:8899/".to_string());
     return rpc_url;
 }
 

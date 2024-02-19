@@ -8,8 +8,6 @@ use std::io::Write;
 async fn main() {
     pretty_env_logger::env_logger::builder()
         .filter_level(log::LevelFilter::Info)
-        // .filter_level(log::LevelFilter::Error)
-        // .filter_level(log::LevelFilter::Trace)
         .format(|f, record| {
             let level = record.level();
             let color = match level {
@@ -23,14 +21,14 @@ async fn main() {
             let mut style = f.style();
             style.set_color(color).set_bold(true);
 
-            let timestamp = Local::now().format("%d-%m-%Y %H:%M:%S");
+            let timestamp = Local::now().format("%d-%m-%Y %H:%M:%S%.3f");
 
             writeln!(
                 f,
                 "{} {} {} {}",
                 style.value(level),
                 timestamp,
-                "⮞".bold().bright_black(),
+                "⮞ ".bold().bright_black(),
                 record.args()
             )
         })

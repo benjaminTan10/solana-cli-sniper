@@ -79,13 +79,13 @@ pub struct BundledTransactions {
 }
 
 #[derive(Default)]
-struct BlockStats {
-    bundles_sent: Vec<(
+pub struct BlockStats {
+    pub bundles_sent: Vec<(
         BundledTransactions,
         tonic::Result<Response<SendBundleResponse>>,
     )>,
-    send_elapsed: u64,
-    send_rt_per_packet: Histogram,
+    pub send_elapsed: u64,
+    pub send_rt_per_packet: Histogram,
 }
 
 type Result<T> = result::Result<T, BackrunError>;
@@ -533,56 +533,56 @@ async fn run_searcher_loop(
     }
 }
 
-fn backrun_jito(args: EngineSettings) -> Result<()> {
-    pretty_env_logger::env_logger::builder()
-        .format_timestamp(Some(TimestampPrecision::Micros))
-        .init();
+// fn backrun_jito(args: EngineSettings) -> Result<()> {
+//     pretty_env_logger::env_logger::builder()
+//         .format_timestamp(Some(TimestampPrecision::Micros))
+//         .init();
 
-    let payer_keypair = Arc::new(args.payer_keypair);
-    let auth_keypair = Arc::new(args.auth_keypair);
+//     let payer_keypair = Arc::new(args.payer_keypair);
+//     let auth_keypair = Arc::new(args.auth_keypair);
 
-    set_host_id(auth_keypair.pubkey().to_string());
+//     set_host_id(auth_keypair.pubkey().to_string());
 
-    let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
-    runtime.block_on(async move {
-        let (slot_sender, slot_receiver) = channel(100);
-        let (block_sender, block_receiver) = channel(100);
-        let (bundle_results_sender, bundle_results_receiver) = channel(100);
-        let (pending_tx_sender, pending_tx_receiver) = channel(100);
+//     let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
+//     runtime.block_on(async move {
+//         let (slot_sender, slot_receiver) = channel(100);
+//         let (block_sender, block_receiver) = channel(100);
+//         let (bundle_results_sender, bundle_results_receiver) = channel(100);
+//         let (pending_tx_sender, pending_tx_receiver) = channel(100);
 
-        tokio::spawn(slot_subscribe_loop(args.pubsub_url.clone(), slot_sender));
-        tokio::spawn(block_subscribe_loop(args.pubsub_url.clone(), block_sender));
-        tokio::spawn(pending_tx_loop(
-            args.block_engine_url.clone(),
-            auth_keypair.clone(),
-            pending_tx_sender,
-            args.backrun_accounts,
-        ));
+//         tokio::spawn(slot_subscribe_loop(args.pubsub_url.clone(), slot_sender));
+//         tokio::spawn(block_subscribe_loop(args.pubsub_url.clone(), block_sender));
+//         tokio::spawn(pending_tx_loop(
+//             args.block_engine_url.clone(),
+//             auth_keypair.clone(),
+//             pending_tx_sender,
+//             args.backrun_accounts,
+//         ));
 
-        if args.subscribe_bundle_results {
-            tokio::spawn(bundle_results_loop(
-                args.block_engine_url.clone(),
-                auth_keypair.clone(),
-                bundle_results_sender,
-            ));
-        }
+//         if args.subscribe_bundle_results {
+//             tokio::spawn(bundle_results_loop(
+//                 args.block_engine_url.clone(),
+//                 auth_keypair.clone(),
+//                 bundle_results_sender,
+//             ));
+//         }
 
-        let result = run_searcher_loop(
-            args.block_engine_url,
-            auth_keypair,
-            &payer_keypair,
-            args.rpc_url,
-            args.regions,
-            args.message,
-            args.tip_program_id,
-            slot_receiver,
-            block_receiver,
-            bundle_results_receiver,
-            pending_tx_receiver,
-        )
-        .await;
-        error!("searcher loop exited result: {result:?}");
+//         let result = run_searcher_loop(
+//             args.block_engine_url,
+//             auth_keypair,
+//             &payer_keypair,
+//             args.rpc_url,
+//             args.regions,
+//             args.message,
+//             args.tip_program_id,
+//             slot_receiver,
+//             block_receiver,
+//             bundle_results_receiver,
+//             pending_tx_receiver,
+//         )
+//         .await;
+//         error!("searcher loop exited result: {result:?}");
 
-        Ok(())
-    })
-}
+//         Ok(())
+//     })
+// }

@@ -1595,6 +1595,7 @@ dependencies = [
  "backoff",
  "base64 0.21.7",
  "bincode",
+ "bs58",
  "bytes",
  "chrono",
  "clap 4.5.1",

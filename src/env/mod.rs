@@ -6,7 +6,7 @@ use solana_sdk::signature::Keypair;
 
 pub mod env_loader;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EngineSettings {
     /// URL of the block engine.
     /// See: https://jito-labs.gitbook.io/mev/searcher-resources/block-engine#connection-details
@@ -16,11 +16,11 @@ pub struct EngineSettings {
     pub backrun_accounts: Vec<Pubkey>,
 
     /// Path to keypair file used to sign and pay for transactions
-    pub payer_keypair: Keypair,
+    // pub payer_keypair: Keypair,
 
     /// Path to keypair file used to authenticate with the Jito Block Engine
     /// See: https://jito-labs.gitbook.io/mev/searcher-resources/getting-started#block-engine-api-key
-    pub auth_keypair: Keypair,
+    // pub auth_keypair: String,
 
     /// RPC Websocket URL.
     /// See: https://solana.com/docs/rpc/websocket
@@ -50,7 +50,7 @@ pub struct EngineSettings {
 #[derive(Deserialize)]
 struct HelperSettings {
     auth_keypair: String,
-    whitelisted_keypair: String,
+    // whitelisted_keypair: String,
     pubsub_url: String,
     rpc_url: String,
     block_engine_url: String,
@@ -78,10 +78,6 @@ pub async fn load_settings() -> eyre::Result<EngineSettings> {
         }
     };
 
-    let auth_keypair = Keypair::from_base58_string(&helper_settings.auth_keypair);
-
-    let payer_keypair = Keypair::from_base58_string(&helper_settings.whitelisted_keypair);
-
     let tip_program_id = match Pubkey::from_str(&helper_settings.tip_program_id) {
         Ok(pubkey) => pubkey,
         Err(e) => {
@@ -103,8 +99,8 @@ pub async fn load_settings() -> eyre::Result<EngineSettings> {
                 }
             })
             .collect(),
-        payer_keypair,
-        auth_keypair,
+        // payer_keypair,
+        // auth_keypair,
         pubsub_url: helper_settings.pubsub_url,
         rpc_url: helper_settings.rpc_url,
         message: helper_settings.message,

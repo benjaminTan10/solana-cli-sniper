@@ -1,13 +1,15 @@
 use {
     super::lib::GeyserGrpcClient,
     crate::{
-        env::env_loader::{connection, endpoint},
+        app::MevApe,
+        env::{
+            env_loader::{connection, endpoint, private_key},
+            load_settings,
+        },
         raydium::{
-            sniper::{
-                subscribe::sniper_txn_in,
-                utils::{market_authority, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT},
-            },
+            sniper::utils::{market_authority, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT},
             subscribe::PoolKeysSniper,
+            swap::swapper::raydium_in,
         },
     },
     chrono::{DateTime, NaiveDateTime, Utc},
@@ -17,15 +19,16 @@ use {
     maplit::hashmap,
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_program::pubkey::Pubkey,
-    solana_sdk::signature::Signature,
+    solana_sdk::signature::{Keypair, Signature},
     std::{
         collections::{BTreeMap, HashMap},
         env,
         fs::File,
         str::FromStr,
         sync::Arc,
-        time::{SystemTime, UNIX_EPOCH},
+        time::{Duration, SystemTime, UNIX_EPOCH},
     },
+    tokio::time::sleep,
     yellowstone_grpc_proto::{
         prelude::{
             subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
@@ -82,7 +85,7 @@ impl From<ArgsCommitment> for CommitmentLevel {
     }
 }
 
-pub async fn txn_blocktime() -> anyhow::Result<()> {
+pub async fn txn_blocktime(mev_ape: MevApe) -> anyhow::Result<()> {
     info!("Calling Events..");
 
     let endpoint = endpoint();
@@ -116,22 +119,17 @@ pub async fn txn_blocktime() -> anyhow::Result<()> {
             ping: None,
         })
         .await?;
+    let mev_ape = Arc::new(mev_ape);
 
-    let mut messages: BTreeMap<u64, (Option<DateTime<Utc>>, Vec<String>)> = BTreeMap::new();
     while let Some(message) = stream.next().await {
         let rpc_client = rpc_client.clone();
-
+        let mev_ape = Arc::clone(&mev_ape);
         tokio::spawn(async move {
             match message {
                 Ok(msg) => {
                     match msg.update_oneof {
                         Some(UpdateOneof::Transaction(tx)) => {
                             let info = tx.transaction.unwrap_or_default();
-
-                            let current_time = SystemTime::now()
-                                .duration_since(UNIX_EPOCH)
-                                .expect("SystemTime before UNIX EPOCH!")
-                                .as_millis();
 
                             let accounts = info
                                 .transaction
@@ -212,7 +210,7 @@ pub async fn txn_blocktime() -> anyhow::Result<()> {
                                     match rpc_client.get_multiple_accounts(&account_keys).await {
                                         Ok(a) => a,
                                         Err(e) => {
-                                            println!("Error: {:?}", e);
+                                            error!("Error: {:?}", e);
                                             return Ok::<(), ()>(());
                                         }
                                     };
@@ -225,13 +223,13 @@ pub async fn txn_blocktime() -> anyhow::Result<()> {
                                         match SPL_MINT_LAYOUT::decode(&mut &basemintinfo.data[..]) {
                                             Ok(basemintinfo) => basemintinfo,
                                             Err(e) => {
-                                                println!("Error: {:?}", e);
+                                                error!("Error: {:?}", e);
                                                 return Ok(());
                                             }
                                         }
                                     }
                                     None => {
-                                        println!("Error: {:?}", "No Base Mint Info");
+                                        error!("Error: {:?}", "No Base Mint Info");
                                         return Ok(());
                                     }
                                 };
@@ -241,13 +239,13 @@ pub async fn txn_blocktime() -> anyhow::Result<()> {
                                         match SPL_MINT_LAYOUT::decode(&mut &quoteinfo.data[..]) {
                                             Ok(quoteinfo) => quoteinfo,
                                             Err(e) => {
-                                                println!("Error: {:?}", e);
+                                                error!("Error: {:?}", e);
                                                 return Ok(());
                                             }
                                         }
                                     }
                                     None => {
-                                        println!("Error: {:?}", "No Quote Mint Info");
+                                        error!("Error: {:?}", "No Quote Mint Info");
                                         return Ok(());
                                     }
                                 };
@@ -260,14 +258,14 @@ pub async fn txn_blocktime() -> anyhow::Result<()> {
                                             ) {
                                                 Ok(marketinfo) => marketinfo,
                                                 Err(e) => {
-                                                    println!("Error: {:?}", e);
+                                                    error!("Error: {:?}", e);
                                                     return Ok(());
                                                 }
                                             };
                                         (marketinfo, decoded_marketinfo)
                                     }
                                     None => {
-                                        println!("Error: {:?}", "No Market Info");
+                                        error!("Error: {:?}", "No Market Info");
                                         return Ok(());
                                     }
                                 };
@@ -311,11 +309,11 @@ pub async fn txn_blocktime() -> anyhow::Result<()> {
                                 break;
                             }
 
-                            let _ = sniper_txn_in(
+                            let _ = sniper_txn_in_2(
                                 pool_keys[0].clone(),
                                 rpc_client.clone(),
                                 open_time,
-                                current_time,
+                                mev_ape,
                             )
                             .await;
                         }
@@ -330,6 +328,57 @@ pub async fn txn_blocktime() -> anyhow::Result<()> {
             Ok(())
         });
     }
+
+    Ok(())
+}
+
+pub async fn sniper_txn_in_2(
+    pool_keys: PoolKeysSniper,
+    rpc_client: Arc<RpcClient>,
+    sleep_duration: u64,
+    mev_ape: Arc<MevApe>,
+) -> eyre::Result<()> {
+    let args = match load_settings().await {
+        Ok(args) => args,
+        Err(e) => {
+            error!("Error: {:?}", e);
+            return Err(eyre::eyre!("Error: {:?}", e));
+        }
+    };
+
+    let private_key = &mev_ape.wallet;
+    let secret_key = bs58::decode(private_key.clone()).into_vec()?;
+
+    let wallet = Keypair::from_bytes(&secret_key)?;
+    let amount_in = &mev_ape.sol_amount;
+    let priority_fee = &mev_ape.priority_fee;
+
+    let current_time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("SystemTime before UNIX EPOCH!")
+        .as_secs();
+
+    let sleep_duration = if sleep_duration > current_time {
+        info!(
+            "Sleep Duration: {:?} Mins",
+            (sleep_duration - current_time) / 60
+        );
+        Duration::from_secs(sleep_duration - current_time)
+    } else {
+        Duration::from_secs(0)
+    };
+
+    sleep(sleep_duration).await;
+
+    let swap_transaction = raydium_in(
+        &Arc::new(wallet),
+        pool_keys.clone(),
+        *amount_in,
+        1,
+        *priority_fee,
+        args,
+    )
+    .await;
 
     Ok(())
 }

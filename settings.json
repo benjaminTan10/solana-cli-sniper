@@ -1,12 +1,10 @@
 {
     "auth_keypair": "auth-keypair.json",
-    "whitelisted_keypair": "whitelisted-keypair.json",
     "pubsub_url": "ws://64.176.215.55:8900/",
     "rpc_url": "http://64.176.215.55:8899/",
     "block_engine_url": "https://ny.mainnet.block-engine.jito.wtf",
     "backrun_accounts": [
-        "Public key 1",
-        "Public key 2"
+        "GdLNMoPtQz9oRMyA4EeMTiC6HAj4NgqGvjXAoVDv4peE"
     ],
     "message": "Jeet Molestor",
     "tip_program_id": "T1pyyaTNZsKv2WcRAB8oVnk93mLJw2XzjtVYqCsaHqt",

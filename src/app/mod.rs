@@ -4,6 +4,7 @@ use csv;
 use demand::{DemandOption, Input, Select, Theme};
 use log::{error, info};
 use serde::Deserialize;
+use solana_program::native_token::sol_to_lamports;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::bs58;
 use solana_sdk::signature::Keypair;
@@ -52,14 +53,6 @@ pub struct UserData {
 
 pub async fn app() -> Result<(), Box<dyn std::error::Error>> {
     info!("{}", embed());
-    // let _ = match license_checker().await {
-    //     Ok(_) => info!("License Verified"),
-    //     Err(e) => {
-    //         error!("{}", e);
-    //         sleep(std::time::Duration::from_secs(10));
-    //         std::process::exit(1);
-    //     }
-    // };
 
     let theme = Theme {
         title: ColorSpec::new().set_fg(Some(Color::Blue)).clone(),
@@ -82,7 +75,7 @@ pub async fn app() -> Result<(), Box<dyn std::error::Error>> {
             let _ = volume_generator().await;
         }
         "[3] Mev new Pairs" => {
-            let _ = txn_blocktime().await;
+            let _ = new_pair_mev().await;
         }
         "[4] View Wallets" => {
             let _ = wallet_logger().await;
@@ -151,18 +144,47 @@ pub async fn token_env() -> Result<Pubkey, Box<dyn Error>> {
 
     Ok(token_pubkey)
 }
-pub async fn private_key_env() -> Result<Keypair, Box<dyn Error>> {
+pub async fn sol_amount() -> Result<u64, Box<dyn Error>> {
+    let t = Input::new("Sol Amount:")
+        .placeholder("0.01")
+        .prompt("Input: ");
+
+    let string = t.run().expect("error running input");
+
+    let amount = sol_to_lamports(string.parse::<f64>()?);
+
+    Ok(amount)
+}
+pub async fn priority_fee() -> Result<u64, Box<dyn Error>> {
+    let t = Input::new("Priority Fee:")
+        .placeholder("0.0001")
+        .prompt("Input: ");
+
+    let string = t.run().expect("error running input");
+
+    let amount = sol_to_lamports(string.parse::<f64>()?);
+
+    Ok(amount)
+}
+pub async fn bundle_priority_tip() -> Result<u64, Box<dyn Error>> {
+    let t = Input::new("Bundle Tip:")
+        .placeholder("0.0001")
+        .prompt("Input: ");
+
+    let string = t.run().expect("error running input");
+
+    let amount = sol_to_lamports(string.parse::<f64>()?);
+
+    Ok(amount)
+}
+pub async fn private_key_env() -> Result<String, Box<dyn Error>> {
     let t = Input::new("Private Key: ")
         .placeholder("5eSB1...vYF49")
         .prompt("Input: ");
 
     let private_key = t.run().expect("error running input");
 
-    let secret_key = bs58::decode(private_key.clone()).into_vec()?;
-
-    let wallet = Keypair::from_bytes(&secret_key)?;
-
-    Ok(wallet)
+    Ok(private_key)
 }
 
 pub async fn volume_generator() -> Result<(), Box<dyn Error>> {
@@ -171,4 +193,33 @@ pub async fn volume_generator() -> Result<(), Box<dyn Error>> {
     let wallet = private_key_env().await?;
 
     Ok(())
+}
+
+pub async fn new_pair_mev() -> Result<(), Box<dyn Error>> {
+    let sol_amount = sol_amount().await?;
+    let priority_fee = priority_fee().await?;
+    let bundle_tip = bundle_priority_tip().await?;
+    let wallet = private_key_env().await?;
+
+    let mev_ape = MevApe {
+        sol_amount,
+        priority_fee,
+        bundle_tip,
+        wallet,
+    };
+
+    let mev = match txn_blocktime(mev_ape).await {
+        Ok(_) => info!("Transaction Sent"),
+        Err(e) => error!("{}", e),
+    };
+
+    Ok(())
+}
+
+#[derive(Debug)]
+pub struct MevApe {
+    pub sol_amount: u64,
+    pub priority_fee: u64,
+    pub bundle_tip: u64,
+    pub wallet: String,
 }

@@ -1,3 +1,4 @@
+use crate::app::{sol_amount, MevApe};
 use crate::env::env_loader::{amount_in, connection, priority_fee, private_key, rpc_key};
 use crate::env::load_settings;
 use crate::raydium::sniper::utils::{market_authority, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT};
@@ -389,7 +390,7 @@ pub async fn sniper_txn_in(
             return Err(eyre::eyre!("Error: {:?}", e));
         }
     };
-    let amount_in = amount_in();
+    let amount_in = sol_amount().await.unwrap();
     let priority_fee = priority_fee();
 
     let current_time = SystemTime::now()
