@@ -43,7 +43,7 @@ pub fn amount_in() -> u64 {
 }
 
 pub fn priority_fee() -> u64 {
-    let fee_input = env::var("PRIORITY_FEE").unwrap_or("0.001".into());
+    let fee_input = env::var("PRIORITY_FEE").unwrap_or("0.0001".into());
     let fee_in = fee_input.parse::<f64>().unwrap();
     let fee = sol_to_lamports(fee_in);
     return fee;

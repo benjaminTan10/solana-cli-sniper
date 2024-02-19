@@ -6,6 +6,7 @@ use std::{
 
 use futures_util::{pin_mut, StreamExt};
 use log::{error, info};
+use rand::thread_rng;
 use serde_json::Value;
 use solana_client::{
     nonblocking::{pubsub_client::PubsubClient, rpc_client::RpcClient},
@@ -21,6 +22,7 @@ use tokio::time::sleep;
 
 use crate::{
     app::{wallets::private_key, UserData},
+    env::load_settings,
     raydium::{
         subscribe::{ParsedObject, PoolKeysSniper},
         utils::{
@@ -247,7 +249,6 @@ pub async fn raydium_stream(user_data: UserData) -> eyre::Result<()> {
                                         "Pool Infos: {}",
                                         serde_json::to_string_pretty(&pool_infos).unwrap()
                                     );
-
                                     let data =
                                         sniper_txn_in(pool_infos, rpc_client, open_time, user_data);
                                     match data.await {
@@ -286,6 +287,13 @@ pub async fn sniper_txn_in(
     let ms_before_drop = record.ms_before_drop;
     let sell_percent = record.autosell_percent;
     let sell_ms = record.autosell_ms;
+    let args = match load_settings().await {
+        Ok(args) => args,
+        Err(e) => {
+            error!("Error: {:?}", e);
+            return Err(eyre::eyre!("Error: {:?}", e));
+        }
+    };
 
     let token_in = if token_in.to_lowercase() == "sol" {
         SOLC_MINT
@@ -311,7 +319,7 @@ pub async fn sniper_txn_in(
     sleep(sleep_duration).await;
 
     let swap_transaction =
-        match raydium_in(&wallet, pool_keys.clone(), amount_in, 1, priority_fee).await {
+        match raydium_in(&wallet, pool_keys.clone(), amount_in, 1, priority_fee, args).await {
             Ok(v) => v,
             Err(e) => {
                 error!("Error: {:?}", e);

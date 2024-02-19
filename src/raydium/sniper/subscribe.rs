@@ -1,8 +1,11 @@
 use crate::env::env_loader::{amount_in, connection, priority_fee, private_key, rpc_key};
+use crate::env::load_settings;
 use crate::raydium::sniper::utils::{market_authority, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT};
 use crate::raydium::subscribe::PoolKeysSniper;
 use crate::raydium::swap::swapper::raydium_in;
 use crate::raydium::utils::parser::parse_signatures;
+use log::error;
+use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use solana_client::nonblocking::pubsub_client::PubsubClient;
@@ -14,6 +17,7 @@ use solana_program::pubkey::Pubkey;
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
+use std::fs;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::time::sleep;
@@ -378,7 +382,13 @@ pub async fn sniper_txn_in(
     current_time_1: u128,
 ) -> eyre::Result<()> {
     let wallet = Arc::new(private_key());
-
+    let args = match load_settings().await {
+        Ok(args) => args,
+        Err(e) => {
+            error!("Error: {:?}", e);
+            return Err(eyre::eyre!("Error: {:?}", e));
+        }
+    };
     let amount_in = amount_in();
     let priority_fee = priority_fee();
 
@@ -399,7 +409,8 @@ pub async fn sniper_txn_in(
 
     sleep(sleep_duration).await;
 
-    let swap_transaction = raydium_in(&wallet, pool_keys.clone(), amount_in, 1, priority_fee).await;
+    let swap_transaction =
+        raydium_in(&wallet, pool_keys.clone(), amount_in, 1, priority_fee, args).await;
 
     Ok(())
 }

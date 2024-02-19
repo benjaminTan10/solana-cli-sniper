@@ -1,15 +1,23 @@
+use jito_searcher_client::get_searcher_client;
 use log::{error, info};
+use rand::rngs::{StdRng, ThreadRng};
+use rand::{thread_rng, Rng, SeedableRng};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_client::rpc_request::TokenAccountsFilter;
 use solana_program::pubkey::Pubkey;
+use solana_program::system_instruction::transfer;
 use solana_sdk::commitment_config::CommitmentLevel;
-use solana_sdk::transaction::VersionedTransaction;
+use solana_sdk::pubkey;
+use solana_sdk::transaction::{Transaction, VersionedTransaction};
 use solana_sdk::{signature::Keypair, signer::Signer};
+use spl_memo::build_memo;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use crate::env::EngineSettings;
+use crate::jito_plugin::lib::{generate_tip_accounts, send_bundles, BundledTransactions};
 use crate::raydium::subscribe::PoolKeysSniper;
 use crate::raydium::swap::instructions::{swap_base_in, swap_base_out, SOLC_MINT};
 use crate::rpc::rpc_key;
@@ -20,6 +28,7 @@ pub async fn raydium_in(
     amount_in: u64,
     amount_out: u64,
     priority_fee: u64,
+    args: EngineSettings,
 ) -> eyre::Result<()> {
     let user_source_owner = wallet.pubkey();
     let url = rpc_key();
@@ -81,7 +90,7 @@ pub async fn raydium_in(
         }
     };
 
-    let transaction = match VersionedTransaction::try_new(
+    let frontrun_tx = match VersionedTransaction::try_new(
         solana_program::message::VersionedMessage::V0(message),
         &[&wallet],
     ) {
@@ -91,41 +100,69 @@ pub async fn raydium_in(
             return Ok(());
         }
     };
+    let tip_accounts =
+        generate_tip_accounts(&pubkey!("T1pyyaTNZsKv2WcRAB8oVnk93mLJw2XzjtVYqCsaHqt"));
+    let mut rng = StdRng::from_entropy();
+    let tip_account = tip_accounts[rng.gen_range(0..tip_accounts.len())];
 
+    let message = "Front Transaction to Molest Jeets".to_string();
+
+    //Tip Transaction to Jito
+    let backrun_tx = VersionedTransaction::from(Transaction::new_signed_with_payer(
+        &[
+            build_memo(
+                format!("{}: {:?}", message, frontrun_tx.signatures[0].to_string()).as_bytes(),
+                &[],
+            ),
+            transfer(&wallet.pubkey(), &tip_account, 10_000),
+        ],
+        Some(&wallet.pubkey()),
+        &[wallet],
+        rpc_client.get_latest_blockhash().await.unwrap(),
+    ));
+    let mut searcher_client =
+        get_searcher_client(&args.block_engine_url, &Arc::new(args.auth_keypair)).await?;
     let config = RpcSendTransactionConfig {
         skip_preflight: true,
         ..Default::default()
     };
 
-    let result = match rpc_client
-        .send_transaction_with_config(&transaction, config)
-        .await
-    {
-        Ok(x) => x,
-        Err(e) => {
-            error!("Error: {:?}", e);
-            return Ok(());
-        }
+    let bundle_txn = BundledTransactions {
+        mempool_txs: vec![frontrun_tx],
+        backrun_txs: vec![backrun_tx],
     };
 
-    info!("Transaction Signature: {:?}", result.to_string());
+    let results = send_bundles(&mut searcher_client, &[bundle_txn]).await?;
 
-    let rpc_client_1 = rpc_client.clone();
-    tokio::spawn(async move {
-        let _ = match rpc_client_1
-            .confirm_transaction_with_spinner(
-                &result,
-                &rpc_client_1.get_latest_blockhash().await.unwrap(),
-                solana_sdk::commitment_config::CommitmentConfig::processed(),
-            )
-            .await
-        {
-            Ok(x) => x,
-            Err(e) => {
-                error!("Error: {:?}", e);
-            }
-        };
-    });
+    // let result = match rpc_client
+    //     .send_transaction_with_config(&transaction, config)
+    //     .await
+    // {
+    //     Ok(x) => x,
+    //     Err(e) => {
+    //         error!("Error: {:?}", e);
+    //         return Ok(());
+    //     }
+    // };
+
+    // info!("Transaction Signature: {:?}", result.to_string());
+
+    // let rpc_client_1 = rpc_client.clone();
+    // tokio::spawn(async move {
+    //     let _ = match rpc_client_1
+    //         .confirm_transaction_with_spinner(
+    //             &result,
+    //             &rpc_client_1.get_latest_blockhash().await.unwrap(),
+    //             solana_sdk::commitment_config::CommitmentConfig::processed(),
+    //         )
+    //         .await
+    //     {
+    //         Ok(x) => x,
+    //         Err(e) => {
+    //             error!("Error: {:?}", e);
+    //         }
+    //     };
+    // });
 
     Ok(())
 }

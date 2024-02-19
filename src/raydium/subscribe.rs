@@ -139,7 +139,6 @@ pub async fn auto_sniper_stream(user_data: UserData) -> eyre::Result<()> {
         let rpc_client = Arc::clone(&rpc_client);
         tokio::spawn(async move {
             let signature = &logs_response.value.signature;
-
             let parsed_sigs = parse_signatures(&signature).await;
 
             if let Some((transaction_meta, transaction)) = parsed_sigs {

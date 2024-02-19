@@ -50,14 +50,14 @@ use tokio::{
 use tonic::{codegen::InterceptedService, transport::Channel, Response, Status};
 
 use crate::{
-    env::Settings,
+    env::EngineSettings,
     jito_plugin::event_loop::{
         block_subscribe_loop, bundle_results_loop, pending_tx_loop, slot_subscribe_loop,
     },
 };
 
 #[derive(Debug, Error)]
-enum BackrunError {
+pub enum BackrunError {
     #[error("TonicError {0}")]
     TonicError(#[from] tonic::transport::Error),
     #[error("GrpcError {0}")]
@@ -73,9 +73,9 @@ enum BackrunError {
 }
 
 #[derive(Clone)]
-struct BundledTransactions {
-    mempool_txs: Vec<VersionedTransaction>,
-    backrun_txs: Vec<VersionedTransaction>,
+pub struct BundledTransactions {
+    pub mempool_txs: Vec<VersionedTransaction>,
+    pub backrun_txs: Vec<VersionedTransaction>,
 }
 
 #[derive(Default)]
@@ -126,7 +126,7 @@ fn build_bundles(
         .collect()
 }
 
-async fn send_bundles(
+pub async fn send_bundles(
     searcher_client: &mut SearcherServiceClient<InterceptedService<Channel, ClientInterceptor>>,
     bundles: &[BundledTransactions],
 ) -> Result<Vec<result::Result<Response<SendBundleResponse>, Status>>> {
@@ -149,7 +149,7 @@ async fn send_bundles(
     Ok(send_bundle_responses)
 }
 
-fn generate_tip_accounts(tip_program_pubkey: &Pubkey) -> Vec<Pubkey> {
+pub fn generate_tip_accounts(tip_program_pubkey: &Pubkey) -> Vec<Pubkey> {
     let tip_pda_0 = Pubkey::find_program_address(&[b"TIP_ACCOUNT_0"], tip_program_pubkey).0;
     let tip_pda_1 = Pubkey::find_program_address(&[b"TIP_ACCOUNT_1"], tip_program_pubkey).0;
     let tip_pda_2 = Pubkey::find_program_address(&[b"TIP_ACCOUNT_2"], tip_program_pubkey).0;
@@ -533,13 +533,13 @@ async fn run_searcher_loop(
     }
 }
 
-fn backrun_jito(args: Settings) -> Result<()> {
+fn backrun_jito(args: EngineSettings) -> Result<()> {
     pretty_env_logger::env_logger::builder()
         .format_timestamp(Some(TimestampPrecision::Micros))
         .init();
 
     let payer_keypair = Arc::new(args.payer_keypair);
-    let auth_keypair = Arc::new(read_keypair_file(&args.auth_keypair).expect("parse kp file"));
+    let auth_keypair = Arc::new(args.auth_keypair);
 
     set_host_id(auth_keypair.pubkey().to_string());
 

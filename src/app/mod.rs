@@ -21,6 +21,7 @@ use crate::raydium::{
         swapper::raydium_in,
     },
 };
+use crate::yellowstoneplugin::tx_blocktime::txn_blocktime;
 
 use self::{
     embeds::{embed, license_checker},
@@ -70,22 +71,20 @@ pub async fn app() -> Result<(), Box<dyn std::error::Error>> {
         .filterable(true)
         .option(DemandOption::new("[1] Wrap SOL"))
         .option(DemandOption::new("[2] Generate Volume"))
-        .option(DemandOption::new("[3] View Wallets"));
+        .option(DemandOption::new("[3] Mev new Pairs"))
+        .option(DemandOption::new("[4] View Wallets"));
 
     let selected_option = ms.run().expect("error running select");
 
     match selected_option {
-        "[1] Wrap SOL" => {
-            println!(
-                "Bot Requires Wrapped SOL, wrap it using the following Link:
-            \n\
-            https://arcane-deployer.vercel.app/"
-            )
-        }
+        "[1] Wrap SOL" => {}
         "[2] Generate Volume" => {
             let _ = volume_generator().await;
         }
-        "[3] View Wallets" => {
+        "[3] Mev new Pairs" => {
+            let _ = txn_blocktime().await;
+        }
+        "[4] View Wallets" => {
             let _ = wallet_logger().await;
         }
         _ => {
