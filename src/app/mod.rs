@@ -50,7 +50,7 @@ pub struct UserData {
 }
 
 pub async fn app() -> Result<(), Box<dyn std::error::Error>> {
-    let _ = println!("{}", embed());
+    info!("{}", embed());
     // let _ = match license_checker().await {
     //     Ok(_) => info!("License Verified"),
     //     Err(e) => {

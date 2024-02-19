@@ -46,7 +46,7 @@ log = "0.4.20"
 
 futures-util = "0.3"
 
-pretty_env_logger = "0.4.0"
+pretty_env_logger = "0.5.0"
 demand = "1.0.1"
 
 colorize = "0.1.0"
@@ -55,9 +55,9 @@ csv = "1.3.0"
 
 termcolor = "1.4.1"
 
-yellowstone-grpc-proto = { path = "./yellowstone-grpc-proto" }
-jito-protos = { path = "./jito_protos" }
-jito-searcher-client = { path = "./searcher_client" }
+yellowstone-grpc-proto = { path = "./clients/yellowstone-grpc-proto" }
+jito-protos = { path = "./clients/jito_protos" }
+jito-searcher-client = { path = "./clients/searcher_client" }
 
 anyhow = "1.0.79"
 backoff = { version = "0.4.0", features = ["tokio"] }
@@ -80,5 +80,9 @@ chrono = "0.4.19"
 colored = "2.0.0"
 
 [workspace]
-members = ["yellowstone-grpc-proto", "jito_protos", "searcher_client"]
+members = [
+    "clients/yellowstone-grpc-proto",
+    "clients/jito_protos",
+    "clients/searcher_client",
+]
 resolver = "2"

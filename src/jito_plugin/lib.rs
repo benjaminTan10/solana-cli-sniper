@@ -49,61 +49,12 @@ use tokio::{
 };
 use tonic::{codegen::InterceptedService, transport::Channel, Response, Status};
 
-use crate::jito_plugin::event_loop::{
-    block_subscribe_loop, bundle_results_loop, pending_tx_loop, slot_subscribe_loop,
+use crate::{
+    env::Settings,
+    jito_plugin::event_loop::{
+        block_subscribe_loop, bundle_results_loop, pending_tx_loop, slot_subscribe_loop,
+    },
 };
-
-#[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
-struct Args {
-    /// URL of the block engine.
-    /// See: https://jito-labs.gitbook.io/mev/searcher-resources/block-engine#connection-details
-    #[arg(long, env)]
-    block_engine_url: String,
-
-    /// Account pubkeys to backrun
-    #[arg(long, env)]
-    backrun_accounts: Vec<Pubkey>,
-
-    /// Path to keypair file used to sign and pay for transactions
-    #[arg(long, env)]
-    payer_keypair: PathBuf,
-
-    /// Path to keypair file used to authenticate with the Jito Block Engine
-    /// See: https://jito-labs.gitbook.io/mev/searcher-resources/getting-started#block-engine-api-key
-    #[arg(long, env)]
-    auth_keypair: PathBuf,
-
-    /// RPC Websocket URL.
-    /// See: https://solana.com/docs/rpc/websocket
-    /// Note that this RPC server must have --rpc-pubsub-enable-block-subscription enabled
-    #[arg(long, env)]
-    pubsub_url: String,
-
-    /// RPC HTTP URL.
-    #[arg(long, env)]
-    rpc_url: String,
-
-    /// Message to pass into the memo program as part of a bundle.
-    #[arg(long, env, default_value = "jito backrun")]
-    message: String,
-
-    /// Tip payment program public key
-    /// See: https://jito-foundation.gitbook.io/mev/mev-payment-and-distribution/on-chain-addresses
-    #[arg(long, env)]
-    tip_program_id: Pubkey,
-
-    /// Comma-separated list of regions to request cross-region data from.
-    /// If no region specified, then default to the currently connected block engine's region.
-    /// Details: https://jito-labs.gitbook.io/mev/searcher-services/recommendations#cross-region
-    /// Available regions: https://jito-labs.gitbook.io/mev/searcher-resources/block-engine#connection-details
-    #[arg(long, env, value_delimiter = ',')]
-    regions: Vec<String>,
-
-    /// Subscribe and print bundle results.
-    #[arg(long, env, default_value_t = true)]
-    subscribe_bundle_results: bool,
-}
 
 #[derive(Debug, Error)]
 enum BackrunError {
@@ -582,13 +533,12 @@ async fn run_searcher_loop(
     }
 }
 
-fn main() -> Result<()> {
+fn backrun_jito(args: Settings) -> Result<()> {
     pretty_env_logger::env_logger::builder()
         .format_timestamp(Some(TimestampPrecision::Micros))
         .init();
-    let args: Args = Args::parse();
 
-    let payer_keypair = Arc::new(read_keypair_file(&args.payer_keypair).expect("parse kp file"));
+    let payer_keypair = Arc::new(args.payer_keypair);
     let auth_keypair = Arc::new(read_keypair_file(&args.auth_keypair).expect("parse kp file"));
 
     set_host_id(auth_keypair.pubkey().to_string());
