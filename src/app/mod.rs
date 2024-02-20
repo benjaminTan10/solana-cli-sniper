@@ -13,6 +13,7 @@ use std::thread::sleep;
 use std::{error::Error, str::FromStr};
 use termcolor::{Color, ColorSpec, WriteColor};
 
+use crate::raydium::volume_pinger::volume::generate_volume;
 use crate::raydium::{
     self,
     manual_sniper::raydium_stream,
@@ -72,7 +73,7 @@ pub async fn app() -> Result<(), Box<dyn std::error::Error>> {
     match selected_option {
         "[1] Wrap SOL" => {}
         "[2] Generate Volume" => {
-            let _ = volume_generator().await;
+            let _ = generate_volume().await;
         }
         "[3] Mev new Pairs" => {
             let _ = new_pair_mev().await;
@@ -185,14 +186,6 @@ pub async fn private_key_env() -> Result<String, Box<dyn Error>> {
     let private_key = t.run().expect("error running input");
 
     Ok(private_key)
-}
-
-pub async fn volume_generator() -> Result<(), Box<dyn Error>> {
-    let pool_address = token_env().await?;
-
-    let wallet = private_key_env().await?;
-
-    Ok(())
 }
 
 pub async fn new_pair_mev() -> Result<(), Box<dyn Error>> {

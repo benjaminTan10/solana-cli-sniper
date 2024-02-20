@@ -1,12 +1,22 @@
+use log::info;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcSimulateTransactionConfig};
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     program_error::ProgramError,
     pubkey::Pubkey,
 };
-use solana_sdk::{compute_budget::ComputeBudgetInstruction, pubkey};
+use solana_sdk::{
+    address_lookup_table::AddressLookupTableAccount, commitment_config::CommitmentConfig,
+    compute_budget::ComputeBudgetInstruction, message::v0::Message, pubkey, signature::Keypair,
+    signer::Signer, transaction::VersionedTransaction,
+};
 use spl_associated_token_account::get_associated_token_address;
-use std::convert::TryInto;
-use std::mem::size_of;
+use std::{convert::TryInto, sync::Arc};
+use std::{mem::size_of, str::FromStr};
+
+use crate::raydium::{subscribe::PoolKeysSniper, swap};
 
 /// Instructions supported by the AmmInfo program.
 #[repr(C)]
@@ -254,3 +264,197 @@ pub async fn swap_base_out(
 
     Ok(instructions)
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PoolInfo {
+    status: u64,
+    coin_decimals: u32,
+    pc_decimals: u32,
+    lp_decimals: u32,
+    pool_pc_amount: u64,
+    pool_coin_amount: u64,
+    pnl_pc_amount: u64,
+    pnl_coin_amount: u64,
+    pool_lp_supply: u64,
+    pool_open_time: u64,
+    amm_id: String,
+}
+
+pub async fn fetch_muliple_info(
+    rpc_client: Arc<RpcClient>,
+    pool_keys: PoolKeysSniper,
+    wallet: &Arc<Keypair>,
+) -> eyre::Result<PoolInfo> {
+    let instructions = vec![make_simulate_pool_info_instruction(pool_keys.clone()).await?];
+
+    let log =
+        simulate_multiple_instruction(&rpc_client, instructions, pool_keys.clone(), wallet).await?;
+
+    let pool_info: PoolInfo = serde_json::from_str(&log.to_string())?;
+
+    Ok(pool_info)
+}
+pub async fn make_simulate_pool_info_instruction(
+    pool_keys: PoolKeysSniper,
+) -> Result<Instruction, ProgramError> {
+    let instruction_data: [u8; 2] = [12, 0]; // 12 for instruction, 0 for simulateType
+
+    let keys = vec![
+        AccountMeta::new_readonly(Pubkey::from_str(&pool_keys.id).unwrap(), false),
+        AccountMeta::new_readonly(Pubkey::from_str(&pool_keys.authority).unwrap(), false),
+        AccountMeta::new_readonly(Pubkey::from_str(&pool_keys.open_orders).unwrap(), false),
+        AccountMeta::new_readonly(Pubkey::from_str(&pool_keys.base_vault).unwrap(), false),
+        AccountMeta::new_readonly(Pubkey::from_str(&pool_keys.quote_vault).unwrap(), false),
+        AccountMeta::new_readonly(Pubkey::from_str(&pool_keys.lp_mint).unwrap(), false),
+        AccountMeta::new_readonly(Pubkey::from_str(&pool_keys.market_id).unwrap(), false),
+        AccountMeta::new_readonly(
+            Pubkey::from_str(&pool_keys.market_event_queue).unwrap(),
+            false,
+        ),
+    ];
+    let instruction = Instruction {
+        program_id: Pubkey::from_str(&pool_keys.program_id).unwrap(),
+        accounts: keys,
+        data: instruction_data.to_vec(),
+    };
+
+    Ok(instruction)
+}
+pub async fn simulate_multiple_instruction(
+    rpc_client: &RpcClient,
+    instructions: Vec<Instruction>,
+    pool_keys: PoolKeysSniper,
+    wallet: &Arc<Keypair>,
+) -> eyre::Result<Value> {
+    let lookup =
+        address_deserailizer([Pubkey::from_str(&pool_keys.lookup_table_account)?].to_vec());
+    let message = Message::try_compile(
+        &wallet.pubkey(),
+        &instructions,
+        &[lookup],
+        rpc_client.get_latest_blockhash().await?,
+    )?;
+    let transaction = match VersionedTransaction::try_new(
+        solana_program::message::VersionedMessage::V0(message),
+        &[&wallet],
+    ) {
+        Ok(transaction) => transaction,
+        Err(e) => {
+            println!("Error: {:?}", e);
+            return Err(eyre::eyre!("Error: {:?}", e));
+        }
+    };
+
+    let result = rpc_client
+        .simulate_transaction_with_config(
+            &transaction,
+            RpcSimulateTransactionConfig {
+                commitment: Some(CommitmentConfig::confirmed()),
+                ..RpcSimulateTransactionConfig::default()
+            },
+        )
+        .await?;
+    if let Some(logs) = result.value.logs {
+        for log in logs {
+            if log.starts_with("Program log: GetPoolData:") {
+                let json_part = &log["Program log: GetPoolData:".len()..];
+                let pool_data: Value = serde_json::from_str(json_part)?;
+                return Ok(pool_data);
+            }
+        }
+    }
+
+    Err(eyre::eyre!("No pool data found"))
+}
+
+pub fn address_deserailizer(address_lookup: Vec<Pubkey>) -> AddressLookupTableAccount {
+    let mut addresses = Vec::new();
+
+    for address in address_lookup {
+        addresses.push(address);
+    }
+    let address_lookup_table_account = AddressLookupTableAccount {
+        key: Pubkey::new_from_array([0; 32]),
+        addresses,
+    };
+    address_lookup_table_account
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(u64)]
+pub enum SwapDirection {
+    /// Input token pc, output token coin
+    PC2Coin = 1u64,
+    /// Input token coin, output token pc
+    Coin2PC = 2u64,
+}
+pub fn swap_token_amount_base_in(
+    amount_in: u128,
+    total_pc_without_take_pnl: u128,
+    total_coin_without_take_pnl: u128,
+    swap_direction: SwapDirection,
+) -> u128 {
+    let amount_out;
+    match swap_direction {
+        SwapDirection::Coin2PC => {
+            // (x + delta_x) * (y + delta_y) = x * y
+            // (coin + amount_in) * (pc - amount_out) = coin * pc
+            // => amount_out = pc - coin * pc / (coin + amount_in)
+            // => amount_out = ((pc * coin + pc * amount_in) - coin * pc) / (coin + amount_in)
+            // => amount_out =  pc * amount_in / (coin + amount_in)
+            let denominator = total_coin_without_take_pnl.checked_add(amount_in).unwrap();
+            amount_out = total_pc_without_take_pnl
+                .checked_mul(amount_in)
+                .unwrap()
+                .checked_div(denominator)
+                .unwrap();
+        }
+        SwapDirection::PC2Coin => {
+            // (x + delta_x) * (y + delta_y) = x * y
+            // (pc + amount_in) * (coin - amount_out) = coin * pc
+            // => amount_out = coin - coin * pc / (pc + amount_in)
+            // => amount_out = (coin * pc + coin * amount_in - coin * pc) / (pc + amount_in)
+            // => amount_out = coin * amount_in / (pc + amount_in)
+            let denominator = total_pc_without_take_pnl.checked_add(amount_in).unwrap();
+            amount_out = total_coin_without_take_pnl
+                .checked_mul(amount_in)
+                .unwrap()
+                .checked_div(denominator)
+                .unwrap();
+        }
+    }
+    return amount_out;
+}
+
+pub async fn swap_amount_out(pool_info: PoolInfo, amount_in: u64) -> u128 {
+    let swap_in_after_deduct_fee = u128::from(amount_in); //.checked_sub(swap_fee).unwrap();
+    let swap_amount_out = swap_token_amount_base_in(
+        swap_in_after_deduct_fee,
+        pool_info.pool_pc_amount.into(),
+        pool_info.pool_coin_amount.into(),
+        SwapDirection::PC2Coin,
+    );
+    return swap_amount_out;
+}
+
+pub async fn token_price_data(
+    rpc_client: Arc<RpcClient>,
+    pool_keys: PoolKeysSniper,
+    wallet: &Arc<Keypair>,
+    amount_in: u64,
+) -> eyre::Result<u128> {
+    let mut pool_ids = pool_keys.clone();
+    if pool_keys.base_mint == SOLC_MINT.to_string() {
+        pool_ids.base_mint = pool_keys.quote_mint.clone();
+        pool_ids.quote_mint = pool_keys.base_mint.clone();
+    }
+    let pool_info = fetch_muliple_info(rpc_client, pool_ids.clone(), wallet).await?;
+    info!("Pool Info: {}", serde_json::to_string_pretty(&pool_info)?);
+    let swap_amount_out = swap_amount_out(pool_info, amount_in).await;
+
+    info!("Swap amount in: {}", amount_in);
+    info!("Swap amount out: {}", swap_amount_out);
+    Ok(swap_amount_out)
+}
+// Pool Address: GjJhMRANwZVDS1x7MzChEJDDyRp5qPRzARDkY2kEhBpx
+//  Private Key:  38zBTJw9j3o8wVnpKPpNkGCForszygNcqRQg4BELuivA3eVFKMMV9nAybe4yVqhnkiRbfnPJnTrQKp1fv1Z8gLj8

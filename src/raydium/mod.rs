@@ -4,3 +4,4 @@ pub mod sniper;
 pub mod subscribe;
 pub mod swap;
 pub mod utils;
+pub mod volume_pinger;

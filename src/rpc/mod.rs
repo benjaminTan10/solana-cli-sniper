@@ -3,7 +3,8 @@ use std::env;
 use log::info;
 
 pub fn rpc_key() -> String {
-    let rpc = read_json()["RPC"].as_str().unwrap().to_string();
+    // let rpc = read_json()["RPC"].as_str().unwrap().to_string();
+    let rpc = "https://api.mainnet-beta.solana.com".to_string();
     rpc
 }
 
