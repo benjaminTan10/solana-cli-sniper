@@ -16,7 +16,7 @@ pub struct EngineSettings {
     pub backrun_accounts: Vec<Pubkey>,
 
     /// Path to keypair file used to sign and pay for transactions
-    // pub payer_keypair: Keypair,
+    pub payer_keypair: String,
 
     /// Path to keypair file used to authenticate with the Jito Block Engine
     /// See: https://jito-labs.gitbook.io/mev/searcher-resources/getting-started#block-engine-api-key
@@ -29,6 +29,9 @@ pub struct EngineSettings {
 
     /// RPC HTTP URL.
     pub rpc_url: String,
+
+    /// GRPC URL.
+    pub grpc_url: String,
 
     /// Message to pass into the memo program as part of a bundle.
     pub message: String,
@@ -47,7 +50,7 @@ pub struct EngineSettings {
     pub subscribe_bundle_results: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 struct HelperSettings {
     auth_keypair: String,
     // whitelisted_keypair: String,
@@ -56,6 +59,8 @@ struct HelperSettings {
     block_engine_url: String,
     backrun_accounts: Vec<String>,
     message: String,
+    grpc_url: String,
+    payer_keypair: String,
     tip_program_id: String,
     regions: Vec<String>,
     subscribe_bundle_results: bool,
@@ -86,6 +91,22 @@ pub async fn load_settings() -> eyre::Result<EngineSettings> {
         }
     };
 
+    // let bytes = match bs58::decode(helper_settings.payer_keypair).into_vec() {
+    //     Ok(keypair) => keypair,
+    //     Err(e) => {
+    //         println!("Error decoding payer_keypair: {}", e);
+    //         std::process::exit(1);
+    //     }
+    // };
+
+    // let keypair = match Keypair::from_bytes(&bytes) {
+    //     Ok(keypair) => keypair,
+    //     Err(e) => {
+    //         println!("Error parsing payer_keypair: {}", e);
+    //         std::process::exit(1);
+    //     }
+    // };
+
     let settings = EngineSettings {
         block_engine_url: helper_settings.block_engine_url,
         backrun_accounts: helper_settings
@@ -99,8 +120,8 @@ pub async fn load_settings() -> eyre::Result<EngineSettings> {
                 }
             })
             .collect(),
-        // payer_keypair,
-        // auth_keypair,
+        payer_keypair: helper_settings.payer_keypair,
+        grpc_url: helper_settings.grpc_url,
         pubsub_url: helper_settings.pubsub_url,
         rpc_url: helper_settings.rpc_url,
         message: helper_settings.message,

@@ -15,15 +15,15 @@ pub fn private_key() -> Keypair {
     return secret_key;
 }
 
-pub fn connection() -> RpcClient {
-    let rpc_client = RpcClient::new(rpc_key());
-    return rpc_client;
-}
+// pub fn connection() -> RpcClient {
+//     let rpc_client = RpcClient::new(rpc_key());
+//     return rpc_client;
+// }
 
-pub fn rpc_key() -> String {
-    let rpc_url = env::var("RPC_ENDPOINT").unwrap_or("http://64.176.215.55:8899/".to_string());
-    return rpc_url;
-}
+// pub fn rpc_key() -> String {
+//     let rpc_url = env::var("RPC_ENDPOINT").unwrap_or("http://64.176.215.55:8899/".to_string());
+//     return rpc_url;
+// }
 
 pub fn private_key_env() -> Result<String, env::VarError> {
     env::var("PRIVATE_KEY_WALLET")
@@ -55,6 +55,6 @@ pub fn x_token() -> String {
 }
 
 pub fn endpoint() -> String {
-    let endpoint = env::var("GRPC_ENDPOINT").unwrap_or("http://172.17.0.1:10000".to_string());
+    let endpoint = env::var("GRPC_ENDPOINT").unwrap_or("http://64.176.215.55:10000".to_string());
     return endpoint;
 }

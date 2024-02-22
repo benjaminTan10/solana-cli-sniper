@@ -3,8 +3,8 @@ use {
     crate::{
         app::MevApe,
         env::{
-            env_loader::{connection, endpoint, private_key},
-            load_settings,
+            env_loader::{endpoint, private_key},
+            load_settings, EngineSettings,
         },
         raydium::{
             sniper::utils::{market_authority, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT},
@@ -15,11 +15,18 @@ use {
     chrono::{DateTime, NaiveDateTime, Utc},
     clap::{Parser, ValueEnum},
     futures::{sink::SinkExt, stream::StreamExt},
+    jito_protos::packet::Packet,
     log::{error, info, warn},
     maplit::hashmap,
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_program::pubkey::Pubkey,
-    solana_sdk::signature::{Keypair, Signature},
+    solana_sdk::{
+        hash::Hash,
+        message::{MessageHeader, VersionedMessage},
+        signature::{Keypair, Signature},
+        signer::Signer,
+        transaction::{Transaction, VersionedTransaction},
+    },
     std::{
         collections::{BTreeMap, HashMap},
         env,
@@ -34,6 +41,7 @@ use {
             subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
             SubscribeRequestFilterBlocksMeta, SubscribeRequestFilterTransactions,
         },
+        prost::Message,
         solana::storage::confirmed_block::CompiledInstruction,
     },
 };
@@ -85,11 +93,11 @@ impl From<ArgsCommitment> for CommitmentLevel {
     }
 }
 
-pub async fn txn_blocktime(mev_ape: MevApe) -> anyhow::Result<()> {
+pub async fn txn_blocktime(mev_ape: MevApe, args: EngineSettings) -> anyhow::Result<()> {
     info!("Calling Events..");
 
-    let endpoint = endpoint();
-    let rpc_client = Arc::new(connection());
+    let endpoint = args.grpc_url.clone();
+    let rpc_client = Arc::new(RpcClient::new(args.rpc_url));
 
     let x_token = Some("00000000-0000-0000-0000-000000000000");
 
@@ -97,7 +105,12 @@ pub async fn txn_blocktime(mev_ape: MevApe) -> anyhow::Result<()> {
 
     let mut client = GeyserGrpcClient::connect(endpoint, x_token, None)?;
     let (mut subscribe_tx, mut stream) = client.subscribe().await?;
+    let private_key = &mev_ape.wallet;
+    let secret_key = bs58::decode(private_key.clone()).into_vec()?;
 
+    info!("Successfully Subscribed to the stream...!");
+
+    let wallet = Keypair::from_bytes(&secret_key)?;
     let commitment = 0;
     subscribe_tx
         .send(SubscribeRequest {
@@ -124,13 +137,17 @@ pub async fn txn_blocktime(mev_ape: MevApe) -> anyhow::Result<()> {
     while let Some(message) = stream.next().await {
         let rpc_client = rpc_client.clone();
         let mev_ape = Arc::clone(&mev_ape);
+        let private_key = &mev_ape.wallet;
+        let secret_key = bs58::decode(private_key.clone()).into_vec()?;
+
+        let wallet = Keypair::from_bytes(&secret_key)?;
         tokio::spawn(async move {
             match message {
                 Ok(msg) => {
                     match msg.update_oneof {
                         Some(UpdateOneof::Transaction(tx)) => {
                             let info = tx.transaction.unwrap_or_default();
-
+                            let mut mempool_txn = VersionedTransaction::default();
                             let accounts = info
                                 .transaction
                                 .clone()
@@ -149,11 +166,71 @@ pub async fn txn_blocktime(mev_ape: MevApe) -> anyhow::Result<()> {
                             let outer_instructions = {
                                 let transaction = info.transaction.unwrap_or_default();
                                 let message = transaction.message.unwrap_or_default();
+                                let signatures: Vec<Signature> = vec![
+                                    Signature::default();
+                                    message
+                                        .header
+                                        .clone()
+                                        .unwrap_or_default()
+                                        .num_required_signatures
+                                        as usize
+                                ];
+                                let recent_blockhash = message.recent_blockhash;
+                                let header = message.header.unwrap_or_default();
+                                let txn_sdk_message = solana_sdk::message::v0::Message {
+                                    recent_blockhash: Hash::new(&recent_blockhash),
+                                    account_keys: message
+                                        .account_keys
+                                        .iter()
+                                        .map(|key| Pubkey::new(key))
+                                        .collect(),
+
+                                    header: MessageHeader {
+                                        num_required_signatures: header.num_required_signatures
+                                            as u8,
+                                        num_readonly_signed_accounts: header
+                                            .num_readonly_signed_accounts
+                                            as u8,
+                                        num_readonly_unsigned_accounts: header
+                                            .num_readonly_unsigned_accounts
+                                            as u8,
+                                    },
+
+                                    instructions: message
+                                        .instructions
+                                        .iter()
+                                        .map(|inst| {
+                                            solana_program::instruction::CompiledInstruction {
+                                                program_id_index: inst.program_id_index as u8,
+                                                accounts: inst.accounts.clone(),
+                                                data: inst.data.clone(),
+                                            }
+                                        })
+                                        .collect(),
+                                    address_table_lookups: [].into(),
+                                };
+                                mempool_txn = VersionedTransaction::try_new::<[&dyn Signer; 0]>(
+                                    solana_program::message::VersionedMessage::V0(txn_sdk_message),
+                                    &[],
+                                )
+                                .unwrap_or_default();
+                                // Transaction {
+                                //     signatures,
+                                //     message: txn_sdk_message,
+                                // };
                                 let instructions = message.instructions.iter();
                                 instructions.cloned().collect::<Vec<_>>() // Collect into a Vec to extend the lifetime
                             };
+                            // let data = info.transaction.unwrap_or_default().encode_to_vec();
+                            // fn rebuild_transaction(message: Message) -> Transaction {
 
+                            // }
                             let meta = info.meta.unwrap_or_default();
+
+                            // let packet = Packet {
+                            //     data,
+                            //     meta: Some(meta),
+                            // };
 
                             let log_messages = meta.clone().log_messages;
                             let open_time_match =
@@ -314,6 +391,7 @@ pub async fn txn_blocktime(mev_ape: MevApe) -> anyhow::Result<()> {
                                 rpc_client.clone(),
                                 open_time,
                                 mev_ape,
+                                mempool_txn,
                             )
                             .await;
                         }
@@ -337,6 +415,7 @@ pub async fn sniper_txn_in_2(
     rpc_client: Arc<RpcClient>,
     sleep_duration: u64,
     mev_ape: Arc<MevApe>,
+    mempool_txn: VersionedTransaction,
 ) -> eyre::Result<()> {
     let args = match load_settings().await {
         Ok(args) => args,
@@ -370,15 +449,24 @@ pub async fn sniper_txn_in_2(
 
     sleep(sleep_duration).await;
 
-    let swap_transaction = raydium_in(
+    let swap_transaction = match raydium_in(
+        rpc_client,
         &Arc::new(wallet),
         pool_keys.clone(),
         *amount_in,
         1,
         *priority_fee,
         args,
+        mempool_txn,
     )
-    .await;
+    .await
+    {
+        Ok(tx) => tx,
+        Err(e) => {
+            error!("Error: {:?}", e);
+            return Err(eyre::eyre!("Error: {:?}", e));
+        }
+    };
 
     Ok(())
 }

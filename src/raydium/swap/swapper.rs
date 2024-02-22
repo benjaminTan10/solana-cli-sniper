@@ -1,48 +1,36 @@
 use jito_searcher_client::get_searcher_client;
 use log::{error, info};
-use rand::rngs::{StdRng, ThreadRng};
-use rand::{thread_rng, Rng, SeedableRng};
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_client::rpc_request::TokenAccountsFilter;
 use solana_program::pubkey::Pubkey;
-use solana_program::slot_history::Slot;
 use solana_program::system_instruction::transfer;
 use solana_sdk::commitment_config::CommitmentLevel;
 use solana_sdk::pubkey;
 use solana_sdk::transaction::{Transaction, VersionedTransaction};
 use solana_sdk::{signature::Keypair, signer::Signer};
 use spl_memo::build_memo;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use crate::env::EngineSettings;
-use crate::jito_plugin::lib::{
-    generate_tip_accounts, send_bundles, BlockStats, BundledTransactions,
-};
-use crate::raydium;
+use crate::jito_plugin::lib::{generate_tip_accounts, send_bundles, BundledTransactions};
 use crate::raydium::subscribe::PoolKeysSniper;
 use crate::raydium::swap::instructions::{swap_base_in, swap_base_out, SOLC_MINT};
-use crate::rpc::rpc_key;
 
 pub async fn raydium_in(
+    rpc_client: Arc<RpcClient>,
     wallet: &Arc<Keypair>,
     pool_keys: PoolKeysSniper,
     amount_in: u64,
     amount_out: u64,
     priority_fee: u64,
     args: EngineSettings,
+    mempool_txn: VersionedTransaction,
 ) -> eyre::Result<()> {
     let user_source_owner = wallet.pubkey();
-    let url = "http://64.176.215.55:8899".to_string();
-    let config = CommitmentLevel::Confirmed;
-    let rpc_client = Arc::new(RpcClient::new_with_commitment(
-        url,
-        solana_sdk::commitment_config::CommitmentConfig { commitment: config },
-    ));
 
     let token_address = if pool_keys.base_mint == SOLC_MINT.to_string() {
         pool_keys.clone().quote_mint
@@ -127,55 +115,27 @@ pub async fn raydium_in(
     ));
     let mut searcher_client =
         get_searcher_client(&args.block_engine_url, &Arc::new(auth_keypair())).await?;
-    let config = RpcSendTransactionConfig {
-        skip_preflight: true,
-        ..Default::default()
-    };
 
     let bundle_txn = BundledTransactions {
-        mempool_txs: vec![frontrun_tx],
-        backrun_txs: vec![backrun_tx],
+        mempool_txs: vec![],
+        backrun_txs: vec![frontrun_tx, backrun_tx],
     };
-    let mut block_stats: HashMap<Slot, BlockStats> = HashMap::new();
 
     let mut results = send_bundles(&mut searcher_client, &[bundle_txn]).await?;
 
     if let Ok(response) = results.remove(0) {
         let message = response.into_inner();
         let uuid = &message.uuid;
-        info!("UUID: {:?}", uuid);
+        info!("Bundle Sent with UUID: {:?}", uuid);
     }
-    // let result = match rpc_client
-    //     .send_transaction_with_config(&transaction, config)
-    //     .await
-    // {
-    //     Ok(x) => x,
-    //     Err(e) => {
-    //         error!("Error: {:?}", e);
-    //         return Ok(());
-    //     }
-    // };
 
-    // info!("Transaction Signature: {:?}", result.to_string());
-
-    // let rpc_client_1 = rpc_client.clone();
-    // tokio::spawn(async move {
-    //     let _ = match rpc_client_1
-    //         .confirm_transaction_with_spinner(
-    //             &result,
-    //             &rpc_client_1.get_latest_blockhash().await.unwrap(),
-    //             solana_sdk::commitment_config::CommitmentConfig::processed(),
-    //         )
-    //         .await
-    //     {
-    //         Ok(x) => x,
-    //         Err(e) => {
-    //             error!("Error: {:?}", e);
-    //         }
-    //     };
-    // });
-
-    let raydium_txn = raydium_txn_backrun(rpc_client, wallet, pool_keys, &args).await?;
+    let raydium_txn =
+        match raydium_txn_backrun(rpc_client, wallet, pool_keys, &args, priority_fee).await {
+            Ok(x) => x,
+            Err(e) => {
+                error!("Error: {:?}", e);
+            }
+        };
 
     Ok(())
 }
@@ -185,7 +145,9 @@ pub async fn raydium_txn_backrun(
     wallet: &Arc<Keypair>,
     pool_keys: PoolKeysSniper,
     args: &EngineSettings,
+    priority_fee: u64,
 ) -> eyre::Result<()> {
+    info!("Searching for Token Balance...!");
     let start = Instant::now();
     let mut token_balance = 0;
 
@@ -203,7 +165,7 @@ pub async fn raydium_txn_backrun(
             let pubkey = Pubkey::from_str(&pubkey)?;
 
             let balance = rpc_client.get_token_account_balance(&pubkey).await?;
-            info!("balance: {:?}", balance);
+            info!("Token Balance: {:?}", balance.amount);
             let lamports = match balance.amount.parse::<u64>() {
                 Ok(lamports) => lamports,
                 Err(e) => {
@@ -217,8 +179,6 @@ pub async fn raydium_txn_backrun(
             if lamports != 0 {
                 break;
             }
-
-            std::thread::sleep(Duration::from_secs(1));
         }
 
         if token_balance != 0 {
@@ -230,9 +190,22 @@ pub async fn raydium_txn_backrun(
         return Ok(());
     }
 
-    info!("Tokens: {:?}", token_balance);
-
-    let _ = raydium_out(wallet, pool_keys.clone(), token_balance, 1, 0, args.clone()).await?;
+    let _ = match raydium_out(
+        wallet,
+        pool_keys.clone(),
+        token_balance,
+        1,
+        priority_fee,
+        args.clone(),
+        rpc_client.clone(),
+    )
+    .await
+    {
+        Ok(x) => x,
+        Err(e) => {
+            error!("Error: {:?}", e);
+        }
+    };
 
     Ok(())
 }
@@ -244,14 +217,10 @@ pub async fn raydium_out(
     amount_out: u64,
     priority_fee: u64,
     args: EngineSettings,
+    rpc_client: Arc<RpcClient>,
 ) -> eyre::Result<()> {
+    info!("Swapping Out...");
     let user_source_owner = wallet.pubkey();
-    let url = "http://64.176.215.55:8899".to_string();
-    let config = CommitmentLevel::Confirmed;
-    let rpc_client = Arc::new(RpcClient::new_with_commitment(
-        url,
-        solana_sdk::commitment_config::CommitmentConfig { commitment: config },
-    ));
 
     let token_address = if pool_keys.base_mint == SOLC_MINT.to_string() {
         pool_keys.clone().quote_mint

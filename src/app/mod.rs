@@ -4,15 +4,19 @@ use csv;
 use demand::{DemandOption, Input, Select, Theme};
 use log::{error, info};
 use serde::Deserialize;
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::native_token::sol_to_lamports;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::bs58;
 use solana_sdk::signature::Keypair;
 use std::fs;
+use std::sync::Arc;
 use std::thread::sleep;
 use std::{error::Error, str::FromStr};
 use termcolor::{Color, ColorSpec, WriteColor};
 
+use crate::env::load_settings;
+use crate::raydium::swap::instructions::wrap_sol;
 use crate::raydium::volume_pinger::volume::generate_volume;
 use crate::raydium::{
     self,
@@ -71,7 +75,9 @@ pub async fn app() -> Result<(), Box<dyn std::error::Error>> {
     let selected_option = ms.run().expect("error running select");
 
     match selected_option {
-        "[1] Wrap SOL" => {}
+        "[1] Wrap SOL" => {
+            let _ = wrap_sol_call().await;
+        }
         "[2] Generate Volume" => {
             let _ = generate_volume().await;
         }
@@ -192,16 +198,26 @@ pub async fn new_pair_mev() -> Result<(), Box<dyn Error>> {
     let sol_amount = sol_amount().await?;
     let priority_fee = priority_fee().await?;
     let bundle_tip = bundle_priority_tip().await?;
-    let wallet = private_key_env().await?;
+    // let wallet = private_key_env().await?;
+
+    let args = match load_settings().await {
+        Ok(args) => args,
+        Err(e) => {
+            error!("Error: {:?}", e);
+            return Err(e.into());
+        }
+    };
+    // let private_key = Keypair::from_bytes(&bs58::decode(args.payer_keypair).into_vec().unwrap())?;
+    // let rpc_client = RpcClient::new(args.rpc_url.to_string());
 
     let mev_ape = MevApe {
         sol_amount,
         priority_fee,
         bundle_tip,
-        wallet,
+        wallet: args.payer_keypair.clone(),
     };
 
-    let mev = match txn_blocktime(mev_ape).await {
+    let mev = match txn_blocktime(mev_ape, args).await {
         Ok(_) => info!("Transaction Sent"),
         Err(e) => error!("{}", e),
     };
@@ -215,4 +231,26 @@ pub struct MevApe {
     pub priority_fee: u64,
     pub bundle_tip: u64,
     pub wallet: String,
+}
+
+pub async fn wrap_sol_call() -> Result<(), Box<dyn Error>> {
+    let sol_amount = sol_amount().await?;
+    // let wallet = private_key_env().await?;
+
+    let args = match load_settings().await {
+        Ok(args) => args,
+        Err(e) => {
+            error!("Error: {:?}", e);
+            return Err(e.into());
+        }
+    };
+    let private_key = Keypair::from_bytes(&bs58::decode(args.payer_keypair).into_vec().unwrap())?;
+    let rpc_client = RpcClient::new(args.rpc_url.to_string());
+
+    let wrap_sol = match wrap_sol(Arc::new(rpc_client), &private_key, sol_amount).await {
+        Ok(_) => info!("Transaction Sent"),
+        Err(e) => error!("{}", e),
+    };
+
+    Ok(())
 }

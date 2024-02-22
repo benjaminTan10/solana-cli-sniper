@@ -8,11 +8,19 @@ use solana_program::{
     pubkey::Pubkey,
 };
 use solana_sdk::{
-    address_lookup_table::AddressLookupTableAccount, commitment_config::CommitmentConfig,
-    compute_budget::ComputeBudgetInstruction, message::v0::Message, pubkey, signature::Keypair,
-    signer::Signer, transaction::VersionedTransaction,
+    address_lookup_table::AddressLookupTableAccount,
+    commitment_config::CommitmentConfig,
+    compute_budget::ComputeBudgetInstruction,
+    message::v0::Message,
+    program_pack::Pack,
+    pubkey,
+    signature::Keypair,
+    signer::Signer,
+    system_instruction,
+    transaction::{Transaction, VersionedTransaction},
 };
 use spl_associated_token_account::get_associated_token_address;
+use spl_token::instruction::sync_native;
 use std::{convert::TryInto, sync::Arc};
 use std::{mem::size_of, str::FromStr};
 
@@ -294,6 +302,7 @@ pub async fn fetch_muliple_info(
 
     Ok(pool_info)
 }
+
 pub async fn make_simulate_pool_info_instruction(
     pool_keys: PoolKeysSniper,
 ) -> Result<Instruction, ProgramError> {
@@ -432,7 +441,7 @@ pub async fn swap_amount_out(pool_info: PoolInfo, amount_in: u64) -> u128 {
         swap_in_after_deduct_fee,
         pool_info.pool_pc_amount.into(),
         pool_info.pool_coin_amount.into(),
-        SwapDirection::PC2Coin,
+        SwapDirection::Coin2PC,
     );
     return swap_amount_out;
 }
@@ -458,3 +467,61 @@ pub async fn token_price_data(
 }
 // Pool Address: GjJhMRANwZVDS1x7MzChEJDDyRp5qPRzARDkY2kEhBpx
 //  Private Key:  38zBTJw9j3o8wVnpKPpNkGCForszygNcqRQg4BELuivA3eVFKMMV9nAybe4yVqhnkiRbfnPJnTrQKp1fv1Z8gLj8
+
+/* ---------------------------------------------------------------- */
+
+pub async fn wrap_sol(
+    rpc_client: Arc<RpcClient>,
+    wallet: &Keypair,
+    amount_in: u64,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let user_token_destination = get_associated_token_address(&wallet.pubkey(), &SOLC_MINT);
+
+    info!("Wrapping Sol...");
+    let mut instructions = Vec::new();
+
+    // Check if the account already exists and is owned by the SPL Token program
+    if let Ok(account) = rpc_client.get_account(&user_token_destination).await {
+        if account.owner != spl_token::id() {
+            return Err(
+                eyre::eyre!("Error: Account already exists: {}", user_token_destination).into(),
+            );
+        }
+    } else {
+        // If the account does not exist or is not owned by the SPL Token program,
+        // create the account.
+        instructions.push(
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &wallet.pubkey(),
+                &wallet.pubkey(),
+                &SOLC_MINT,
+                &spl_token::id(),
+            ),
+        );
+    }
+
+    instructions.push(system_instruction::transfer(
+        &wallet.pubkey(),
+        &user_token_destination,
+        amount_in,
+    ));
+
+    let sync_native = sync_native(&spl_token::id(), &user_token_destination)?;
+    instructions.push(sync_native);
+
+    let transaction = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&wallet.pubkey()),
+        &[wallet],
+        rpc_client.get_latest_blockhash().await?,
+    );
+
+    info!("Transaction Sent: {:?}", transaction.signatures[0]);
+
+    rpc_client
+        .send_and_confirm_transaction_with_spinner(&transaction)
+        .await
+        .unwrap();
+
+    Ok(())
+}
