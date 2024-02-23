@@ -1,6 +1,6 @@
 use chrono::Local;
 use colored::Colorize;
-use firstx::app::app;
+use midori::app::app;
 use pretty_env_logger::env_logger::fmt::Color;
 use std::io::Write;
 

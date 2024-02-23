@@ -16,12 +16,16 @@ use solana_client::{
 use solana_program::pubkey;
 use solana_sdk::{
     commitment_config::CommitmentLevel,
+    compute_budget::ComputeBudgetInstruction,
+    instruction::{AccountMeta, Instruction},
+    program_error::ProgramError,
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
     system_instruction::transfer,
     transaction::{Transaction, VersionedTransaction},
 };
+use spl_associated_token_account::get_associated_token_address;
 use spl_memo::build_memo;
 
 use crate::{
@@ -32,7 +36,10 @@ use crate::{
         pool_searcher::amm_keys::pool_keys_fetcher,
         subscribe::PoolKeysSniper,
         swap::{
-            instructions::{swap_base_in, swap_base_out, token_price_data, SOLC_MINT},
+            instructions::{
+                swap_base_in, swap_base_out, token_price_data, AmmInstruction,
+                SwapInstructionBaseIn, SOLC_MINT,
+            },
             swapper::auth_keypair,
         },
     },
@@ -95,7 +102,7 @@ pub async fn volume_round(
         pool_keys.clone().base_mint
     };
 
-    let transaction_main_instructions = swap_base_in(
+    let transaction_main_instructions = volume_swap_base_in(
         &Pubkey::from_str(&pool_keys.program_id).unwrap(),
         &Pubkey::from_str(&pool_keys.id).unwrap(),
         &Pubkey::from_str(&pool_keys.authority).unwrap(),
@@ -118,6 +125,7 @@ pub async fn volume_round(
         mev_ape.sol_amount,
         0,
         mev_ape.priority_fee,
+        rpc_client.clone(),
     )
     .await?;
 
@@ -181,7 +189,7 @@ pub async fn volume_round(
 
     let mut token_balance = 0;
     let start = Instant::now();
-    while start.elapsed() < Duration::from_secs(15) {
+    while start.elapsed() < Duration::from_secs(60) {
         let token_accounts = rpc_client
             .get_token_accounts_by_owner(
                 &wallet.pubkey(),
@@ -195,7 +203,6 @@ pub async fn volume_round(
             let pubkey = Pubkey::from_str(&pubkey)?;
 
             let balance = rpc_client.get_token_account_balance(&pubkey).await?;
-            println!("balance: {:?}", balance);
             let lamports = match balance.amount.parse::<u64>() {
                 Ok(lamports) => lamports,
                 Err(e) => {
@@ -209,11 +216,10 @@ pub async fn volume_round(
             if lamports != 0 {
                 break;
             }
-
-            std::thread::sleep(Duration::from_secs(1));
         }
 
         if token_balance != 0 {
+            info!("Token Balance: {:?}", token_balance);
             break;
         }
     }
@@ -289,4 +295,100 @@ pub async fn volume_round(
         }
     }
     Ok(())
+}
+
+pub async fn volume_swap_base_in(
+    amm_program: &Pubkey,
+    amm_pool: &Pubkey,
+    amm_authority: &Pubkey,
+    amm_open_orders: &Pubkey,
+    amm_target_orders: &Pubkey,
+    amm_coin_vault: &Pubkey,
+    amm_pc_vault: &Pubkey,
+    market_program: &Pubkey,
+    market: &Pubkey,
+    market_bids: &Pubkey,
+    market_asks: &Pubkey,
+    market_event_queue: &Pubkey,
+    market_coin_vault: &Pubkey,
+    market_pc_vault: &Pubkey,
+    market_vault_signer: &Pubkey,
+    user_token_source: &Pubkey,
+    user_source_owner: &Pubkey,
+    wallet_address: &Pubkey,
+    base_mint: &Pubkey,
+    amount_in: u64,
+    minimum_amount_out: u64,
+    priority_fee: u64,
+    rpc_client: Arc<RpcClient>,
+) -> Result<Vec<Instruction>, ProgramError> {
+    let data = AmmInstruction::SwapBaseIn(SwapInstructionBaseIn {
+        amount_in,
+        minimum_amount_out,
+    })
+    .pack()?;
+
+    let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(100000000);
+    let compute_price = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
+
+    let source_token_account = get_associated_token_address(wallet_address, &SOLC_MINT);
+    let destination_token_account = get_associated_token_address(wallet_address, base_mint);
+
+    let mut instructions = Vec::new();
+
+    instructions.push(unit_limit);
+    instructions.push(compute_price);
+
+    let token_accounts = match rpc_client
+        .get_token_accounts_by_owner(&user_source_owner, TokenAccountsFilter::Mint(*base_mint))
+        .await
+    {
+        Ok(x) => x,
+        Err(e) => {
+            instructions.push(
+                spl_associated_token_account::instruction::create_associated_token_account(
+                    &wallet_address,
+                    &wallet_address,
+                    base_mint,
+                    &spl_token::id(),
+                ),
+            );
+            vec![]
+        }
+    };
+
+    let accounts = vec![
+        // spl token
+        AccountMeta::new_readonly(spl_token::id(), false),
+        // amm
+        AccountMeta::new(*amm_pool, false),
+        AccountMeta::new_readonly(*amm_authority, false),
+        AccountMeta::new(*amm_open_orders, false),
+        AccountMeta::new(*amm_target_orders, false),
+        AccountMeta::new(*amm_coin_vault, false),
+        AccountMeta::new(*amm_pc_vault, false),
+        // market
+        AccountMeta::new_readonly(*market_program, false),
+        AccountMeta::new(*market, false),
+        AccountMeta::new(*market_bids, false),
+        AccountMeta::new(*market_asks, false),
+        AccountMeta::new(*market_event_queue, false),
+        AccountMeta::new(*market_coin_vault, false),
+        AccountMeta::new(*market_pc_vault, false),
+        AccountMeta::new_readonly(*market_vault_signer, false),
+        // user
+        AccountMeta::new(source_token_account, false),
+        AccountMeta::new(destination_token_account, false),
+        AccountMeta::new_readonly(*user_source_owner, true),
+    ];
+
+    let account_swap_instructions = Instruction {
+        program_id: *amm_program,
+        data,
+        accounts,
+    };
+
+    instructions.push(account_swap_instructions);
+
+    Ok(instructions)
 }

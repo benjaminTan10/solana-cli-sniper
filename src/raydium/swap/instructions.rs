@@ -1,7 +1,10 @@
 use log::info;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcSimulateTransactionConfig};
+use solana_client::{
+    nonblocking::rpc_client::RpcClient, rpc_config::RpcSimulateTransactionConfig,
+    rpc_request::TokenAccountsFilter,
+};
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     program_error::ProgramError,
@@ -110,6 +113,7 @@ pub struct SwapInstructionBaseIn {
 
 pub const SOLC_MINT: Pubkey = pubkey!("So11111111111111111111111111111111111111112");
 pub const USDC_MINT: Pubkey = pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+pub const TAX_ACCOUNT: Pubkey = pubkey!("D5bBVBQDNDzroQpduEJasYL5HkvARD6TcNu3yJaeVK5W");
 /// Creates a 'swap base in' instruction.
 pub async fn swap_base_in(
     amm_program: &Pubkey,
@@ -465,8 +469,6 @@ pub async fn token_price_data(
     info!("Swap amount out: {}", swap_amount_out);
     Ok(swap_amount_out)
 }
-// Pool Address: GjJhMRANwZVDS1x7MzChEJDDyRp5qPRzARDkY2kEhBpx
-//  Private Key:  38zBTJw9j3o8wVnpKPpNkGCForszygNcqRQg4BELuivA3eVFKMMV9nAybe4yVqhnkiRbfnPJnTrQKp1fv1Z8gLj8
 
 /* ---------------------------------------------------------------- */
 

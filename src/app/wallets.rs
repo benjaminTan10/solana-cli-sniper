@@ -2,7 +2,7 @@ use std::fs;
 
 use log::{error, info, warn};
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::{bs58, signature::Keypair, signer::Signer};
+use solana_sdk::{bs58, native_token::lamports_to_sol, signature::Keypair, signer::Signer};
 
 pub fn private_keys() -> io::Result<Vec<(String, Keypair)>> {
     let private_keys = private_keys_loader()?;
@@ -33,6 +33,8 @@ pub fn private_keys() -> io::Result<Vec<(String, Keypair)>> {
 
 use serde_json::Value;
 use std::io;
+
+use crate::env::load_settings;
 
 fn private_keys_loader() -> io::Result<Vec<(String, String)>> {
     let mut keys = Vec::new();
@@ -65,16 +67,32 @@ fn private_keys_loader() -> io::Result<Vec<(String, String)>> {
     Ok(keys)
 }
 pub async fn wallet_logger() -> io::Result<()> {
-    let rpc_client = RpcClient::new("https://api.mainnet-beta.solana.com".to_string());
-    let wallets = private_keys()?;
+    let args = match load_settings().await {
+        Ok(args) => args,
+        Err(e) => {
+            error!("Error: {:?}", e);
+            return Ok(());
+        }
+    };
 
-    for (file_name, key) in &wallets {
-        let pubkey = key.pubkey();
-        let balance = rpc_client.get_balance(&pubkey).await.unwrap();
-        info!(
-            "File: {} Wallet: {} Balance: {}",
-            file_name, pubkey, balance
-        );
+    let rpc_client = RpcClient::new(args.rpc_url.to_string());
+    let secret_key = bs58::decode(args.payer_keypair.clone()).into_vec().unwrap();
+    let wallet = match Keypair::from_bytes(&secret_key) {
+        Ok(wallet) => wallet,
+        Err(e) => {
+            error!("Error: {:?}", e);
+            return Ok(());
+        }
+    };
+
+    let balance = rpc_client.get_balance(&wallet.pubkey()).await;
+    match balance {
+        Ok(balance) => {
+            info!("Balance: {:?} Sol", lamports_to_sol(balance));
+        }
+        Err(e) => {
+            error!("Error: {:?}", e);
+        }
     }
 
     Ok(())

@@ -95,50 +95,50 @@ pub async fn app() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub async fn tasks_list() -> Result<(), Box<dyn Error>> {
-    let mut select = Select::new(" ")
-        .description("Welcome, please select a CSV file for Task")
-        .filterable(true);
+// pub async fn tasks_list() -> Result<(), Box<dyn Error>> {
+//     let mut select = Select::new(" ")
+//         .description("Welcome, please select a CSV file for Task")
+//         .filterable(true);
 
-    let entries = fs::read_dir("./tasks/")?;
-    for entry in entries {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_file() && path.extension() == Some(std::ffi::OsStr::new("csv")) {
-            select = select.option(DemandOption::new(path.to_string_lossy().to_string()));
-        }
-    }
+//     let entries = fs::read_dir("./tasks/")?;
+//     for entry in entries {
+//         let entry = entry?;
+//         let path = entry.path();
+//         if path.is_file() && path.extension() == Some(std::ffi::OsStr::new("csv")) {
+//             select = select.option(DemandOption::new(path.to_string_lossy().to_string()));
+//         }
+//     }
 
-    let selected_option = select.run().expect("error running select");
+//     let selected_option = select.run().expect("error running select");
 
-    // Open the selected CSV file
-    let mut rdr = csv::Reader::from_path(&selected_option)?;
+//     // Open the selected CSV file
+//     let mut rdr = csv::Reader::from_path(&selected_option)?;
 
-    // Read the CSV records
-    for result in rdr.deserialize() {
-        let record: UserData = result?;
-        // Handle the record here
-        let _ = tasks_handler(record).await;
-    }
+//     // Read the CSV records
+//     for result in rdr.deserialize() {
+//         let record: UserData = result?;
+//         // Handle the record here
+//         let _ = tasks_handler(record).await;
+//     }
 
-    Ok(())
-}
+//     Ok(())
+// }
 
-pub async fn tasks_handler(record: UserData) -> Result<(), Box<dyn Error>> {
-    if record.mode == "manual".to_string() {
-        let _ = match raydium_stream(record).await {
-            Ok(_) => info!("Manual Sniper Started"),
-            Err(e) => error!("{}", e),
-        };
-    } else {
-        let _ = match auto_sniper_stream(record).await {
-            Ok(_) => info!("Auto Sniper Started"),
-            Err(e) => error!("{}", e),
-        };
-    }
+// pub async fn tasks_handler(record: UserData) -> Result<(), Box<dyn Error>> {
+//     if record.mode == "manual".to_string() {
+//         let _ = match raydium_stream(record).await {
+//             Ok(_) => info!("Manual Sniper Started"),
+//             Err(e) => error!("{}", e),
+//         };
+//     } else {
+//         let _ = match auto_sniper_stream(record).await {
+//             Ok(_) => info!("Auto Sniper Started"),
+//             Err(e) => error!("{}", e),
+//         };
+//     }
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 pub async fn token_env() -> Result<Pubkey, Box<dyn Error>> {
     let t = Input::new("Pool Address:")

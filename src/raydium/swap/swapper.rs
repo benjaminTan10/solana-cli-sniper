@@ -3,6 +3,7 @@ use log::{error, info};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_client::rpc_request::TokenAccountsFilter;
 use solana_program::pubkey::Pubkey;
 use solana_program::system_instruction::transfer;
@@ -18,7 +19,7 @@ use std::time::{Duration, Instant};
 use crate::env::EngineSettings;
 use crate::jito_plugin::lib::{generate_tip_accounts, send_bundles, BundledTransactions};
 use crate::raydium::subscribe::PoolKeysSniper;
-use crate::raydium::swap::instructions::{swap_base_in, swap_base_out, SOLC_MINT};
+use crate::raydium::swap::instructions::{swap_base_in, swap_base_out, SOLC_MINT, TAX_ACCOUNT};
 
 pub async fn raydium_in(
     rpc_client: Arc<RpcClient>,
@@ -37,7 +38,7 @@ pub async fn raydium_in(
     } else {
         pool_keys.clone().base_mint
     };
-    let swap_instructions = swap_base_in(
+    let mut swap_instructions = swap_base_in(
         &Pubkey::from_str(&pool_keys.program_id).unwrap(),
         &Pubkey::from_str(&pool_keys.id).unwrap(),
         &Pubkey::from_str(&pool_keys.authority).unwrap(),
@@ -63,6 +64,13 @@ pub async fn raydium_in(
     )
     .await?;
 
+    //2% of amount_in
+    // let tax_amount = amount_in * 2 / 100;
+
+    // let tax_instruction = transfer(&user_source_owner, &TAX_ACCOUNT, tax_amount);
+
+    // swap_instructions.push(tax_instruction);
+
     let config = CommitmentLevel::Confirmed;
     let (latest_blockhash, _) = rpc_client
         .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
@@ -83,7 +91,7 @@ pub async fn raydium_in(
         }
     };
 
-    let frontrun_tx = match VersionedTransaction::try_new(
+    let transaction = match VersionedTransaction::try_new(
         solana_program::message::VersionedMessage::V0(message),
         &[&wallet],
     ) {
@@ -93,41 +101,42 @@ pub async fn raydium_in(
             return Ok(());
         }
     };
-    let tip_accounts =
-        generate_tip_accounts(&pubkey!("T1pyyaTNZsKv2WcRAB8oVnk93mLJw2XzjtVYqCsaHqt"));
-    let mut rng = StdRng::from_entropy();
-    let tip_account = tip_accounts[rng.gen_range(0..tip_accounts.len())];
-
-    let message = "Front Transaction to Molest Jeets".to_string();
-
-    //Tip Transaction to Jito
-    let backrun_tx = VersionedTransaction::from(Transaction::new_signed_with_payer(
-        &[
-            build_memo(
-                format!("{}: {:?}", message, frontrun_tx.signatures[0].to_string()).as_bytes(),
-                &[],
-            ),
-            transfer(&wallet.pubkey(), &tip_account, 10_000),
-        ],
-        Some(&wallet.pubkey()),
-        &[wallet],
-        rpc_client.get_latest_blockhash().await.unwrap(),
-    ));
-    let mut searcher_client =
-        get_searcher_client(&args.block_engine_url, &Arc::new(auth_keypair())).await?;
-
-    let bundle_txn = BundledTransactions {
-        mempool_txs: vec![],
-        backrun_txs: vec![frontrun_tx, backrun_tx],
+    let config = RpcSendTransactionConfig {
+        skip_preflight: true,
+        preflight_commitment: Some(CommitmentLevel::Finalized),
+        max_retries: Some(20),
+        ..Default::default()
     };
 
-    let mut results = send_bundles(&mut searcher_client, &[bundle_txn]).await?;
+    let result = match rpc_client
+        .send_transaction_with_config(&transaction, config)
+        .await
+    {
+        Ok(x) => x,
+        Err(e) => {
+            error!("Error: {:?}", e);
+            return Ok(());
+        }
+    };
 
-    if let Ok(response) = results.remove(0) {
-        let message = response.into_inner();
-        let uuid = &message.uuid;
-        info!("Bundle Sent with UUID: {:?}", uuid);
-    }
+    info!("Transaction Signature: {:?}", result.to_string());
+
+    let rpc_client_1 = rpc_client.clone();
+    tokio::spawn(async move {
+        let _ = match rpc_client_1
+            .confirm_transaction_with_spinner(
+                &result,
+                &rpc_client_1.get_latest_blockhash().await.unwrap(),
+                solana_sdk::commitment_config::CommitmentConfig::confirmed(),
+            )
+            .await
+        {
+            Ok(x) => x,
+            Err(e) => {
+                error!("Error: {:?}", e);
+            }
+        };
+    });
 
     let raydium_txn =
         match raydium_txn_backrun(rpc_client, wallet, pool_keys, &args, priority_fee).await {
@@ -273,7 +282,7 @@ pub async fn raydium_out(
         }
     };
 
-    let frontrun_tx = match VersionedTransaction::try_new(
+    let transaction = match VersionedTransaction::try_new(
         solana_program::message::VersionedMessage::V0(message),
         &[&wallet],
     ) {
@@ -284,41 +293,24 @@ pub async fn raydium_out(
         }
     };
 
-    let tip_accounts =
-        generate_tip_accounts(&pubkey!("T1pyyaTNZsKv2WcRAB8oVnk93mLJw2XzjtVYqCsaHqt"));
-    let mut rng = StdRng::from_entropy();
-    let tip_account = tip_accounts[rng.gen_range(0..tip_accounts.len())];
-
-    //Tip Transaction to Jito
-    let backrun_tx = VersionedTransaction::from(Transaction::new_signed_with_payer(
-        &[
-            build_memo(
-                format!(
-                    "{}: {:?}",
-                    args.message,
-                    frontrun_tx.signatures[0].to_string()
-                )
-                .as_bytes(),
-                &[],
-            ),
-            transfer(&wallet.pubkey(), &tip_account, 10_000),
-        ],
-        Some(&wallet.pubkey()),
-        &[wallet],
-        rpc_client.get_latest_blockhash().await.unwrap(),
-    ));
-
-    let mut searcher_client =
-        get_searcher_client(&args.block_engine_url, &Arc::new(auth_keypair())).await?;
-
-    let bundle_txn = BundledTransactions {
-        mempool_txs: vec![frontrun_tx],
-        backrun_txs: vec![backrun_tx],
+    let config = RpcSendTransactionConfig {
+        skip_preflight: true,
+        preflight_commitment: Some(CommitmentLevel::Finalized),
+        max_retries: Some(20),
+        ..Default::default()
     };
 
-    let results = send_bundles(&mut searcher_client, &[bundle_txn]).await?;
-
-    info!("Results: {:?}", &results[0]);
+    let result = match rpc_client
+        .send_transaction_with_config(&transaction, config)
+        .await
+    {
+        Ok(x) => {
+            info!("Transaction Signature: {:?}", x.to_string());
+        }
+        Err(e) => {
+            error!("Error: {:?}", e);
+        }
+    };
 
     Ok(())
 }
