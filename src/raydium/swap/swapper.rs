@@ -1,23 +1,16 @@
-use jito_searcher_client::get_searcher_client;
 use log::{error, info};
-use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_client::rpc_request::TokenAccountsFilter;
 use solana_program::pubkey::Pubkey;
-use solana_program::system_instruction::transfer;
 use solana_sdk::commitment_config::CommitmentLevel;
-use solana_sdk::pubkey;
-use solana_sdk::transaction::{Transaction, VersionedTransaction};
+use solana_sdk::transaction::VersionedTransaction;
 use solana_sdk::{signature::Keypair, signer::Signer};
-use spl_memo::build_memo;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::env::EngineSettings;
-use crate::jito_plugin::lib::{generate_tip_accounts, send_bundles, BundledTransactions};
 use crate::raydium::subscribe::PoolKeysSniper;
 use crate::raydium::swap::instructions::{swap_base_in, swap_base_out, SOLC_MINT, TAX_ACCOUNT};
 
@@ -29,7 +22,6 @@ pub async fn raydium_in(
     amount_out: u64,
     priority_fee: u64,
     args: EngineSettings,
-    mempool_txn: VersionedTransaction,
 ) -> eyre::Result<()> {
     let user_source_owner = wallet.pubkey();
 

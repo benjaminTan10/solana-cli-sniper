@@ -1,11 +1,7 @@
 use {
     super::lib::GeyserGrpcClient,
-    crate::{
-        env::env_loader::{endpoint, x_token},
-        yellowstoneplugin::lib::GeyserGrpcClientError,
-    },
+    crate::plugins::yellowstone_plugin::lib::GeyserGrpcClientError,
     backoff::{future::retry, ExponentialBackoff},
-    clap::{Parser, Subcommand, ValueEnum},
     futures::{future::TryFutureExt, sink::SinkExt, stream::StreamExt},
     log::{error, info},
     solana_sdk::{bs58, pubkey::Pubkey, signature::Signature},
@@ -20,10 +16,8 @@ use {
     yellowstone_grpc_proto::{
         prelude::{
             subscribe_request_filter_accounts_filter::Filter as AccountsFilterDataOneof,
-            subscribe_request_filter_accounts_filter_memcmp::Data as AccountsFilterMemcmpOneof,
             subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
-            SubscribeRequestAccountsDataSlice, SubscribeRequestFilterAccounts,
-            SubscribeRequestFilterAccountsFilter, SubscribeRequestFilterAccountsFilterMemcmp,
+            SubscribeRequestFilterAccounts, SubscribeRequestFilterAccountsFilter,
             SubscribeRequestFilterBlocks, SubscribeRequestFilterBlocksMeta,
             SubscribeRequestFilterEntry, SubscribeRequestFilterSlots,
             SubscribeRequestFilterTransactions, SubscribeRequestPing, SubscribeUpdateAccount,

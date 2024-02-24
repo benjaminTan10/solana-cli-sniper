@@ -51,7 +51,7 @@ use tonic::{codegen::InterceptedService, transport::Channel, Response, Status};
 
 use crate::{
     env::EngineSettings,
-    jito_plugin::event_loop::{
+    plugins::jito_plugin::event_loop::{
         block_subscribe_loop, bundle_results_loop, pending_tx_loop, slot_subscribe_loop,
     },
 };

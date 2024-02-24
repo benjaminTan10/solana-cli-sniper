@@ -1,6 +1,5 @@
 pub mod embeds;
 pub mod wallets;
-use csv;
 use demand::{DemandOption, Input, Select, Theme};
 use log::{error, info};
 use serde::Deserialize;
@@ -9,32 +8,18 @@ use solana_program::native_token::sol_to_lamports;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::bs58;
 use solana_sdk::signature::Keypair;
-use std::fs;
 use std::sync::Arc;
-use std::thread::sleep;
 use std::{error::Error, str::FromStr};
-use termcolor::{Color, ColorSpec, WriteColor};
+use termcolor::{Color, ColorSpec};
 
 use crate::env::load_settings;
+use crate::raydium::swap::grpc_new_pairs::grpc_pair_sub;
 use crate::raydium::swap::instructions::wrap_sol;
 use crate::raydium::volume_pinger::volume::generate_volume;
-use crate::raydium::{
-    self,
-    manual_sniper::raydium_stream,
-    subscribe::auto_sniper_stream,
-    swap::{
-        instructions::{SOLC_MINT, USDC_MINT},
-        swapper::raydium_in,
-    },
-};
-use crate::yellowstoneplugin::tx_blocktime::txn_blocktime;
 
-use self::{
-    embeds::{embed, license_checker},
-    wallets::{private_key, wallet_logger},
-};
+use self::{embeds::embed, wallets::wallet_logger};
 
-#[warn(non_snake_case)]
+#[allow(non_snake_case)]
 #[derive(Debug, Deserialize, Clone)]
 pub struct UserData {
     pub module: String,
@@ -217,7 +202,7 @@ pub async fn new_pair_mev() -> Result<(), Box<dyn Error>> {
         wallet: args.payer_keypair.clone(),
     };
 
-    let mev = match txn_blocktime(mev_ape, args).await {
+    let _ = match grpc_pair_sub(mev_ape, args).await {
         Ok(_) => info!("Transaction Sent"),
         Err(e) => error!("{}", e),
     };
@@ -247,7 +232,7 @@ pub async fn wrap_sol_call() -> Result<(), Box<dyn Error>> {
     let private_key = Keypair::from_bytes(&bs58::decode(args.payer_keypair).into_vec().unwrap())?;
     let rpc_client = RpcClient::new(args.rpc_url.to_string());
 
-    let wrap_sol = match wrap_sol(Arc::new(rpc_client), &private_key, sol_amount).await {
+    let _ = match wrap_sol(Arc::new(rpc_client), &private_key, sol_amount).await {
         Ok(_) => info!("Transaction Sent"),
         Err(e) => error!("{}", e),
     };

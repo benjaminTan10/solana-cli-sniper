@@ -5,15 +5,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use jito_searcher_client::get_searcher_client;
 use log::{error, info};
-use rand::{rngs::StdRng, Rng, SeedableRng};
 use solana_client::{
-    nonblocking::rpc_client::{self, RpcClient},
-    rpc_config::RpcSendTransactionConfig,
+    nonblocking::rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig,
     rpc_request::TokenAccountsFilter,
 };
-use solana_program::pubkey;
 use solana_sdk::{
     commitment_config::CommitmentLevel,
     compute_budget::ComputeBudgetInstruction,
@@ -22,26 +18,17 @@ use solana_sdk::{
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
-    system_instruction::transfer,
-    transaction::{Transaction, VersionedTransaction},
+    transaction::VersionedTransaction,
 };
 use spl_associated_token_account::get_associated_token_address;
-use spl_memo::build_memo;
 
 use crate::{
-    app::{bundle_priority_tip, priority_fee, private_key_env, sol_amount, token_env, MevApe},
+    app::{priority_fee, private_key_env, sol_amount, token_env, MevApe},
     env::{load_settings, EngineSettings},
-    jito_plugin::lib::{generate_tip_accounts, send_bundles, BundledTransactions},
     raydium::{
         pool_searcher::amm_keys::pool_keys_fetcher,
         subscribe::PoolKeysSniper,
-        swap::{
-            instructions::{
-                swap_base_in, swap_base_out, token_price_data, AmmInstruction,
-                SwapInstructionBaseIn, SOLC_MINT,
-            },
-            swapper::auth_keypair,
-        },
+        swap::instructions::{swap_base_out, AmmInstruction, SwapInstructionBaseIn, SOLC_MINT},
     },
 };
 
@@ -70,14 +57,7 @@ pub async fn generate_volume() -> Result<(), Box<dyn Error>> {
     let pool_keys = pool_keys_fetcher(pool_address.to_string()).await?;
     let rpc_client = RpcClient::new(args.rpc_url.to_string());
 
-    let generate_volume = volume_round(
-        Arc::new(rpc_client),
-        pool_keys,
-        Arc::new(wallet),
-        args,
-        mev_ape,
-    )
-    .await?;
+    let _ = volume_round(Arc::new(rpc_client), pool_keys, Arc::new(wallet), mev_ape).await?;
 
     Ok(())
 }
@@ -86,16 +66,10 @@ pub async fn volume_round(
     rpc_client: Arc<RpcClient>,
     pool_keys: PoolKeysSniper,
     wallet: Arc<Keypair>,
-    args: EngineSettings,
     mev_ape: MevApe,
 ) -> Result<(), Box<dyn Error>> {
     let user_source_owner = wallet.pubkey();
-    let mut searcher_client =
-        get_searcher_client(&args.block_engine_url, &Arc::new(auth_keypair())).await?;
-    let tip_accounts =
-        generate_tip_accounts(&pubkey!("T1pyyaTNZsKv2WcRAB8oVnk93mLJw2XzjtVYqCsaHqt"));
-    let mut rng = StdRng::from_entropy();
-    let tip_account = tip_accounts[rng.gen_range(0..tip_accounts.len())];
+
     let token_address = if pool_keys.base_mint == SOLC_MINT.to_string() {
         pool_keys.clone().quote_mint
     } else {
@@ -118,7 +92,6 @@ pub async fn volume_round(
         &Pubkey::from_str(&pool_keys.market_base_vault).unwrap(),
         &Pubkey::from_str(&pool_keys.market_quote_vault).unwrap(),
         &Pubkey::from_str(&pool_keys.market_authority).unwrap(),
-        &user_source_owner,
         &user_source_owner,
         &user_source_owner,
         &Pubkey::from_str(&token_address).unwrap(),
@@ -313,7 +286,6 @@ pub async fn volume_swap_base_in(
     market_coin_vault: &Pubkey,
     market_pc_vault: &Pubkey,
     market_vault_signer: &Pubkey,
-    user_token_source: &Pubkey,
     user_source_owner: &Pubkey,
     wallet_address: &Pubkey,
     base_mint: &Pubkey,
@@ -339,12 +311,12 @@ pub async fn volume_swap_base_in(
     instructions.push(unit_limit);
     instructions.push(compute_price);
 
-    let token_accounts = match rpc_client
+    let _ = match rpc_client
         .get_token_accounts_by_owner(&user_source_owner, TokenAccountsFilter::Mint(*base_mint))
         .await
     {
         Ok(x) => x,
-        Err(e) => {
+        Err(_) => {
             instructions.push(
                 spl_associated_token_account::instruction::create_associated_token_account(
                     &wallet_address,

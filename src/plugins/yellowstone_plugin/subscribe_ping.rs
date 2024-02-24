@@ -2,7 +2,7 @@ use std::fs::File;
 
 use yellowstone_grpc_proto::geyser::SubscribeRequestFilterTransactions;
 
-use crate::yellowstoneplugin::lib::GeyserGrpcClient;
+use crate::plugins::yellowstone_plugin::lib::GeyserGrpcClient;
 use {
     clap::Parser,
     futures::{sink::SinkExt, stream::StreamExt},

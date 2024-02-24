@@ -6,13 +6,12 @@ use std::{
 
 use futures_util::{pin_mut, StreamExt};
 use log::{error, info};
-use rand::thread_rng;
 use serde_json::Value;
 use solana_client::{
     nonblocking::{pubsub_client::PubsubClient, rpc_client::RpcClient},
     rpc_config::{RpcTransactionLogsConfig, RpcTransactionLogsFilter},
 };
-use solana_program::{native_token::sol_to_lamports, pubkey::Pubkey};
+use solana_program::pubkey::Pubkey;
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedTransaction, UiInstruction, UiMessage,
@@ -21,8 +20,7 @@ use solana_transaction_status::{
 use tokio::time::sleep;
 
 use crate::{
-    app::{wallets::private_key, UserData},
-    env::load_settings,
+    app::UserData,
     raydium::{
         subscribe::{ParsedObject, PoolKeysSniper},
         utils::{
@@ -31,11 +29,6 @@ use crate::{
         },
     },
     rpc::{rpc_key, wss_key},
-};
-
-use super::swap::{
-    instructions::{SOLC_MINT, USDC_MINT},
-    swapper::{raydium_in, raydium_txn_backrun},
 };
 
 pub async fn raydium_stream(user_data: UserData) -> eyre::Result<()> {
@@ -275,31 +268,7 @@ pub async fn sniper_txn_in(
     sleep_duration: u64,
     record: UserData,
 ) -> eyre::Result<()> {
-    let wallet = Arc::new(private_key(record.wallet));
-    let module = record.module;
-    let platform = record.platform;
     let token_in = record.tokenIn;
-    let token_out = record.tokenOut;
-    let amount_in = sol_to_lamports(record.amount_sol);
-    let max_tx = record.max_tx;
-    let tx_delay = record.tx_delay;
-    let priority_fee = sol_to_lamports(record.priority_fee);
-    let ms_before_drop = record.ms_before_drop;
-    let sell_percent = record.autosell_percent;
-    let sell_ms = record.autosell_ms;
-    let args = match load_settings().await {
-        Ok(args) => args,
-        Err(e) => {
-            error!("Error: {:?}", e);
-            return Err(eyre::eyre!("Error: {:?}", e));
-        }
-    };
-
-    let token_in = if token_in.to_lowercase() == "sol" {
-        SOLC_MINT
-    } else {
-        USDC_MINT
-    };
 
     let current_time = SystemTime::now()
         .duration_since(UNIX_EPOCH)
