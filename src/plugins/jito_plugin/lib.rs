@@ -134,8 +134,7 @@ async fn build_bundles(
                         serde_json::to_string_pretty(pool_keys_sniper).unwrap()
                     );
                 }
-
-                let mut pool_keys_data = PoolKeysSniper::default();
+                let mut pool_keys_data = None;
                 for key in account_keys {
                     for (pubkey, pool_keys_sniper) in map.iter() {
                         if pool_keys_sniper.id.to_string().to_lowercase()
@@ -145,11 +144,20 @@ async fn build_bundles(
                                 "pool_keys_sniper: {}",
                                 serde_json::to_string_pretty(pool_keys_sniper).unwrap()
                             );
-                            pool_keys_data = pool_keys_sniper.clone();
+                            pool_keys_data = Some(pool_keys_sniper.clone());
                             break;
                         }
                     }
                 }
+
+                let pool_keys_data =
+                    match pool_keys_data.ok_or("No matching pool_keys_sniper found") {
+                        Ok(pool_keys_data) => pool_keys_data,
+                        Err(e) => {
+                            error!("{}", e);
+                            return None;
+                        }
+                    };
 
                 let swap_in = swap_in_builder(
                     rpc_client,

@@ -1,4 +1,4 @@
-use log::info;
+use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcSimulateTransactionConfig};
@@ -308,6 +308,10 @@ pub async fn make_simulate_pool_info_instruction(
 ) -> Result<Instruction, ProgramError> {
     let instruction_data: [u8; 2] = [12, 0]; // 12 for instruction, 0 for simulateType
 
+    warn!(
+        "Pool Keys: {:?}",
+        serde_json::to_string_pretty(&pool_keys).unwrap()
+    );
     let keys = vec![
         AccountMeta::new_readonly(Pubkey::from_str(&pool_keys.id).unwrap(), false),
         AccountMeta::new_readonly(Pubkey::from_str(&pool_keys.authority).unwrap(), false),
