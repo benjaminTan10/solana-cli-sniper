@@ -1,8 +1,8 @@
 use chrono::Local;
 use colored::Colorize;
-use midori::app::app;
 use pretty_env_logger::env_logger::fmt::Color;
 use std::io::Write;
+use Mevarik::app::app;
 
 #[tokio::main]
 async fn main() {

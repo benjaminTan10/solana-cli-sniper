@@ -8,9 +8,9 @@ Before you begin, ensure you have met the following requirements:
 * You have installed the latest version of [Rust](https://www.rust-lang.org/tools/install).
 * You have a Windows/Linux/Mac machine.
 
-## Installing FirstTx
+## Installing Mevarik
 
-To install FirstTx, follow these steps:
+To install Mevarik, follow these steps:
 
 1. Clone the repository:
    ```bash
@@ -18,12 +18,12 @@ To install FirstTx, follow these steps:
    ```
 2. Navigate to the project directory:
    ```bash
-   cd firsttx
+   cd Mevarik
    ```
 
-## Running firsttx
+## Running Mevarik
 
-To run firsttx, follow these steps:
+To run Mevarik, follow these steps:
 
 1. Build the project:
    ```bash

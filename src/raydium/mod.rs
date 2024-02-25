@@ -1,3 +1,4 @@
+pub mod bundles;
 pub mod manual_sniper;
 pub mod pool_searcher;
 pub mod sniper;

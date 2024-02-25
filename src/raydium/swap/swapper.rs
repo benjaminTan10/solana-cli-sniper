@@ -4,6 +4,7 @@ use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_client::rpc_request::TokenAccountsFilter;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::commitment_config::CommitmentLevel;
+use solana_sdk::system_instruction::transfer;
 use solana_sdk::transaction::VersionedTransaction;
 use solana_sdk::{signature::Keypair, signer::Signer};
 use std::str::FromStr;
@@ -57,11 +58,11 @@ pub async fn raydium_in(
     .await?;
 
     //2% of amount_in
-    // let tax_amount = amount_in * 2 / 100;
+    let tax_amount = amount_in * 2 / 100;
 
-    // let tax_instruction = transfer(&user_source_owner, &TAX_ACCOUNT, tax_amount);
+    let tax_instruction = transfer(&user_source_owner, &TAX_ACCOUNT, tax_amount);
 
-    // swap_instructions.push(tax_instruction);
+    swap_instructions.push(tax_instruction);
 
     let config = CommitmentLevel::Confirmed;
     let (latest_blockhash, _) = rpc_client

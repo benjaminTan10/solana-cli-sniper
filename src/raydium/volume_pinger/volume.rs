@@ -5,7 +5,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+use demand::Input;
 use log::{error, info};
+use rand::Rng;
 use solana_client::{
     nonblocking::rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig,
     rpc_request::TokenAccountsFilter,
@@ -14,6 +16,7 @@ use solana_sdk::{
     commitment_config::CommitmentLevel,
     compute_budget::ComputeBudgetInstruction,
     instruction::{AccountMeta, Instruction},
+    native_token::sol_to_lamports,
     program_error::ProgramError,
     pubkey::Pubkey,
     signature::Keypair,
@@ -23,14 +26,38 @@ use solana_sdk::{
 use spl_associated_token_account::get_associated_token_address;
 
 use crate::{
-    app::{priority_fee, private_key_env, sol_amount, token_env, MevApe},
-    env::{load_settings, EngineSettings},
+    app::{priority_fee, theme, token_env},
+    env::load_settings,
     raydium::{
+        bundles::swap_instructions::volume_swap_base_in,
         pool_searcher::amm_keys::pool_keys_fetcher,
         subscribe::PoolKeysSniper,
-        swap::instructions::{swap_base_out, AmmInstruction, SwapInstructionBaseIn, SOLC_MINT},
+        swap::instructions::{
+            swap_base_out, token_price_data, AmmInstruction, SwapInstructionBaseIn, SOLC_MINT,
+        },
+        utils::utils::LIQUIDITY_STATE_LAYOUT_V4,
     },
 };
+
+pub struct VolumeBotSettings {
+    pub buy_amount: u64,
+    pub priority_fee: u64,
+    pub wallet: Keypair,
+}
+
+pub async fn buy_amount(input: &str) -> Result<u64, Box<dyn Error>> {
+    let theme = theme();
+    let t = Input::new(format!("{}:", input))
+        .placeholder("0.01")
+        .theme(&theme)
+        .prompt("Input: ");
+
+    let string = t.run().expect("error running input");
+
+    let amount = sol_to_lamports(string.parse::<f64>()?);
+
+    Ok(amount)
+}
 
 pub async fn generate_volume() -> Result<(), Box<dyn Error>> {
     let args = match load_settings().await {
@@ -40,34 +67,58 @@ pub async fn generate_volume() -> Result<(), Box<dyn Error>> {
             return Ok(());
         }
     };
-    let sol_amount = sol_amount().await?;
+    let min_amount = buy_amount("Min Amount").await?;
+    let max_amount = buy_amount("Max Amount").await?;
+
     let priority_fee = priority_fee().await?;
     // let bundle_tip = bundle_priority_tip().await?;
     let pool_address = token_env().await?;
-    let wallet = private_key_env().await?;
-    let secret_key = bs58::decode(wallet.clone()).into_vec()?;
-    let mev_ape = MevApe {
-        sol_amount,
-        priority_fee,
-        bundle_tip: 0,
-        wallet,
-    };
-    let wallet = Keypair::from_bytes(&secret_key)?;
 
-    let pool_keys = pool_keys_fetcher(pool_address.to_string()).await?;
-    let rpc_client = RpcClient::new(args.rpc_url.to_string());
+    let secret_key = bs58::decode(args.payer_keypair.clone()).into_vec()?;
 
-    let _ = volume_round(Arc::new(rpc_client), pool_keys, Arc::new(wallet), mev_ape).await?;
+    let (pool_keys, amm_info) = pool_keys_fetcher(pool_address.to_string()).await?;
 
+    info!(
+        "Pool Keys: {}",
+        serde_json::to_string_pretty(&pool_keys).unwrap()
+    );
+    for _ in 0..4 {
+        let wallet = Keypair::from_bytes(&secret_key)?;
+        let rpc_client = RpcClient::new(args.rpc_url.to_string());
+
+        let mut rng = rand::thread_rng();
+        let buy_amount: u64 = rng.gen_range(min_amount..=max_amount);
+        let volume_settings = VolumeBotSettings {
+            buy_amount,
+            priority_fee,
+            wallet,
+        };
+
+        let _ = match volume_round(
+            Arc::new(rpc_client),
+            pool_keys.clone(),
+            amm_info.clone(),
+            volume_settings,
+        )
+        .await
+        {
+            Ok(x) => x,
+            Err(e) => {
+                error!("Error: {:?}", e);
+                return Ok(());
+            }
+        };
+    }
     Ok(())
 }
 
 pub async fn volume_round(
     rpc_client: Arc<RpcClient>,
     pool_keys: PoolKeysSniper,
-    wallet: Arc<Keypair>,
-    mev_ape: MevApe,
+    amm_info: LIQUIDITY_STATE_LAYOUT_V4,
+    volume_bot: VolumeBotSettings,
 ) -> Result<(), Box<dyn Error>> {
+    let wallet = Arc::new(volume_bot.wallet);
     let user_source_owner = wallet.pubkey();
 
     let token_address = if pool_keys.base_mint == SOLC_MINT.to_string() {
@@ -75,6 +126,17 @@ pub async fn volume_round(
     } else {
         pool_keys.clone().base_mint
     };
+    let tokens_amount = token_price_data(
+        rpc_client.clone(),
+        pool_keys.clone(),
+        &wallet,
+        volume_bot.buy_amount,
+    )
+    .await?;
+
+    let tokens_amount = tokens_amount * 999 / 1000;
+
+    info!("Swap amount out: {}", tokens_amount);
 
     let transaction_main_instructions = volume_swap_base_in(
         &Pubkey::from_str(&pool_keys.program_id).unwrap(),
@@ -95,24 +157,16 @@ pub async fn volume_round(
         &user_source_owner,
         &user_source_owner,
         &Pubkey::from_str(&token_address).unwrap(),
-        mev_ape.sol_amount,
-        0,
-        mev_ape.priority_fee,
+        volume_bot.buy_amount,
+        tokens_amount as u64,
+        volume_bot.priority_fee,
         rpc_client.clone(),
     )
     .await?;
 
-    // let tokens_amount = token_price_data(
-    //     rpc_client.clone(),
-    //     pool_keys.clone(),
-    //     &wallet.clone(),
-    //     mev_ape.sol_amount,
-    // )
-    // .await?;
-
     // transaction_main_instructions.extend(swap_out_instructions);
 
-    let config = CommitmentLevel::Finalized;
+    let config = CommitmentLevel::Confirmed;
     let (latest_blockhash, _) = rpc_client
         .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
             commitment: config,
@@ -160,42 +214,42 @@ pub async fn volume_round(
         }
     }
 
-    let mut token_balance = 0;
-    let start = Instant::now();
-    while start.elapsed() < Duration::from_secs(60) {
-        let token_accounts = rpc_client
-            .get_token_accounts_by_owner(
-                &wallet.pubkey(),
-                TokenAccountsFilter::Mint(Pubkey::from_str(&pool_keys.base_mint).unwrap()),
-            )
-            .await?;
+    // let mut token_balance = 0;
+    // let start = Instant::now();
+    // while start.elapsed() < Duration::from_secs(60) {
+    //     let token_accounts = rpc_client
+    //         .get_token_accounts_by_owner(
+    //             &wallet.pubkey(),
+    //             TokenAccountsFilter::Mint(Pubkey::from_str(&pool_keys.base_mint).unwrap()),
+    //         )
+    //         .await?;
 
-        for rpc_keyed_account in &token_accounts {
-            let pubkey = &rpc_keyed_account.pubkey;
-            //convert to pubkey
-            let pubkey = Pubkey::from_str(&pubkey)?;
+    //     for rpc_keyed_account in &token_accounts {
+    //         let pubkey = &rpc_keyed_account.pubkey;
+    //         //convert to pubkey
+    //         let pubkey = Pubkey::from_str(&pubkey)?;
 
-            let balance = rpc_client.get_token_account_balance(&pubkey).await?;
-            let lamports = match balance.amount.parse::<u64>() {
-                Ok(lamports) => lamports,
-                Err(e) => {
-                    eprintln!("Failed to parse balance: {}", e);
-                    break;
-                }
-            };
+    //         let balance = rpc_client.get_token_account_balance(&pubkey).await?;
+    //         let lamports = match balance.amount.parse::<u64>() {
+    //             Ok(lamports) => lamports,
+    //             Err(e) => {
+    //                 eprintln!("Failed to parse balance: {}", e);
+    //                 break;
+    //             }
+    //         };
 
-            token_balance = lamports;
+    //         token_balance = lamports;
 
-            if lamports != 0 {
-                break;
-            }
-        }
+    //         if lamports != 0 {
+    //             break;
+    //         }
+    //     }
 
-        if token_balance != 0 {
-            info!("Token Balance: {:?}", token_balance);
-            break;
-        }
-    }
+    //     if token_balance != 0 {
+    //         info!("Token Balance: {:?}", token_balance);
+    //         break;
+    //     }
+    // }
     let swap_out_instructions = swap_base_out(
         &Pubkey::from_str(&pool_keys.program_id).unwrap(),
         &Pubkey::from_str(&pool_keys.id).unwrap(),
@@ -215,13 +269,13 @@ pub async fn volume_round(
         &user_source_owner,
         &user_source_owner,
         &Pubkey::from_str(&token_address).unwrap(),
-        token_balance as u64,
+        tokens_amount as u64,
         0,
-        mev_ape.priority_fee,
+        volume_bot.priority_fee,
     )
     .await?;
 
-    let config = CommitmentLevel::Finalized;
+    let config = CommitmentLevel::Confirmed;
     let (latest_blockhash, _) = rpc_client
         .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
             commitment: config,
@@ -268,99 +322,4 @@ pub async fn volume_round(
         }
     }
     Ok(())
-}
-
-pub async fn volume_swap_base_in(
-    amm_program: &Pubkey,
-    amm_pool: &Pubkey,
-    amm_authority: &Pubkey,
-    amm_open_orders: &Pubkey,
-    amm_target_orders: &Pubkey,
-    amm_coin_vault: &Pubkey,
-    amm_pc_vault: &Pubkey,
-    market_program: &Pubkey,
-    market: &Pubkey,
-    market_bids: &Pubkey,
-    market_asks: &Pubkey,
-    market_event_queue: &Pubkey,
-    market_coin_vault: &Pubkey,
-    market_pc_vault: &Pubkey,
-    market_vault_signer: &Pubkey,
-    user_source_owner: &Pubkey,
-    wallet_address: &Pubkey,
-    base_mint: &Pubkey,
-    amount_in: u64,
-    minimum_amount_out: u64,
-    priority_fee: u64,
-    rpc_client: Arc<RpcClient>,
-) -> Result<Vec<Instruction>, ProgramError> {
-    let data = AmmInstruction::SwapBaseIn(SwapInstructionBaseIn {
-        amount_in,
-        minimum_amount_out,
-    })
-    .pack()?;
-
-    let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(100000000);
-    let compute_price = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
-
-    let source_token_account = get_associated_token_address(wallet_address, &SOLC_MINT);
-    let destination_token_account = get_associated_token_address(wallet_address, base_mint);
-
-    let mut instructions = Vec::new();
-
-    instructions.push(unit_limit);
-    instructions.push(compute_price);
-
-    let _ = match rpc_client
-        .get_token_accounts_by_owner(&user_source_owner, TokenAccountsFilter::Mint(*base_mint))
-        .await
-    {
-        Ok(x) => x,
-        Err(_) => {
-            instructions.push(
-                spl_associated_token_account::instruction::create_associated_token_account(
-                    &wallet_address,
-                    &wallet_address,
-                    base_mint,
-                    &spl_token::id(),
-                ),
-            );
-            vec![]
-        }
-    };
-
-    let accounts = vec![
-        // spl token
-        AccountMeta::new_readonly(spl_token::id(), false),
-        // amm
-        AccountMeta::new(*amm_pool, false),
-        AccountMeta::new_readonly(*amm_authority, false),
-        AccountMeta::new(*amm_open_orders, false),
-        AccountMeta::new(*amm_target_orders, false),
-        AccountMeta::new(*amm_coin_vault, false),
-        AccountMeta::new(*amm_pc_vault, false),
-        // market
-        AccountMeta::new_readonly(*market_program, false),
-        AccountMeta::new(*market, false),
-        AccountMeta::new(*market_bids, false),
-        AccountMeta::new(*market_asks, false),
-        AccountMeta::new(*market_event_queue, false),
-        AccountMeta::new(*market_coin_vault, false),
-        AccountMeta::new(*market_pc_vault, false),
-        AccountMeta::new_readonly(*market_vault_signer, false),
-        // user
-        AccountMeta::new(source_token_account, false),
-        AccountMeta::new(destination_token_account, false),
-        AccountMeta::new_readonly(*user_source_owner, true),
-    ];
-
-    let account_swap_instructions = Instruction {
-        program_id: *amm_program,
-        data,
-        accounts,
-    };
-
-    instructions.push(account_swap_instructions);
-
-    Ok(instructions)
 }

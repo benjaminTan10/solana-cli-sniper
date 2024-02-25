@@ -23,7 +23,7 @@ use spl_token::instruction::sync_native;
 use std::{convert::TryInto, sync::Arc};
 use std::{mem::size_of, str::FromStr};
 
-use crate::raydium::subscribe::PoolKeysSniper;
+use crate::raydium::{subscribe::PoolKeysSniper, utils::utils::LIQUIDITY_STATE_LAYOUT_V4};
 
 /// Instructions supported by the AmmInfo program.
 #[repr(C)]
@@ -436,11 +436,19 @@ pub fn swap_token_amount_base_in(
 }
 
 pub async fn swap_amount_out(pool_info: PoolInfo, amount_in: u64) -> u128 {
-    let swap_in_after_deduct_fee = u128::from(amount_in); //.checked_sub(swap_fee).unwrap();
+    let swap_fee_numerator = 25 as u128;
+    let swap_fee_denominator = 10000 as u128;
+    let swap_fee = u128::from(amount_in)
+        .checked_mul(swap_fee_numerator)
+        .unwrap()
+        .checked_div(swap_fee_denominator)
+        .unwrap();
+
+    let swap_in_after_deduct_fee = u128::from(amount_in).checked_sub(swap_fee).unwrap();
     let swap_amount_out = swap_token_amount_base_in(
         swap_in_after_deduct_fee,
-        pool_info.pool_pc_amount.into(),
         pool_info.pool_coin_amount.into(),
+        pool_info.pool_pc_amount.into(),
         SwapDirection::Coin2PC,
     );
     return swap_amount_out;
@@ -458,11 +466,10 @@ pub async fn token_price_data(
         pool_ids.quote_mint = pool_keys.base_mint.clone();
     }
     let pool_info = fetch_muliple_info(rpc_client, pool_ids.clone(), wallet).await?;
-    info!("Pool Info: {}", serde_json::to_string_pretty(&pool_info)?);
+    // info!("Pool Info: {}", serde_json::to_string_pretty(&pool_info)?);
     let swap_amount_out = swap_amount_out(pool_info, amount_in).await;
 
     info!("Swap amount in: {}", amount_in);
-    info!("Swap amount out: {}", swap_amount_out);
     Ok(swap_amount_out)
 }
 
@@ -523,3 +530,5 @@ pub async fn wrap_sol(
 
     Ok(())
 }
+
+/*------------------------------------------------ */

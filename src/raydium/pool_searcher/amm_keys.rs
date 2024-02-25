@@ -4,7 +4,6 @@ use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::pubkey::Pubkey;
 
 use crate::{
-    rpc::rpc_key,
     raydium::{
         subscribe::PoolKeysSniper,
         utils::utils::{
@@ -12,9 +11,12 @@ use crate::{
             SPL_MINT_LAYOUT,
         },
     },
+    rpc::rpc_key,
 };
 
-pub async fn pool_keys_fetcher(id: String) -> eyre::Result<PoolKeysSniper> {
+pub async fn pool_keys_fetcher(
+    id: String,
+) -> eyre::Result<(PoolKeysSniper, LIQUIDITY_STATE_LAYOUT_V4)> {
     let rpc_client = RpcClient::new(rpc_key());
     let mut retries = 0;
     let max_retries = 1000;
@@ -88,5 +90,5 @@ pub async fn pool_keys_fetcher(id: String) -> eyre::Result<PoolKeysSniper> {
         lookup_table_account: Pubkey::default().to_string(),
     };
 
-    Ok(pool_keys)
+    Ok((pool_keys, info))
 }

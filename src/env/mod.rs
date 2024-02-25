@@ -20,7 +20,7 @@ pub struct EngineSettings {
 
     /// Path to keypair file used to authenticate with the Jito Block Engine
     /// See: https://jito-labs.gitbook.io/mev/searcher-resources/getting-started#block-engine-api-key
-    // pub auth_keypair: String,
+    pub auth_keypair: Vec<u8>,
 
     /// RPC Websocket URL.
     /// See: https://solana.com/docs/rpc/websocket
@@ -52,7 +52,7 @@ pub struct EngineSettings {
 
 #[derive(Deserialize, Clone)]
 struct HelperSettings {
-    auth_keypair: String,
+    auth_keypair: Vec<u8>,
     // whitelisted_keypair: String,
     pubsub_url: String,
     rpc_url: String,
@@ -128,6 +128,7 @@ pub async fn load_settings() -> eyre::Result<EngineSettings> {
         tip_program_id,
         regions: helper_settings.regions,
         subscribe_bundle_results: helper_settings.subscribe_bundle_results,
+        auth_keypair: helper_settings.auth_keypair,
     };
 
     Ok(settings)

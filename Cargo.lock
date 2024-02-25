@@ -13,6 +13,59 @@ dependencies = [
 ]
 
 [[package]]
+name = "Mevarik"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "backoff",
+ "base64 0.21.7",
+ "bincode",
+ "bs58",
+ "bytes",
+ "chrono",
+ "clap 4.5.1",
+ "colored",
+ "colorize",
+ "csv",
+ "demand",
+ "eyre",
+ "futures",
+ "futures-util",
+ "hex",
+ "histogram",
+ "http 1.0.0",
+ "jito-protos",
+ "jito-searcher-client",
+ "lazy_static",
+ "log",
+ "maplit",
+ "once_cell",
+ "pretty_env_logger",
+ "rand 0.8.5",
+ "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_qs",
+ "solana-account-decoder",
+ "solana-client",
+ "solana-metrics",
+ "solana-program",
+ "solana-sdk",
+ "solana-transaction-status",
+ "spl-associated-token-account",
+ "spl-memo 3.0.1",
+ "spl-token",
+ "spl-token-client",
+ "termcolor",
+ "thiserror",
+ "tokio",
+ "tonic",
+ "tonic-health",
+ "yellowstone-grpc-proto",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2445,58 +2498,6 @@ dependencies = [
  "keccak",
  "rand_core 0.6.4",
  "zeroize",
-]
-
-[[package]]
-name = "midori"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "backoff",
- "base64 0.21.7",
- "bincode",
- "bs58",
- "bytes",
- "chrono",
- "clap 4.5.1",
- "colored",
- "colorize",
- "csv",
- "demand",
- "eyre",
- "futures",
- "futures-util",
- "hex",
- "histogram",
- "http 1.0.0",
- "jito-protos",
- "jito-searcher-client",
- "lazy_static",
- "log",
- "maplit",
- "pretty_env_logger",
- "rand 0.8.5",
- "regex",
- "reqwest",
- "serde",
- "serde_json",
- "serde_qs",
- "solana-account-decoder",
- "solana-client",
- "solana-metrics",
- "solana-program",
- "solana-sdk",
- "solana-transaction-status",
- "spl-associated-token-account",
- "spl-memo 3.0.1",
- "spl-token",
- "spl-token-client",
- "termcolor",
- "thiserror",
- "tokio",
- "tonic",
- "tonic-health",
- "yellowstone-grpc-proto",
 ]
 
 [[package]]

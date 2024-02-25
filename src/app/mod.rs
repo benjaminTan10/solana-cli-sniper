@@ -13,6 +13,8 @@ use std::{error::Error, str::FromStr};
 use termcolor::{Color, ColorSpec};
 
 use crate::env::load_settings;
+use crate::plugins::jito_plugin::lib::backrun_jito;
+use crate::raydium::bundles::mev_trades::mev_trades;
 use crate::raydium::swap::grpc_new_pairs::grpc_pair_sub;
 use crate::raydium::swap::instructions::wrap_sol;
 use crate::raydium::volume_pinger::volume::generate_volume;
@@ -41,36 +43,55 @@ pub struct UserData {
     pub autosell_ms: f64,
 }
 
+pub fn theme() -> Theme {
+    Theme {
+        title: ColorSpec::new()
+            .set_fg(Some(Color::Rgb(181, 228, 140)))
+            .clone(),
+        cursor: ColorSpec::new().set_fg(Some(Color::Yellow)).clone(),
+        selected_option: ColorSpec::new()
+            .set_fg(Some(Color::Rgb(38, 70, 83)))
+            .clone(),
+        input_cursor: ColorSpec::new()
+            .set_fg(Some(Color::Rgb(22, 138, 173)))
+            .clone(),
+        input_prompt: ColorSpec::new().set_fg(Some(Color::Blue)).clone(),
+
+        ..Theme::default()
+    }
+}
+
 pub async fn app() -> Result<(), Box<dyn std::error::Error>> {
     info!("{}", embed());
-
-    let theme = Theme {
-        title: ColorSpec::new().set_fg(Some(Color::Blue)).clone(),
-        ..Theme::default()
-    };
+    let theme = theme();
     let ms = Select::new("Main Menu")
         .description("Select the Mode")
         .theme(&theme)
+        .indicator("⮞")
         .filterable(true)
-        .option(DemandOption::new("[1] Wrap SOL"))
-        .option(DemandOption::new("[2] Generate Volume"))
-        .option(DemandOption::new("[3] Mev new Pairs"))
-        .option(DemandOption::new("[4] View Wallets"));
+        .option(DemandOption::new("Wrap Sol Mode").label("[1] Wrap SOL"))
+        .option(DemandOption::new("New Pair MEV").label("[2] Mev new Pairs"))
+        .option(DemandOption::new("Wallet Details").label("[3] View Wallets"))
+        .option(DemandOption::new("Generate Volume").label("[4] Generate Volume"))
+        .option(DemandOption::new("MEV Trades").label("[5] MEV Trades"));
 
     let selected_option = ms.run().expect("error running select");
 
     match selected_option {
-        "[1] Wrap SOL" => {
+        "Wrap Sol Mode" => {
             let _ = wrap_sol_call().await;
         }
-        "[2] Generate Volume" => {
-            let _ = generate_volume().await;
-        }
-        "[3] Mev new Pairs" => {
+        "New Pair MEV" => {
             let _ = new_pair_mev().await;
         }
-        "[4] View Wallets" => {
+        "Wallet Details" => {
             let _ = wallet_logger().await;
+        }
+        "Generate Volume" => {
+            let _ = generate_volume().await;
+        }
+        "MEV Trades" => {
+            let _ = mev_trades().await;
         }
         _ => {
             // Handle unexpected option here
@@ -126,19 +147,33 @@ pub async fn app() -> Result<(), Box<dyn std::error::Error>> {
 // }
 
 pub async fn token_env() -> Result<Pubkey, Box<dyn Error>> {
-    let t = Input::new("Pool Address:")
-        .placeholder("5eSB1...vYF49")
-        .prompt("Input: ");
+    let mut token_pubkey: Pubkey;
 
-    let mint_address = t.run().expect("error running input");
+    loop {
+        let t = Input::new("Pool Address:")
+            .placeholder("5eSB1...vYF49")
+            .prompt("Input: ");
 
-    let token_pubkey = Pubkey::from_str(&mint_address)?;
+        let mint_address = t.run().expect("error running input");
+
+        match Pubkey::from_str(&mint_address) {
+            Ok(pubkey) => {
+                token_pubkey = pubkey;
+                break;
+            }
+            Err(e) => {
+                error!("Invalid pubkey. Please try again.");
+            }
+        }
+    }
 
     Ok(token_pubkey)
 }
 pub async fn sol_amount() -> Result<u64, Box<dyn Error>> {
+    let theme = theme();
     let t = Input::new("Sol Amount:")
         .placeholder("0.01")
+        .theme(&theme)
         .prompt("Input: ");
 
     let string = t.run().expect("error running input");
@@ -148,8 +183,10 @@ pub async fn sol_amount() -> Result<u64, Box<dyn Error>> {
     Ok(amount)
 }
 pub async fn priority_fee() -> Result<u64, Box<dyn Error>> {
+    let theme = theme();
     let t = Input::new("Priority Fee:")
         .placeholder("0.0001")
+        .theme(&theme)
         .prompt("Input: ");
 
     let string = t.run().expect("error running input");
@@ -182,7 +219,7 @@ pub async fn private_key_env() -> Result<String, Box<dyn Error>> {
 pub async fn new_pair_mev() -> Result<(), Box<dyn Error>> {
     let sol_amount = sol_amount().await?;
     let priority_fee = priority_fee().await?;
-    let bundle_tip = bundle_priority_tip().await?;
+    // let bundle_tip = bundle_priority_tip().await?;
     // let wallet = private_key_env().await?;
 
     let args = match load_settings().await {
@@ -198,7 +235,7 @@ pub async fn new_pair_mev() -> Result<(), Box<dyn Error>> {
     let mev_ape = MevApe {
         sol_amount,
         priority_fee,
-        bundle_tip,
+        // bundle_tip,
         wallet: args.payer_keypair.clone(),
     };
 
@@ -214,7 +251,7 @@ pub async fn new_pair_mev() -> Result<(), Box<dyn Error>> {
 pub struct MevApe {
     pub sol_amount: u64,
     pub priority_fee: u64,
-    pub bundle_tip: u64,
+    // pub bundle_tip: u64,
     pub wallet: String,
 }
 
