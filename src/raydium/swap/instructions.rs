@@ -291,7 +291,7 @@ pub struct PoolInfo {
 pub async fn fetch_muliple_info(
     rpc_client: Arc<RpcClient>,
     pool_keys: PoolKeysSniper,
-    wallet: &Arc<Keypair>,
+    wallet: Arc<&Keypair>,
 ) -> eyre::Result<PoolInfo> {
     let instructions = vec![make_simulate_pool_info_instruction(pool_keys.clone()).await?];
 
@@ -333,7 +333,7 @@ pub async fn simulate_multiple_instruction(
     rpc_client: &RpcClient,
     instructions: Vec<Instruction>,
     pool_keys: PoolKeysSniper,
-    wallet: &Arc<Keypair>,
+    wallet: Arc<&Keypair>,
 ) -> eyre::Result<Value> {
     let lookup =
         address_deserailizer([Pubkey::from_str(&pool_keys.lookup_table_account)?].to_vec());
@@ -457,7 +457,7 @@ pub async fn swap_amount_out(pool_info: PoolInfo, amount_in: u64) -> u128 {
 pub async fn token_price_data(
     rpc_client: Arc<RpcClient>,
     pool_keys: PoolKeysSniper,
-    wallet: &Arc<Keypair>,
+    wallet: Arc<&Keypair>,
     amount_in: u64,
 ) -> eyre::Result<u128> {
     let mut pool_ids = pool_keys.clone();

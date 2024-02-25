@@ -71,11 +71,26 @@
     "pubsub_url": "ws://69.67.151.117:8900/",
     "block_engine_url": "https://ny.mainnet.block-engine.jito.wtf",
     "backrun_accounts": [
-        "GgvEV7WiEM9t7xobkBUw54x5XSXZH9mZ1vf43hCmrVyX",
-        "947tEoG318GUmyjVYhraNRvWpMX7fpBTDQFBoJvSkSG3",
-        "8jzRznet3cR3Y1KhciwUxKEqPku3BLcfiJLpVjMU3NF7",
-        "6QNj1T68VibGLnYYE9uTmT8gxkp3iNDEDsrUZ6w6JC1t",
-        "8n47qkeZoJ8ZKrKpqKDCS4wLwbVktMzN4eDsvD2LLe7Z"
+        {
+            "id": "8n47qkeZoJ8ZKrKpqKDCS4wLwbVktMzN4eDsvD2LLe7Z",
+            "account": "HUDf6SF2qKaUyvubjpKjvhUGAywNKfnQgBSaMeZBBZL8"
+        },
+        {
+            "id": "8n47qkeZoJ8ZKrKpqKDCS4wLwbVktMzN4eDsvD2LLe7Z",
+            "account": "GT4jERrAMGatoZUxDTLqW92bq41jCQB6SNKL6KbZZ3vo"
+        },
+        {
+            "id": "EAKjTPyQM16RbFLTCExR42uKBEpJ4KhSaVqSVYeKJqSq",
+            "account": "6MMdrc39L3rMZkshRP9WSKe3trSdcbx5ywJmzJBanzqw"
+        },
+        {
+            "id": "CqC6DeWyVWKekmqNTaiHM2Besoe4SHmcnKBRgLbwryrP",
+            "account": "8BnZ17s9pAd3g7s7jSPr2efXLEdKHMajqPYEkcSjmdm1"
+        },
+        {
+            "id": "FZKL3uQo7xYpLp8fsuFNCgPH9DSdV2Qkd65sPxahqeUV",
+            "account": "4KiW2K7yJ3Za8kd5N9jpFpC9cSajcqX4Z4htbZEhGSqm"
+        }
     ],
     "message": "Jeet Molestor",
     "tip_program_id": "T1pyyaTNZsKv2WcRAB8oVnk93mLJw2XzjtVYqCsaHqt",

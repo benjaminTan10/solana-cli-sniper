@@ -71,7 +71,6 @@ pub async fn generate_volume() -> Result<(), Box<dyn Error>> {
     let max_amount = buy_amount("Max Amount").await?;
 
     let priority_fee = priority_fee().await?;
-    // let bundle_tip = bundle_priority_tip().await?;
     let pool_address = token_env().await?;
 
     let secret_key = bs58::decode(args.payer_keypair.clone()).into_vec()?;
@@ -118,7 +117,7 @@ pub async fn volume_round(
     amm_info: LIQUIDITY_STATE_LAYOUT_V4,
     volume_bot: VolumeBotSettings,
 ) -> Result<(), Box<dyn Error>> {
-    let wallet = Arc::new(volume_bot.wallet);
+    let wallet = Arc::new(&volume_bot.wallet);
     let user_source_owner = wallet.pubkey();
 
     let token_address = if pool_keys.base_mint == SOLC_MINT.to_string() {
@@ -129,7 +128,7 @@ pub async fn volume_round(
     let tokens_amount = token_price_data(
         rpc_client.clone(),
         pool_keys.clone(),
-        &wallet,
+        wallet.clone(),
         volume_bot.buy_amount,
     )
     .await?;

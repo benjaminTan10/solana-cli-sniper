@@ -3,12 +3,14 @@ use std::{str::FromStr, sync::Arc};
 use log::error;
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_request::TokenAccountsFilter};
 use solana_sdk::{
+    commitment_config::CommitmentLevel,
     compute_budget::ComputeBudgetInstruction,
     instruction::{AccountMeta, Instruction},
     program_error::ProgramError,
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
+    transaction::VersionedTransaction,
 };
 use spl_associated_token_account::get_associated_token_address;
 
@@ -18,18 +20,21 @@ use crate::raydium::{
     volume_pinger::volume::{self, VolumeBotSettings},
 };
 
+use super::mev_trades::MEVBotSettings;
+
 pub async fn swap_in_builder(
     rpc_client: Arc<RpcClient>,
-    wallet: Arc<Keypair>,
+    wallet: Arc<&Keypair>,
     pool_keys: PoolKeysSniper,
-    volume_bot: VolumeBotSettings,
-) -> Vec<Instruction> {
+    settings: Arc<MEVBotSettings>,
+    buy_amount: u64,
+) -> VersionedTransaction {
     let user_source_owner = wallet.pubkey();
     let tokens_amount = match token_price_data(
         rpc_client.clone(),
         pool_keys.clone(),
-        &wallet,
-        volume_bot.buy_amount,
+        wallet.clone(),
+        buy_amount,
     )
     .await
     {
@@ -60,9 +65,9 @@ pub async fn swap_in_builder(
         &user_source_owner,
         &user_source_owner,
         &Pubkey::from_str(&pool_keys.base_mint).unwrap(),
-        volume_bot.buy_amount,
+        buy_amount,
         tokens_amount as u64,
-        volume_bot.priority_fee,
+        settings.priority_fee,
         rpc_client.clone(),
     )
     .await
@@ -74,7 +79,45 @@ pub async fn swap_in_builder(
         }
     };
 
-    swap_in
+    let config = CommitmentLevel::Confirmed;
+    let (latest_blockhash, _) = match rpc_client
+        .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
+            commitment: config,
+        })
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            error!("{}", e);
+            return VersionedTransaction::default();
+        }
+    };
+
+    let message = match solana_program::message::v0::Message::try_compile(
+        &user_source_owner,
+        &swap_in,
+        &[],
+        latest_blockhash,
+    ) {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Error: {:?}", e);
+            return VersionedTransaction::default();
+        }
+    };
+
+    let frontrun_tx = match VersionedTransaction::try_new(
+        solana_program::message::VersionedMessage::V0(message),
+        &[&wallet],
+    ) {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Error: {:?}", e);
+            return VersionedTransaction::default();
+        }
+    };
+
+    frontrun_tx
 }
 
 pub async fn volume_swap_base_in(

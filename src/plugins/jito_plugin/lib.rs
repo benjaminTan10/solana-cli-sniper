@@ -1,13 +1,5 @@
-use std::{
-    collections::{hash_map::Entry, HashMap, HashSet},
-    path::PathBuf,
-    result,
-    str::FromStr,
-    sync::Arc,
-    time::{Duration, Instant},
-};
-
 use clap::Parser;
+use futures::stream::StreamExt;
 use histogram::Histogram;
 use jito_protos::{
     bundle::BundleResult,
@@ -41,6 +33,14 @@ use solana_sdk::{
     transaction::{Transaction, VersionedTransaction},
 };
 use spl_memo::build_memo;
+use std::{
+    collections::{hash_map::Entry, HashMap, HashSet},
+    path::PathBuf,
+    result,
+    str::FromStr,
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
 use thiserror::Error;
 use tokio::{
     runtime::Builder,
@@ -53,6 +53,13 @@ use crate::{
     env::EngineSettings,
     plugins::jito_plugin::event_loop::{
         block_subscribe_loop, bundle_results_loop, pending_tx_loop, slot_subscribe_loop,
+    },
+    raydium::{
+        bundles::{
+            mev_trades::{MEVBotSettings, POOL_KEYS},
+            swap_instructions::swap_in_builder,
+        },
+        subscribe::PoolKeysSniper,
     },
 };
 
@@ -90,46 +97,99 @@ pub struct BlockStats {
 
 type Result<T> = result::Result<T, BackrunError>;
 
-fn build_bundles(
+async fn build_bundles(
+    rpc_client: Arc<RpcClient>,
     pending_tx_notification: PendingTxNotification,
     keypair: &Keypair,
     blockhash: &Hash,
     tip_accounts: &[Pubkey],
-    rng: &mut ThreadRng,
+    rng: Arc<Mutex<ThreadRng>>,
     message: &str,
+    preference: Arc<MEVBotSettings>,
 ) -> Vec<BundledTransactions> {
-    pending_tx_notification
-        .transactions
-        .into_iter()
-        .filter_map(|packet| {
-            let mempool_tx = versioned_tx_from_packet(&packet)?;
-            let tip_account = tip_accounts[rng.gen_range(0..tip_accounts.len())];
+    futures::stream::iter(pending_tx_notification.transactions.into_iter())
+        .map(|packet| {
+            let rng = Arc::clone(&rng);
+            let rpc_client = Arc::clone(&rpc_client);
+            let preference = Arc::clone(&preference);
+            let keypair = Arc::new(keypair.clone());
+            async move {
+                let mut rng = rng.lock().unwrap();
+                let buy_amount = rng.gen_range(preference.min_amount..=preference.max_amount);
+                let mempool_tx = versioned_tx_from_packet(&packet)?;
+                let tip_account = tip_accounts[rng.gen_range(0..tip_accounts.len())];
+                let account_keys = mempool_tx.message.static_account_keys();
+                info!("account_keys: {:?}", account_keys);
 
-            let account_keys = mempool_tx.message.static_account_keys();
+                let map = {
+                    let lock = POOL_KEYS.lock().unwrap();
+                    lock.clone()
+                };
 
-            for key in account_keys {
-                info!("account_keys: {:?}", key.to_string());
+                // Print all data in the HashMap
+                for (pubkey, pool_keys_sniper) in map.iter() {
+                    info!(
+                        "Key: {}, Value: {}",
+                        pubkey,
+                        serde_json::to_string_pretty(pool_keys_sniper).unwrap()
+                    );
+                }
+
+                let mut pool_keys_data = PoolKeysSniper::default();
+                for key in account_keys {
+                    for (pubkey, pool_keys_sniper) in map.iter() {
+                        if pool_keys_sniper.id.to_string().to_lowercase()
+                            == key.to_string().to_lowercase()
+                        {
+                            info!(
+                                "pool_keys_sniper: {}",
+                                serde_json::to_string_pretty(pool_keys_sniper).unwrap()
+                            );
+                            pool_keys_data = pool_keys_sniper.clone();
+                            break;
+                        }
+                    }
+                }
+
+                let swap_in = swap_in_builder(
+                    rpc_client,
+                    keypair.clone(),
+                    pool_keys_data,
+                    preference,
+                    buy_amount,
+                )
+                .await;
+
+                info!("swap_in: {:?}", swap_in);
+                // Handle the case where the key was not found in the map.
+
+                let backrun_tx = VersionedTransaction::from(Transaction::new_signed_with_payer(
+                    &[
+                        build_memo(
+                            format!("{}: {:?}", message, mempool_tx.signatures[0].to_string())
+                                .as_bytes(),
+                            &[],
+                        ),
+                        transfer(&keypair.pubkey(), &tip_account, 10_000),
+                    ],
+                    Some(&keypair.pubkey()),
+                    &[&keypair],
+                    *blockhash,
+                ));
+                Some(BundledTransactions {
+                    mempool_txs: vec![mempool_tx],
+                    backrun_txs: vec![backrun_tx],
+                })
             }
-
-            let backrun_tx = VersionedTransaction::from(Transaction::new_signed_with_payer(
-                &[
-                    build_memo(
-                        format!("{}: {:?}", message, mempool_tx.signatures[0].to_string())
-                            .as_bytes(),
-                        &[],
-                    ),
-                    transfer(&keypair.pubkey(), &tip_account, 10_000),
-                ],
-                Some(&keypair.pubkey()),
-                &[keypair],
-                *blockhash,
-            ));
-            Some(BundledTransactions {
-                mempool_txs: vec![mempool_tx],
-                backrun_txs: vec![backrun_tx],
-            })
         })
-        .collect()
+        .filter_map(|future| async move {
+            match future.await {
+                Some(value) => Some(value),
+                None => None,
+            }
+        })
+        .collect::<Vec<_>>()
+        .await
 }
 
 pub async fn send_bundles(
@@ -458,6 +518,7 @@ async fn run_searcher_loop(
     regions: Vec<String>,
     message: String,
     tip_program_pubkey: Pubkey,
+    preferences: Arc<MEVBotSettings>,
     mut slot_receiver: Receiver<Slot>,
     mut block_receiver: Receiver<rpc_response::Response<RpcBlockUpdate>>,
     mut bundle_results_receiver: Receiver<BundleResult>,
@@ -469,12 +530,12 @@ async fn run_searcher_loop(
 
     let mut searcher_client = get_searcher_client(&block_engine_url, &auth_keypair).await?;
 
-    let mut rng = thread_rng();
+    let mut rng = Arc::new(Mutex::new(thread_rng()));
 
     let tip_accounts = generate_tip_accounts(&tip_program_pubkey);
     info!("tip accounts: {:?}", tip_accounts);
 
-    let rpc_client = RpcClient::new(rpc_url);
+    let rpc_client = Arc::new(RpcClient::new(rpc_url));
     let mut blockhash = rpc_client
         .get_latest_blockhash_with_commitment(CommitmentConfig {
             commitment: CommitmentLevel::Confirmed,
@@ -500,7 +561,7 @@ async fn run_searcher_loop(
                 // it might be ideal to wait until the leader slot is up
                 if is_leader_slot {
                     let pending_tx_notification = maybe_pending_tx_notification.ok_or(BackrunError::Shutdown)?;
-                    let bundles = build_bundles(pending_tx_notification, keypair, &blockhash, &tip_accounts, &mut rng, &message);
+                    let bundles = build_bundles(rpc_client.clone(),pending_tx_notification, keypair, &blockhash, &tip_accounts, Arc::clone(&rng), &message, preferences.clone()).await;
                     if !bundles.is_empty() {
                         let now = Instant::now();
                         let results = send_bundles(&mut searcher_client, &bundles).await?;
@@ -539,10 +600,16 @@ async fn run_searcher_loop(
     }
 }
 
-pub async fn backrun_jito(args: EngineSettings) -> Result<()> {
+pub async fn backrun_jito(args: EngineSettings, preference: Arc<MEVBotSettings>) -> Result<()> {
     let payer_keypair = Arc::new(Keypair::from_base58_string(&args.payer_keypair));
     let auth_keypair = Arc::new(Keypair::from_bytes(&args.auth_keypair).unwrap());
-
+    info!(
+        "Accounts: {:?}",
+        args.backrun_accounts
+            .iter()
+            .map(|a| a.account)
+            .collect::<Vec<_>>()
+    );
     set_host_id(auth_keypair.pubkey().to_string());
 
     let (slot_sender, slot_receiver) = channel(100);
@@ -556,7 +623,7 @@ pub async fn backrun_jito(args: EngineSettings) -> Result<()> {
         args.block_engine_url.clone(),
         auth_keypair.clone(),
         pending_tx_sender,
-        args.backrun_accounts,
+        args.backrun_accounts.iter().map(|a| a.account).collect(),
     ));
 
     if args.subscribe_bundle_results {
@@ -575,6 +642,7 @@ pub async fn backrun_jito(args: EngineSettings) -> Result<()> {
         args.regions,
         args.message,
         args.tip_program_id,
+        preference,
         slot_receiver,
         block_receiver,
         bundle_results_receiver,

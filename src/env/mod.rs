@@ -7,13 +7,19 @@ use solana_sdk::signature::Keypair;
 pub mod env_loader;
 
 #[derive(Debug, Clone)]
+pub struct BackrunAccount {
+    pub id: String,
+    pub account: Pubkey,
+}
+
+#[derive(Debug, Clone)]
 pub struct EngineSettings {
     /// URL of the block engine.
     /// See: https://jito-labs.gitbook.io/mev/searcher-resources/block-engine#connection-details
     pub block_engine_url: String,
 
     /// Account pubkeys to backrun
-    pub backrun_accounts: Vec<Pubkey>,
+    pub backrun_accounts: Vec<BackrunAccount>,
 
     /// Path to keypair file used to sign and pay for transactions
     pub payer_keypair: String,
@@ -51,13 +57,19 @@ pub struct EngineSettings {
 }
 
 #[derive(Deserialize, Clone)]
+struct HelperBackrunAccount {
+    id: String,
+    account: String,
+}
+
+#[derive(Deserialize, Clone)]
 struct HelperSettings {
     auth_keypair: Vec<u8>,
     // whitelisted_keypair: String,
     pubsub_url: String,
     rpc_url: String,
     block_engine_url: String,
-    backrun_accounts: Vec<String>,
+    backrun_accounts: Vec<HelperBackrunAccount>,
     message: String,
     grpc_url: String,
     payer_keypair: String,
@@ -112,11 +124,17 @@ pub async fn load_settings() -> eyre::Result<EngineSettings> {
         backrun_accounts: helper_settings
             .backrun_accounts
             .iter()
-            .map(|account| match Pubkey::from_str(account) {
-                Ok(pubkey) => pubkey,
-                Err(e) => {
-                    println!("Error parsing backrun_accounts: {}", e);
-                    std::process::exit(1);
+            .map(|helper_account| {
+                let account = match Pubkey::from_str(&helper_account.account) {
+                    Ok(pubkey) => pubkey,
+                    Err(e) => {
+                        println!("Error parsing backrun_accounts: {}", e);
+                        std::process::exit(1);
+                    }
+                };
+                BackrunAccount {
+                    id: helper_account.id.clone(),
+                    account,
                 }
             })
             .collect(),

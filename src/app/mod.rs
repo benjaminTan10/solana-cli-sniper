@@ -70,10 +70,10 @@ pub async fn app() -> Result<(), Box<dyn std::error::Error>> {
         .indicator("⮞")
         .filterable(true)
         .option(DemandOption::new("Wrap Sol Mode").label("[1] Wrap SOL"))
-        .option(DemandOption::new("New Pair MEV").label("[2] Mev new Pairs"))
-        .option(DemandOption::new("Wallet Details").label("[3] View Wallets"))
-        .option(DemandOption::new("Generate Volume").label("[4] Generate Volume"))
-        .option(DemandOption::new("MEV Trades").label("[5] MEV Trades"));
+        .option(DemandOption::new("MEV Trades").label("[2] MEV Trades"))
+        .option(DemandOption::new("Generate Volume").label("[3] Spam Volume"))
+        .option(DemandOption::new("New Pair MEV").label("[4] New Pair Sniper"))
+        .option(DemandOption::new("Wallet Details").label("[5] Wallet Details"));
 
     let selected_option = ms.run().expect("error running select");
 
