@@ -79,6 +79,10 @@ chrono = "0.4.19"
 
 colored = "2.0.0"
 
+indicatif = "0.17.8"
+
+console = "0.15.8"
+
 [workspace]
 members = [
     "clients/yellowstone-grpc-proto",

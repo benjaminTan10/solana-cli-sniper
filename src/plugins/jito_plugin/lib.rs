@@ -27,6 +27,7 @@ use solana_sdk::{
     clock::Slot,
     commitment_config::{CommitmentConfig, CommitmentLevel},
     hash::Hash,
+    message::VersionedMessage,
     pubkey::Pubkey,
     signature::{read_keypair_file, Keypair, Signature, Signer},
     system_instruction::transfer,
@@ -112,11 +113,20 @@ async fn build_bundles(
             let rng = Arc::clone(&rng);
             let rpc_client = Arc::clone(&rpc_client);
             let preference = Arc::clone(&preference);
-            let keypair = Arc::new(keypair.clone());
+            let keypair = Arc::new(keypair);
             async move {
                 let mut rng = rng.lock().unwrap();
                 let buy_amount = rng.gen_range(preference.min_amount..=preference.max_amount);
                 let mempool_tx = versioned_tx_from_packet(&packet)?;
+                // info!("mempool_tx: {:?}", mempool_tx);
+                // let transaction_route = match mempool_tx.message {
+                //     VersionedMessage::V0(message) => {
+                //         let wallet = message.account_keys[0];
+                //     }
+                //     _ => {
+                //         return None;
+                //     }
+                // };
                 let tip_account = tip_accounts[rng.gen_range(0..tip_accounts.len())];
                 let account_keys = mempool_tx.message.static_account_keys();
                 info!("account_keys: {:?}", account_keys);
@@ -157,8 +167,6 @@ async fn build_bundles(
                 )
                 .await;
 
-                info!("swap_in: {:?}", swap_in);
-
                 let swap_out = swap_base_out_bundler(
                     rpc_client,
                     keypair.clone(),
@@ -171,8 +179,8 @@ async fn build_bundles(
                 .await;
 
                 Some(BundledTransactions {
-                    mempool_txs: vec![swap_in],
-                    backrun_txs: vec![mempool_tx, swap_out],
+                    mempool_txs: vec![swap_in, mempool_tx],
+                    backrun_txs: vec![swap_out],
                 })
             }
         })
@@ -595,15 +603,12 @@ async fn run_searcher_loop(
 }
 
 pub async fn backrun_jito(args: EngineSettings, preference: Arc<MEVBotSettings>) -> Result<()> {
-    let payer_keypair = Arc::new(Keypair::from_base58_string(&args.payer_keypair));
+    let payer_keypair = Arc::new(Keypair::from_base58_string(&preference.wallet));
     let auth_keypair = Arc::new(Keypair::from_bytes(&args.auth_keypair).unwrap());
-    info!(
-        "Accounts: {:?}",
-        args.backrun_accounts
-            .iter()
-            .map(|a| a.account)
-            .collect::<Vec<_>>()
-    );
+    // info!(
+    //     "Accounts: {:?}",
+    //     args.backrun_accounts.iter().map(|a| a).collect::<Vec<_>>()
+    // );
     set_host_id(auth_keypair.pubkey().to_string());
 
     let (slot_sender, slot_receiver) = channel(100);
@@ -617,7 +622,7 @@ pub async fn backrun_jito(args: EngineSettings, preference: Arc<MEVBotSettings>)
         args.block_engine_url.clone(),
         auth_keypair.clone(),
         pending_tx_sender,
-        args.backrun_accounts.iter().map(|a| a.account).collect(),
+        args.backrun_accounts.clone(),
     ));
 
     if args.subscribe_bundle_results {

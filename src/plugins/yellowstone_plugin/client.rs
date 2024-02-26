@@ -264,7 +264,7 @@ impl Action {
                     blocks_meta.insert("client".to_owned(), SubscribeRequestFilterBlocksMeta {});
                 }
 
-                let mut accounts_data_slice = Vec::new();
+                let accounts_data_slice = Vec::new();
                 // for data_slice in args.accounts_data_slice.iter() {
                 //     match data_slice.split_once(',') {
                 //         Some((offset, length)) => match (offset.parse(), length.parse()) {

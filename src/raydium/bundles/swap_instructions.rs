@@ -164,8 +164,8 @@ pub async fn volume_swap_base_in(
 
     let mut instructions = Vec::new();
 
-    instructions.push(unit_limit);
-    instructions.push(compute_price);
+    // instructions.push(unit_limit);
+    // instructions.push(compute_price);
 
     let token_account = match rpc_client
         .get_token_accounts_by_owner(&user_source_owner, TokenAccountsFilter::Mint(*base_mint))
@@ -267,7 +267,7 @@ pub async fn swap_base_out_bundler(
         }
     };
 
-    let tip_instruction = transfer(&user_source_owner, &tip_account, 10_000);
+    let tip_instruction = transfer(&user_source_owner, &tip_account, settings.bundle_tip);
 
     swap_out_instructions.push(tip_instruction);
     // let config = CommitmentLevel::Confirmed;

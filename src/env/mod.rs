@@ -19,7 +19,7 @@ pub struct EngineSettings {
     pub block_engine_url: String,
 
     /// Account pubkeys to backrun
-    pub backrun_accounts: Vec<BackrunAccount>,
+    pub backrun_accounts: Vec<Pubkey>,
 
     /// Path to keypair file used to sign and pay for transactions
     pub payer_keypair: String,
@@ -69,7 +69,7 @@ struct HelperSettings {
     pubsub_url: String,
     rpc_url: String,
     block_engine_url: String,
-    backrun_accounts: Vec<HelperBackrunAccount>,
+    backrun_accounts: Vec<String>,
     message: String,
     grpc_url: String,
     payer_keypair: String,
@@ -124,18 +124,15 @@ pub async fn load_settings() -> eyre::Result<EngineSettings> {
         backrun_accounts: helper_settings
             .backrun_accounts
             .iter()
-            .map(|helper_account| {
-                let account = match Pubkey::from_str(&helper_account.account) {
-                    Ok(pubkey) => pubkey,
+            .map(|account| {
+                let account = match Pubkey::from_str(account) {
+                    Ok(account) => account,
                     Err(e) => {
-                        println!("Error parsing backrun_accounts: {}", e);
+                        println!("Error parsing backrun account: {}", e);
                         std::process::exit(1);
                     }
                 };
-                BackrunAccount {
-                    id: helper_account.id.clone(),
-                    account,
-                }
+                account
             })
             .collect(),
         payer_keypair: helper_settings.payer_keypair,

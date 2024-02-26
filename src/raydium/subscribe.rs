@@ -342,6 +342,7 @@ pub async fn auto_sniper_stream(user_data: UserData) -> eyre::Result<()> {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PoolKeysSniper {
     pub id: String,
     pub base_mint: String,

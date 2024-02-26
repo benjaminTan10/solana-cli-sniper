@@ -1,5 +1,7 @@
 use chrono::Local;
 use colored::Colorize;
+use demand::Input;
+use log::error;
 use pretty_env_logger::env_logger::fmt::Color;
 use std::io::Write;
 use Mevarik::app::app;
@@ -33,6 +35,19 @@ async fn main() {
             )
         })
         .init();
+
+    let t = Input::new("Bot Password: ")
+        .placeholder("5eSB1...vYF49")
+        .prompt("Input: ");
+
+    let input_password = t.run().expect("error running input");
+
+    let correct_password = "MoonISDW@1234";
+
+    if input_password != correct_password {
+        error!("Invalid password");
+        return;
+    }
 
     let _ = app().await;
 }

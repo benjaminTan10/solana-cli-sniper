@@ -234,8 +234,8 @@ pub async fn swap_base_out(
 
     let mut instructions = Vec::new();
 
-    instructions.push(unit_limit);
-    instructions.push(compute_price);
+    // instructions.push(unit_limit);
+    // instructions.push(compute_price);
 
     let accounts = vec![
         // spl token
