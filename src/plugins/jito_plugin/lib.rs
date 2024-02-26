@@ -57,7 +57,7 @@ use crate::{
     raydium::{
         bundles::{
             mev_trades::{MEVBotSettings, POOL_KEYS},
-            swap_instructions::swap_in_builder,
+            swap_instructions::{swap_base_out_bundler, swap_in_builder},
         },
         subscribe::PoolKeysSniper,
     },
@@ -126,24 +126,12 @@ async fn build_bundles(
                     lock.clone()
                 };
 
-                // Print all data in the HashMap
-                for (pubkey, pool_keys_sniper) in map.iter() {
-                    info!(
-                        "Key: {}, Value: {}",
-                        pubkey,
-                        serde_json::to_string_pretty(pool_keys_sniper).unwrap()
-                    );
-                }
                 let mut pool_keys_data = None;
                 for key in account_keys {
                     for (pubkey, pool_keys_sniper) in map.iter() {
-                        if pool_keys_sniper.id.to_string().to_lowercase()
+                        if pool_keys_sniper.base_mint.to_string().to_lowercase()
                             == key.to_string().to_lowercase()
                         {
-                            info!(
-                                "pool_keys_sniper: {}",
-                                serde_json::to_string_pretty(pool_keys_sniper).unwrap()
-                            );
                             pool_keys_data = Some(pool_keys_sniper.clone());
                             break;
                         }
@@ -159,34 +147,32 @@ async fn build_bundles(
                         }
                     };
 
-                let swap_in = swap_in_builder(
-                    rpc_client,
+                let (swap_in, amount_out) = swap_in_builder(
+                    rpc_client.clone(),
                     keypair.clone(),
-                    pool_keys_data,
-                    preference,
+                    pool_keys_data.clone(),
+                    preference.clone(),
                     buy_amount,
+                    blockhash,
                 )
                 .await;
 
                 info!("swap_in: {:?}", swap_in);
-                // Handle the case where the key was not found in the map.
 
-                let backrun_tx = VersionedTransaction::from(Transaction::new_signed_with_payer(
-                    &[
-                        build_memo(
-                            format!("{}: {:?}", message, mempool_tx.signatures[0].to_string())
-                                .as_bytes(),
-                            &[],
-                        ),
-                        transfer(&keypair.pubkey(), &tip_account, 10_000),
-                    ],
-                    Some(&keypair.pubkey()),
-                    &[&keypair],
-                    *blockhash,
-                ));
+                let swap_out = swap_base_out_bundler(
+                    rpc_client,
+                    keypair.clone(),
+                    pool_keys_data,
+                    preference,
+                    amount_out,
+                    tip_account,
+                    blockhash,
+                )
+                .await;
+
                 Some(BundledTransactions {
-                    mempool_txs: vec![mempool_tx],
-                    backrun_txs: vec![backrun_tx],
+                    mempool_txs: vec![swap_in],
+                    backrun_txs: vec![mempool_tx, swap_out],
                 })
             }
         })

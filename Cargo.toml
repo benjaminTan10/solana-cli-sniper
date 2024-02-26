@@ -86,3 +86,9 @@ members = [
     "clients/searcher_client",
 ]
 resolver = "2"
+
+[profile.dev]
+opt-level = 0
+
+[profile.release]
+opt-level = 3

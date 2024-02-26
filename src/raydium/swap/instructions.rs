@@ -309,7 +309,7 @@ pub async fn make_simulate_pool_info_instruction(
     let instruction_data: [u8; 2] = [12, 0]; // 12 for instruction, 0 for simulateType
 
     warn!(
-        "Pool Keys: {:?}",
+        "Pool Keys: {}",
         serde_json::to_string_pretty(&pool_keys).unwrap()
     );
     let keys = vec![

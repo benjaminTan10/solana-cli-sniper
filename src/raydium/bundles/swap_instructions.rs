@@ -1,5 +1,6 @@
 use std::{str::FromStr, sync::Arc};
 
+use jito_protos::block;
 use log::error;
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_request::TokenAccountsFilter};
 use solana_sdk::{
@@ -10,13 +11,16 @@ use solana_sdk::{
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
+    system_instruction::transfer,
     transaction::VersionedTransaction,
 };
 use spl_associated_token_account::get_associated_token_address;
 
 use crate::raydium::{
     subscribe::PoolKeysSniper,
-    swap::instructions::{token_price_data, AmmInstruction, SwapInstructionBaseIn, SOLC_MINT},
+    swap::instructions::{
+        swap_base_out, token_price_data, AmmInstruction, SwapInstructionBaseIn, SOLC_MINT,
+    },
     volume_pinger::volume::{self, VolumeBotSettings},
 };
 
@@ -28,7 +32,8 @@ pub async fn swap_in_builder(
     pool_keys: PoolKeysSniper,
     settings: Arc<MEVBotSettings>,
     buy_amount: u64,
-) -> VersionedTransaction {
+    block_hash: &Hash,
+) -> (VersionedTransaction, u64) {
     let user_source_owner = wallet.pubkey();
     let tokens_amount = match token_price_data(
         rpc_client.clone(),
@@ -46,6 +51,7 @@ pub async fn swap_in_builder(
     };
 
     let tokens_amount = tokens_amount * 999 / 1000;
+
     let swap_in = match volume_swap_base_in(
         &Pubkey::from_str(&pool_keys.program_id).unwrap(),
         &Pubkey::from_str(&pool_keys.id).unwrap(),
@@ -79,30 +85,30 @@ pub async fn swap_in_builder(
         }
     };
 
-    let config = CommitmentLevel::Confirmed;
-    let (latest_blockhash, _) = match rpc_client
-        .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
-            commitment: config,
-        })
-        .await
-    {
-        Ok(r) => r,
-        Err(e) => {
-            error!("{}", e);
-            return VersionedTransaction::default();
-        }
-    };
+    // let config = CommitmentLevel::Confirmed;
+    // let (latest_blockhash, _) = match rpc_client
+    //     .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
+    //         commitment: config,
+    //     })
+    //     .await
+    // {
+    //     Ok(r) => r,
+    //     Err(e) => {
+    //         error!("{}", e);
+    //         return (VersionedTransaction::default(), 0);
+    //     }
+    // };
 
     let message = match solana_program::message::v0::Message::try_compile(
         &user_source_owner,
         &swap_in,
         &[],
-        latest_blockhash,
+        *block_hash,
     ) {
         Ok(x) => x,
         Err(e) => {
             println!("Error: {:?}", e);
-            return VersionedTransaction::default();
+            return (VersionedTransaction::default(), 0);
         }
     };
 
@@ -113,11 +119,11 @@ pub async fn swap_in_builder(
         Ok(x) => x,
         Err(e) => {
             println!("Error: {:?}", e);
-            return VersionedTransaction::default();
+            return (VersionedTransaction::default(), 0);
         }
     };
 
-    frontrun_tx
+    (frontrun_tx, tokens_amount as u64)
 }
 
 pub async fn volume_swap_base_in(
@@ -217,4 +223,90 @@ pub async fn volume_swap_base_in(
     instructions.push(account_swap_instructions);
 
     Ok(instructions)
+}
+use solana_program::hash::Hash;
+pub async fn swap_base_out_bundler(
+    rpc_client: Arc<RpcClient>,
+    wallet: Arc<&Keypair>,
+    pool_keys: PoolKeysSniper,
+    settings: Arc<MEVBotSettings>,
+    sell_amount: u64,
+    tip_account: Pubkey,
+    block_hash: &Hash,
+) -> VersionedTransaction {
+    let user_source_owner = wallet.pubkey();
+    let mut swap_out_instructions = match swap_base_out(
+        &Pubkey::from_str(&pool_keys.program_id).unwrap(),
+        &Pubkey::from_str(&pool_keys.id).unwrap(),
+        &Pubkey::from_str(&pool_keys.authority).unwrap(),
+        &Pubkey::from_str(&pool_keys.open_orders).unwrap(),
+        &Pubkey::from_str(&pool_keys.target_orders).unwrap(),
+        &Pubkey::from_str(&pool_keys.base_vault).unwrap(),
+        &Pubkey::from_str(&pool_keys.quote_vault).unwrap(),
+        &Pubkey::from_str(&pool_keys.market_program_id).unwrap(),
+        &Pubkey::from_str(&pool_keys.market_id).unwrap(),
+        &Pubkey::from_str(&pool_keys.market_bids).unwrap(),
+        &Pubkey::from_str(&pool_keys.market_asks).unwrap(),
+        &Pubkey::from_str(&pool_keys.market_event_queue).unwrap(),
+        &Pubkey::from_str(&pool_keys.market_base_vault).unwrap(),
+        &Pubkey::from_str(&pool_keys.market_quote_vault).unwrap(),
+        &Pubkey::from_str(&pool_keys.market_authority).unwrap(),
+        &user_source_owner,
+        &user_source_owner,
+        &Pubkey::from_str(&pool_keys.base_mint).unwrap(),
+        sell_amount as u64,
+        0,
+        settings.priority_fee,
+    )
+    .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            error!("{}", e);
+            Vec::new()
+        }
+    };
+
+    let tip_instruction = transfer(&user_source_owner, &tip_account, 10_000);
+
+    swap_out_instructions.push(tip_instruction);
+    // let config = CommitmentLevel::Confirmed;
+    // let (latest_blockhash, _) = match rpc_client
+    //     .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
+    //         commitment: config,
+    //     })
+    //     .await
+    // {
+    //     Ok(r) => r,
+    //     Err(e) => {
+    //         error!("{}", e);
+    //         return VersionedTransaction::default();
+    //     }
+    // };
+
+    let message = match solana_program::message::v0::Message::try_compile(
+        &user_source_owner,
+        &swap_out_instructions,
+        &[],
+        *block_hash,
+    ) {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Error: {:?}", e);
+            return VersionedTransaction::default();
+        }
+    };
+
+    let backrun_tx = match VersionedTransaction::try_new(
+        solana_program::message::VersionedMessage::V0(message),
+        &[&wallet],
+    ) {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Error: {:?}", e);
+            return VersionedTransaction::default();
+        }
+    };
+
+    backrun_tx
 }
