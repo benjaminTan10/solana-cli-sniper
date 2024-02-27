@@ -44,6 +44,7 @@ use std::{
 };
 use thiserror::Error;
 use tokio::{
+    join,
     runtime::Builder,
     sync::mpsc::{channel, Receiver},
     time::interval,
@@ -61,6 +62,7 @@ use crate::{
             swap_instructions::{swap_base_out_bundler, swap_in_builder},
         },
         subscribe::PoolKeysSniper,
+        swap::instructions::token_price_data,
     },
 };
 
@@ -83,6 +85,7 @@ pub enum BackrunError {
 #[derive(Clone)]
 pub struct BundledTransactions {
     pub mempool_txs: Vec<VersionedTransaction>,
+    pub middle_txs: Vec<VersionedTransaction>,
     pub backrun_txs: Vec<VersionedTransaction>,
 }
 
@@ -156,30 +159,65 @@ async fn build_bundles(
                             return None;
                         }
                     };
+                let tokens_amount = match token_price_data(
+                    rpc_client.clone(),
+                    pool_keys_data.clone(),
+                    keypair.clone(),
+                    buy_amount,
+                )
+                .await
+                {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error!("{}", e);
+                        0
+                    }
+                };
 
-                let (swap_in, amount_out) = swap_in_builder(
+                let tokens_amount = tokens_amount * 999 / 1000;
+
+                let swap_in_future = swap_in_builder(
                     rpc_client.clone(),
                     keypair.clone(),
                     pool_keys_data.clone(),
                     preference.clone(),
                     buy_amount,
+                    tokens_amount as u64,
                     blockhash,
-                )
-                .await;
+                );
 
-                let swap_out = swap_base_out_bundler(
+                let swap_out_future = swap_base_out_bundler(
                     rpc_client,
                     keypair.clone(),
                     pool_keys_data,
-                    preference,
-                    amount_out,
+                    preference.clone(),
+                    tokens_amount as u64,
                     tip_account,
                     blockhash,
-                )
-                .await;
+                );
+
+                let (swap_in, swap_out) = join!(swap_in_future, swap_out_future);
+
+                let tip_tx = VersionedTransaction::from(Transaction::new_signed_with_payer(
+                    &[
+                        build_memo(
+                            format!(
+                                "Jeet Molesting Tip: {:?}",
+                                mempool_tx.signatures[0].to_string()
+                            )
+                            .as_bytes(),
+                            &[],
+                        ),
+                        transfer(&keypair.pubkey(), &tip_account, preference.bundle_tip),
+                    ],
+                    Some(&keypair.pubkey()),
+                    &[&*keypair],
+                    *blockhash,
+                ));
 
                 Some(BundledTransactions {
-                    mempool_txs: vec![swap_in, mempool_tx],
+                    mempool_txs: vec![swap_in],
+                    middle_txs: vec![mempool_tx, tip_tx],
                     backrun_txs: vec![swap_out],
                 })
             }
@@ -205,6 +243,7 @@ pub async fn send_bundles(
             .mempool_txs
             .clone()
             .into_iter()
+            .chain(b.middle_txs.clone().into_iter())
             .chain(b.backrun_txs.clone().into_iter())
             .collect::<Vec<VersionedTransaction>>();
         let task =

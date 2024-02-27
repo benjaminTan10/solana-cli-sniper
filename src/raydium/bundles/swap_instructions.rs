@@ -32,25 +32,10 @@ pub async fn swap_in_builder(
     pool_keys: PoolKeysSniper,
     settings: Arc<MEVBotSettings>,
     buy_amount: u64,
+    tokens_amount: u64,
     block_hash: &Hash,
-) -> (VersionedTransaction, u64) {
+) -> VersionedTransaction {
     let user_source_owner = wallet.pubkey();
-    let tokens_amount = match token_price_data(
-        rpc_client.clone(),
-        pool_keys.clone(),
-        wallet.clone(),
-        buy_amount,
-    )
-    .await
-    {
-        Ok(r) => r,
-        Err(e) => {
-            error!("{}", e);
-            0
-        }
-    };
-
-    let tokens_amount = tokens_amount * 999 / 1000;
 
     let swap_in = match volume_swap_base_in(
         &Pubkey::from_str(&pool_keys.program_id).unwrap(),
@@ -108,7 +93,7 @@ pub async fn swap_in_builder(
         Ok(x) => x,
         Err(e) => {
             println!("Error: {:?}", e);
-            return (VersionedTransaction::default(), 0);
+            return VersionedTransaction::default();
         }
     };
 
@@ -119,11 +104,11 @@ pub async fn swap_in_builder(
         Ok(x) => x,
         Err(e) => {
             println!("Error: {:?}", e);
-            return (VersionedTransaction::default(), 0);
+            return VersionedTransaction::default();
         }
     };
 
-    (frontrun_tx, tokens_amount as u64)
+    frontrun_tx
 }
 
 pub async fn volume_swap_base_in(
@@ -267,9 +252,6 @@ pub async fn swap_base_out_bundler(
         }
     };
 
-    let tip_instruction = transfer(&user_source_owner, &tip_account, settings.bundle_tip);
-
-    swap_out_instructions.push(tip_instruction);
     // let config = CommitmentLevel::Confirmed;
     // let (latest_blockhash, _) = match rpc_client
     //     .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
