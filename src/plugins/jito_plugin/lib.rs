@@ -10,8 +10,8 @@ use jito_protos::{
     },
 };
 use jito_searcher_client::{
-    get_searcher_client, send_bundle_no_wait, token_authenticator::ClientInterceptor,
-    BlockEngineConnectionError,
+    get_searcher_client, send_bundle_no_wait, send_bundle_with_confirmation,
+    token_authenticator::ClientInterceptor, BlockEngineConnectionError,
 };
 use log::*;
 use pretty_env_logger::env_logger::TimestampPrecision;
@@ -49,7 +49,7 @@ use tokio::{
     sync::mpsc::{channel, Receiver},
     time::interval,
 };
-use tonic::{codegen::InterceptedService, transport::Channel, Response, Status};
+use tonic::{codegen::InterceptedService, transport::Channel, Response, Status, Streaming};
 
 use crate::{
     env::EngineSettings,
@@ -217,8 +217,8 @@ async fn build_bundles(
 
                 Some(BundledTransactions {
                     mempool_txs: vec![swap_in],
-                    middle_txs: vec![mempool_tx, tip_tx],
-                    backrun_txs: vec![swap_out],
+                    middle_txs: vec![mempool_tx],
+                    backrun_txs: vec![swap_out, tip_tx],
                 })
             }
         })
@@ -605,7 +605,7 @@ async fn run_searcher_loop(
                     let bundles = build_bundles(rpc_client.clone(),pending_tx_notification, keypair, &blockhash, &tip_accounts, Arc::clone(&rng), &message, preferences.clone()).await;
                     if !bundles.is_empty() {
                         let now = Instant::now();
-                        let results = send_bundles(&mut searcher_client, &bundles).await?;
+                        let results = send_bundles(&mut searcher_client, &bundles,).await?;
                         let send_elapsed = now.elapsed().as_micros() as u64;
                         let send_rt_pp_us = send_elapsed / bundles.len() as u64;
 

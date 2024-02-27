@@ -141,15 +141,15 @@ pub async fn volume_swap_base_in(
     })
     .pack()?;
 
-    let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(100000000);
-    let compute_price = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
+    let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(1000000);
+    // let compute_price = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
 
     let source_token_account = get_associated_token_address(wallet_address, &SOLC_MINT);
     let destination_token_account = get_associated_token_address(wallet_address, base_mint);
 
     let mut instructions = Vec::new();
 
-    // instructions.push(unit_limit);
+    instructions.push(unit_limit);
     // instructions.push(compute_price);
 
     let token_account = match rpc_client
@@ -220,7 +220,8 @@ pub async fn swap_base_out_bundler(
     block_hash: &Hash,
 ) -> VersionedTransaction {
     let user_source_owner = wallet.pubkey();
-    let mut swap_out_instructions = match swap_base_out(
+
+    let swap_out_instructions = match swap_base_out(
         &Pubkey::from_str(&pool_keys.program_id).unwrap(),
         &Pubkey::from_str(&pool_keys.id).unwrap(),
         &Pubkey::from_str(&pool_keys.authority).unwrap(),

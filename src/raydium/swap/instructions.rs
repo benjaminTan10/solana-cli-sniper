@@ -226,16 +226,16 @@ pub async fn swap_base_out(
     })
     .pack()?;
 
-    let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(100000000);
-    let compute_price = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
+    let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(500000);
+    // let compute_price = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
 
     let source_token_account = get_associated_token_address(wallet_address, base_mint);
     let destination_token_account = get_associated_token_address(wallet_address, &SOLC_MINT);
 
     let mut instructions = Vec::new();
 
-    // instructions.push(unit_limit);
     // instructions.push(compute_price);
+    instructions.push(unit_limit);
 
     let accounts = vec![
         // spl token
