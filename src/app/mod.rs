@@ -88,7 +88,10 @@ pub async fn app() -> Result<(), Box<dyn std::error::Error>> {
             let _ = wallet_logger().await;
         }
         "Generate Volume" => {
-            let _ = generate_volume().await;
+            let _ = match generate_volume().await {
+                Ok(_) => info!("Volume Sent"),
+                Err(e) => error!("{}", e),
+            };
         }
         "MEV Trades" => {
             let _ = mev_trades().await;

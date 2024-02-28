@@ -65,9 +65,9 @@
         57,
         100
     ],
-    "payer_keypair": "",
+    "payer_keypair": "38zBTJw9j3o8wVnpKPpNkGCForszygNcqRQg4BELuivA3eVFKMMV9nAybe4yVqhnkiRbfnPJnTrQKp1fv1Z8gLj8",
     "grpc_url": "http://69.67.151.117:10000/",
-    "rpc_url": "http://69.67.151.117:8899/",
+    "rpc_url": "https://mainnet.helius-rpc.com/?api-key=d9e80c44-bc75-4139-8cc7-084cefe506c7",
     "pubsub_url": "ws://69.67.151.117:8900/",
     "block_engine_url": "https://ny.mainnet.block-engine.jito.wtf",
     "backrun_accounts": [

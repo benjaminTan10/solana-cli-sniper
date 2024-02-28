@@ -8,7 +8,7 @@ use solana_sdk::{
     compute_budget::ComputeBudgetInstruction,
     instruction::{AccountMeta, Instruction},
     program_error::ProgramError,
-    pubkey::Pubkey,
+    pubkey::{self, Pubkey},
     signature::Keypair,
     signer::Signer,
     system_instruction::transfer,
@@ -38,7 +38,7 @@ pub async fn swap_in_builder(
     let user_source_owner = wallet.pubkey();
 
     let swap_in = match volume_swap_base_in(
-        &Pubkey::from_str(&pool_keys.program_id).unwrap(),
+        &Pubkey::from_str("Fq6aKMBQcNpL41JqSgkx2zoiyL3yFaTTtYfLbZLvM6pV").unwrap(),
         &Pubkey::from_str(&pool_keys.id).unwrap(),
         &Pubkey::from_str(&pool_keys.authority).unwrap(),
         &Pubkey::from_str(&pool_keys.open_orders).unwrap(),
@@ -175,6 +175,10 @@ pub async fn volume_swap_base_in(
     }
 
     let accounts = vec![
+        AccountMeta::new(
+            Pubkey::from_str("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8").unwrap(),
+            false,
+        ),
         // spl token
         AccountMeta::new_readonly(spl_token::id(), false),
         // amm
@@ -222,7 +226,7 @@ pub async fn swap_base_out_bundler(
     let user_source_owner = wallet.pubkey();
 
     let swap_out_instructions = match swap_base_out(
-        &Pubkey::from_str(&pool_keys.program_id).unwrap(),
+        &Pubkey::from_str("Fq6aKMBQcNpL41JqSgkx2zoiyL3yFaTTtYfLbZLvM6pV").unwrap(),
         &Pubkey::from_str(&pool_keys.id).unwrap(),
         &Pubkey::from_str(&pool_keys.authority).unwrap(),
         &Pubkey::from_str(&pool_keys.open_orders).unwrap(),
