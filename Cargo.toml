@@ -83,6 +83,9 @@ indicatif = "0.17.8"
 
 console = "0.15.8"
 
+num-traits = "0.2.18"
+num-derive = "0.4.2"
+
 [workspace]
 members = [
     "clients/yellowstone-grpc-proto",

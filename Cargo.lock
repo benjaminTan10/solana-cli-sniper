@@ -41,6 +41,8 @@ dependencies = [
  "lazy_static",
  "log",
  "maplit",
+ "num-derive 0.4.2",
+ "num-traits",
  "once_cell",
  "pretty_env_logger",
  "rand 0.8.5",

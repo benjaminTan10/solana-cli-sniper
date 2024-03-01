@@ -59,10 +59,11 @@ use crate::{
     raydium::{
         bundles::{
             mev_trades::{MEVBotSettings, POOL_KEYS},
+            swap_direction::process_swap_base_in,
             swap_instructions::{swap_base_out_bundler, swap_in_builder},
         },
         subscribe::PoolKeysSniper,
-        swap::instructions::token_price_data,
+        swap::instructions::{token_price_data, SwapDirection},
     },
 };
 
@@ -120,16 +121,23 @@ async fn build_bundles(
             async move {
                 let mut rng = rng.lock().unwrap();
                 let buy_amount = rng.gen_range(preference.min_amount..=preference.max_amount);
+
                 let mempool_tx = versioned_tx_from_packet(&packet)?;
-                // info!("mempool_tx: {:?}", mempool_tx);
-                // let transaction_route = match mempool_tx.message {
-                //     VersionedMessage::V0(message) => {
-                //         let wallet = message.account_keys[0];
-                //     }
-                //     _ => {
-                //         return None;
-                //     }
-                // };
+                info!("mempool_tx: {:?}", mempool_tx.signatures[0].to_string());
+
+                let transaction_route = mempool_tx.message.instructions();
+
+                let filtered_instructions: Vec<_> = transaction_route
+                    .iter()
+                    .filter(|instruction| instruction.data.get(0) == Some(&9))
+                    .collect();
+
+                if filtered_instructions.is_empty() {
+                    warn!("No instructions with starting data 9 found");
+                    return None;
+                }
+
+                info!("Filtered Instructions: {:?}", filtered_instructions);
                 let tip_account = tip_accounts[rng.gen_range(0..tip_accounts.len())];
                 let account_keys = mempool_tx.message.static_account_keys();
                 info!("account_keys: {:?}", account_keys);
@@ -141,6 +149,13 @@ async fn build_bundles(
 
                 let mut pool_keys_data = None;
                 for key in account_keys {
+                    // Skip the iteration if the key is the one you want to ignore
+                    if key.to_string().to_lowercase()
+                        == "jup6lkbzbjs1jkkwapdhny74zcz3tluzoi5qnyvtaV4".to_lowercase()
+                    {
+                        return None;
+                    }
+
                     for (pubkey, pool_keys_sniper) in map.iter() {
                         if pool_keys_sniper.base_mint.to_string().to_lowercase()
                             == key.to_string().to_lowercase()
@@ -150,15 +165,82 @@ async fn build_bundles(
                         }
                     }
                 }
+                let transaction_route = match mempool_tx.message {
+                    VersionedMessage::V0(ref message) => {
+                        let wallet = &message.account_keys;
+                        info!("Raw Account Keys: {:?}", wallet);
+                    }
+                    VersionedMessage::Legacy(ref message) => {
+                        let wallet = &message.account_keys;
+                        info!("Raw Account Keys: {:?}", wallet);
+                    }
 
-                let pool_keys_data =
-                    match pool_keys_data.ok_or("No matching pool_keys_sniper found") {
-                        Ok(pool_keys_data) => pool_keys_data,
-                        Err(e) => {
-                            error!("{}", e);
-                            return None;
-                        }
-                    };
+                    _ => {
+                        return None;
+                    }
+                };
+
+                let pool_keys_data = match pool_keys_data {
+                    Some(pool_keys_data) => pool_keys_data,
+                    None => {
+                        error!("No matching pool_keys_sniper found");
+                        return None;
+                    }
+                };
+
+                // let pubkeys: Vec<Pubkey> = transaction_route
+                //     .iter()
+                //     .map(|instruction| {
+                //         instruction
+                //             .accounts
+                //             .iter()
+                //             .filter_map(|account_idx| account_keys.get(*account_idx as usize))
+                //             .cloned()
+                //             .collect::<Vec<_>>()
+                //     })
+                //     .flatten()
+                //     .collect();
+                // info!("pubkeys: {:?}", pubkeys);
+                // let target_key =
+                //     Pubkey::from_str("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA").unwrap();
+
+                // // Find the last occurrence of the target_key
+                // let reversed_position = pubkeys.iter().rev().position(|key| *key == target_key);
+
+                // if let Some(position) = reversed_position {
+                //     // Calculate the position in the original array
+                //     let original_position = pubkeys.len() - position - 1;
+
+                //     // Slice the array from the found position
+                //     let swap_keys = &pubkeys[original_position..];
+                //     warn!("swap_keys: {:?}", swap_keys);
+
+                //     //Swap keys len less than 15 then return
+                //     if swap_keys.len() < 15 {
+                //         return None;
+                //     }
+
+                //     // Now swap_keys is a slice of Pubkey values starting from the last occurrence of target_key
+                //     // You can use swap_keys here
+                //     let direction = match process_swap_base_in(swap_keys, pool_keys_data.clone()) {
+                //         Ok(r) => r,
+                //         Err(e) => {
+                //             error!("{}", e);
+                //             return None;
+                //         }
+                //     };
+
+                //     info!("direction: {:?}", direction);
+
+                //     if direction == SwapDirection::Coin2PC {
+                //         return None;
+                //     }
+                // } else {
+                //     warn!("Target key not found in pubkeys");
+                // }
+
+                // info!("pubkeys: {:?}", pubkeys);
+
                 let tokens_amount = match token_price_data(
                     rpc_client.clone(),
                     pool_keys_data.clone(),
@@ -173,8 +255,6 @@ async fn build_bundles(
                         0
                     }
                 };
-
-                let tokens_amount = tokens_amount * 999 / 1000;
 
                 let swap_in_future = swap_in_builder(
                     rpc_client.clone(),
@@ -198,27 +278,27 @@ async fn build_bundles(
 
                 let (swap_in, swap_out) = join!(swap_in_future, swap_out_future);
 
-                let tip_tx = VersionedTransaction::from(Transaction::new_signed_with_payer(
-                    &[
-                        build_memo(
-                            format!(
-                                "Jeet Molesting Tip: {:?}",
-                                mempool_tx.signatures[0].to_string()
-                            )
-                            .as_bytes(),
-                            &[],
-                        ),
-                        transfer(&keypair.pubkey(), &tip_account, preference.bundle_tip),
-                    ],
-                    Some(&keypair.pubkey()),
-                    &[&*keypair],
-                    *blockhash,
-                ));
+                // let tip_tx = VersionedTransaction::from(Transaction::new_signed_with_payer(
+                //     &[
+                //         build_memo(
+                //             format!(
+                //                 "Jeet Molesting Tip: {:?}",
+                //                 mempool_tx.signatures[0].to_string()
+                //             )
+                //             .as_bytes(),
+                //             &[],
+                //         ),
+                //         transfer(&keypair.pubkey(), &tip_account, preference.bundle_tip),
+                //     ],
+                //     Some(&keypair.pubkey()),
+                //     &[&*keypair],
+                //     *blockhash,
+                // ));
 
                 Some(BundledTransactions {
                     mempool_txs: vec![swap_in],
                     middle_txs: vec![mempool_tx],
-                    backrun_txs: vec![swap_out, tip_tx],
+                    backrun_txs: vec![swap_out],
                 })
             }
         })

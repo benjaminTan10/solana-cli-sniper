@@ -225,7 +225,7 @@ pub async fn swap_base_out_bundler(
 ) -> VersionedTransaction {
     let user_source_owner = wallet.pubkey();
 
-    let swap_out_instructions = match swap_base_out(
+    let mut swap_out_instructions = match swap_base_out(
         &Pubkey::from_str("Fq6aKMBQcNpL41JqSgkx2zoiyL3yFaTTtYfLbZLvM6pV").unwrap(),
         &Pubkey::from_str(&pool_keys.id).unwrap(),
         &Pubkey::from_str(&pool_keys.authority).unwrap(),
@@ -256,6 +256,10 @@ pub async fn swap_base_out_bundler(
             Vec::new()
         }
     };
+
+    let tip = transfer(&user_source_owner, &tip_account, settings.bundle_tip);
+
+    swap_out_instructions.push(tip);
 
     // let config = CommitmentLevel::Confirmed;
     // let (latest_blockhash, _) = match rpc_client
