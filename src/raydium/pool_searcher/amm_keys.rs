@@ -87,7 +87,7 @@ pub async fn pool_keys_fetcher(
         market_bids: market_info.bids.to_string(),
         market_asks: market_info.asks.to_string(),
         market_event_queue: market_info.eventQueue.to_string(),
-        lookup_table_account: Pubkey::default().to_string(),
+        lookup_table_account: Some(Pubkey::default().to_string()),
     };
 
     Ok((pool_keys, info))

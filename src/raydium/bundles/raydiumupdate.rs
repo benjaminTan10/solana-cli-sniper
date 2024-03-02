@@ -102,7 +102,11 @@ pub async fn load_json_to_hashmap(
 ) -> Result<(bool, Vec<Pubkey>, usize), Box<dyn std::error::Error>> {
     let json = json.to_owned();
     let data: Pools = tokio::task::spawn_blocking(move || serde_json::from_str(&json)).await??;
-    println!("Number of pools in JSON: {}", data.official.len());
+    println!("Number of official pools in JSON: {}", data.official.len());
+    println!(
+        "Number of unofficial pools in JSON: {}",
+        data.unOfficial.len()
+    );
     let mut map = POOL_KEYS.lock().unwrap();
     let mut ids = Vec::new();
     let mut parse_errors = 0;
@@ -117,11 +121,27 @@ pub async fn load_json_to_hashmap(
             }
         }
     }
+    for pool in &data.unOfficial {
+        match Pubkey::from_str(&pool.id) {
+            Ok(pubkey) => {
+                map.insert(pool.id.clone(), pool.clone());
+                ids.push(pubkey);
+            }
+            Err(_) => {
+                parse_errors += 1;
+            }
+        }
+    }
     info!("Fetched keys for account: {:?}", map.len());
-    Ok((data.official.len() == map.len(), ids, parse_errors))
+    Ok((
+        data.official.len() + data.unOfficial.len() == map.len(),
+        ids,
+        parse_errors,
+    ))
 }
 #[derive(Debug, Deserialize)]
 pub struct Pools {
     name: String,
     official: Vec<PoolKeysSniper>,
+    unOfficial: Vec<PoolKeysSniper>,
 }

@@ -286,7 +286,9 @@ pub async fn auto_sniper_stream(user_data: UserData) -> eyre::Result<()> {
                                                 market_event_queue: market_info
                                                     .eventQueue
                                                     .to_string(),
-                                                lookup_table_account: Pubkey::default().to_string(),
+                                                lookup_table_account: Some(
+                                                    Pubkey::default().to_string(),
+                                                ),
                                             };
                                         }
                                         _ => println!("Transaction is not of type Accounts"),
@@ -369,7 +371,7 @@ pub struct PoolKeysSniper {
     pub market_bids: String,
     pub market_asks: String,
     pub market_event_queue: String,
-    pub lookup_table_account: String,
+    pub lookup_table_account: Option<String>,
 }
 impl PoolKeysSniper {
     pub fn new() -> Self {

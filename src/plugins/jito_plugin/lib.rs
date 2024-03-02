@@ -129,9 +129,10 @@ async fn build_bundles(
 
                 let filtered_instructions: Vec<_> = transaction_route
                     .iter()
-                    .filter(|instruction| instruction.data.get(0) == Some(&9))
+                    .filter(|instruction| {
+                        instruction.data.get(0) == Some(&9) && instruction.data.len() > 1
+                    })
                     .collect();
-
                 if filtered_instructions.is_empty() {
                     warn!("No instructions with starting data 9 found");
                     return None;

@@ -85,6 +85,7 @@ console = "0.15.8"
 
 num-traits = "0.2.18"
 num-derive = "0.4.2"
+mongodb = "2.0.0"
 
 [workspace]
 members = [

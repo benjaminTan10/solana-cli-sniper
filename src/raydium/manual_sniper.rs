@@ -205,7 +205,9 @@ pub async fn raydium_stream(user_data: UserData) -> eyre::Result<()> {
                                                 market_event_queue: market_info
                                                     .eventQueue
                                                     .to_string(),
-                                                lookup_table_account: Pubkey::default().to_string(),
+                                                lookup_table_account: Some(
+                                                    Pubkey::default().to_string(),
+                                                ),
                                             };
                                         }
                                         _ => println!("Transaction is not of type Accounts"),

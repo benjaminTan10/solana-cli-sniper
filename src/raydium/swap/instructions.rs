@@ -343,8 +343,12 @@ pub async fn simulate_multiple_instruction(
     pool_keys: PoolKeysSniper,
     wallet: Arc<&Keypair>,
 ) -> eyre::Result<Value> {
-    let lookup =
-        address_deserailizer([Pubkey::from_str(&pool_keys.lookup_table_account)?].to_vec());
+    let lookup = address_deserailizer(
+        [Pubkey::from_str(
+            &pool_keys.lookup_table_account.unwrap_or_default(),
+        )?]
+        .to_vec(),
+    );
     let message = Message::try_compile(
         &wallet.pubkey(),
         &instructions,

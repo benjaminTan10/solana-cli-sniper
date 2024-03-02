@@ -31,13 +31,13 @@ pub struct MEVBotSettings {
 }
 
 pub async fn mev_trades() -> Result<(), Box<dyn Error>> {
-    // let backrun_keys = match update_raydium().await {
-    //     Ok(keys) => keys,
-    //     Err(e) => {
-    //         error!("{}", e);
-    //         return Err(e);
-    //     }
-    // };
+    let backrun_keys = match update_raydium().await {
+        Ok(keys) => keys,
+        Err(e) => {
+            error!("{}", e);
+            return Err(e);
+        }
+    };
 
     let min_amount = buy_amount("Min Amount").await?;
     let max_amount = buy_amount("Max Amount").await?;
@@ -88,7 +88,7 @@ pub async fn mev_trades() -> Result<(), Box<dyn Error>> {
 
     drop(map);
 
-    // args.backrun_accounts = backrun_keys;
+    args.backrun_accounts = backrun_keys;
 
     let _ = match backrun_jito(args, Arc::new(settings)).await {
         Ok(_) => info!("Jito Started"),

@@ -67,7 +67,6 @@ pub async fn app() -> Result<(), Box<dyn std::error::Error>> {
     let ms = Select::new("Main Menu")
         .description("Select the Mode")
         .theme(&theme)
-        .indicator("⮞")
         .filterable(true)
         .option(DemandOption::new("Wrap Sol Mode").label("[1] Wrap SOL"))
         .option(DemandOption::new("MEV Trades").label("[2] MEV Trades"))
