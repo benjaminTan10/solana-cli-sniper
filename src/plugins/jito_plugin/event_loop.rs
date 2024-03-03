@@ -4,7 +4,7 @@ use futures_util::StreamExt;
 use jito_protos::{
     bundle::BundleResult,
     searcher::{
-        mempool_subscription, MempoolSubscription, PendingTxNotification,
+        mempool_subscription, MempoolSubscription, PendingTxNotification, ProgramSubscriptionV0,
         SubscribeBundleResultsRequest, WriteLockedAccountSubscriptionV0,
     },
 };
@@ -155,7 +155,7 @@ pub async fn pending_tx_loop(
     let mut num_pending_tx_stream_errors: usize = 0;
     let mut num_pending_tx_stream_disconnects: usize = 0;
 
-    info!("backrun pubkeys: {:?}", backrun_pubkeys);
+    info!("backrun pubkeys: {:?}", backrun_pubkeys.len());
 
     loop {
         sleep(Duration::from_secs(1)).await;
@@ -165,6 +165,11 @@ pub async fn pending_tx_loop(
                 match searcher_client
                     .subscribe_mempool(MempoolSubscription {
                         regions: vec![],
+                        // msg: Some(mempool_subscription::Msg::ProgramV0Sub(
+                        //     ProgramSubscriptionV0 {
+                        //         programs: backrun_pubkeys.iter().map(|pk| pk.to_string()).collect(),
+                        //     },
+                        // )),
                         msg: Some(mempool_subscription::Msg::WlaV0Sub(
                             WriteLockedAccountSubscriptionV0 {
                                 accounts: backrun_pubkeys.iter().map(|pk| pk.to_string()).collect(),

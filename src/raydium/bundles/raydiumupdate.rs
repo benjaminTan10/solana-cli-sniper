@@ -140,6 +140,7 @@ pub async fn load_json_to_hashmap(
     ))
 }
 #[derive(Debug, Deserialize)]
+#[allow(non_snake_case)]
 pub struct Pools {
     name: String,
     official: Vec<PoolKeysSniper>,

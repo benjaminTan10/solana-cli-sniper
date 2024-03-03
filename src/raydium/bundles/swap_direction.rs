@@ -1,5 +1,6 @@
 use std::{cell::RefMut, str::FromStr};
 
+use crate::raydium::swap::instructions::AmmInstruction::{self, SwapBaseIn};
 use log::info;
 use solana_sdk::{
     account_info::{next_account_info, AccountInfo},
@@ -54,6 +55,37 @@ pub fn unpack_token_account(
     } else {
         spl_token::state::Account::unpack(&account_info.data.borrow())
             .map_err(|_| AmmError::ExpectedAccount)
+    }
+}
+
+pub fn unpack(input: Vec<u8>) -> Result<AmmInstruction, ProgramError> {
+    let (&tag, rest) = input
+        .split_first()
+        .ok_or(ProgramError::InvalidInstructionData)?;
+    let (amount_in, rest) = unpack_u64(rest)?;
+    let (minimum_amount_out, _rest) = unpack_u64(rest)?;
+    let amount = SwapBaseIn(SwapInstructionBaseIn {
+        amount_in,
+        minimum_amount_out,
+    });
+
+    match tag {
+        0 => Ok(amount),
+        _ => Err(ProgramError::InvalidInstructionData),
+    }
+}
+
+fn unpack_u64(input: &[u8]) -> Result<(u64, &[u8]), ProgramError> {
+    if input.len() >= 8 {
+        let (amount, rest) = input.split_at(8);
+        let amount = amount
+            .get(..8)
+            .and_then(|slice| slice.try_into().ok())
+            .map(u64::from_le_bytes)
+            .ok_or(ProgramError::InvalidInstructionData)?;
+        Ok((amount, rest))
+    } else {
+        Err(ProgramError::InvalidInstructionData.into())
     }
 }
 

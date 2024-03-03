@@ -53,7 +53,7 @@ pub async fn mev_trades() -> Result<(), Box<dyn Error>> {
         wallet,
     };
 
-    let mut args = match load_settings().await {
+    let args = match load_settings().await {
         Ok(args) => args,
         Err(e) => {
             error!("Error: {:?}", e);
@@ -61,7 +61,8 @@ pub async fn mev_trades() -> Result<(), Box<dyn Error>> {
         }
     };
 
-    let backrun = args.clone().backrun_accounts;
+    let backrun = args.backrun_accounts.clone();
+
     let fetches = backrun.into_iter().map(|account| async move {
         let (pool_keys, _) = match pool_keys_fetcher(account.to_string()).await {
             Ok(pool_keys) => pool_keys,
@@ -88,7 +89,7 @@ pub async fn mev_trades() -> Result<(), Box<dyn Error>> {
 
     drop(map);
 
-    args.backrun_accounts = backrun_keys;
+    // args.backrun_accounts = backrun_keys;
 
     let _ = match backrun_jito(args, Arc::new(settings)).await {
         Ok(_) => info!("Jito Started"),

@@ -59,11 +59,11 @@ use crate::{
     raydium::{
         bundles::{
             mev_trades::{MEVBotSettings, POOL_KEYS},
-            swap_direction::process_swap_base_in,
+            swap_direction::{process_swap_base_in, unpack},
             swap_instructions::{swap_base_out_bundler, swap_in_builder},
         },
         subscribe::PoolKeysSniper,
-        swap::instructions::{token_price_data, SwapDirection},
+        swap::instructions::{token_price_data, AmmInstruction, SwapDirection},
     },
 };
 
@@ -139,6 +139,28 @@ async fn build_bundles(
                 }
 
                 info!("Filtered Instructions: {:?}", filtered_instructions);
+
+                let amount_input = match unpack(
+                    filtered_instructions
+                        .first()
+                        .map(|instruction| instruction.data.clone())
+                        .unwrap_or_else(|| vec![]),
+                )
+                .ok()
+                {
+                    Some(AmmInstruction::SwapBaseIn(swap_instruction)) => {
+                        swap_instruction.amount_in
+                    }
+                    _ => {
+                        error!("Error unpacking instruction or instruction is not SwapBaseIn");
+                        return None;
+                    }
+                };
+
+                if amount_input < 500000000 {
+                    return None;
+                }
+
                 let tip_account = tip_accounts[rng.gen_range(0..tip_accounts.len())];
                 let account_keys = mempool_tx.message.static_account_keys();
                 info!("account_keys: {:?}", account_keys);
