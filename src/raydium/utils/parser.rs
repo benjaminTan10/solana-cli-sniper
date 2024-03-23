@@ -5,12 +5,15 @@ use solana_transaction_status::{
 };
 use std::str::FromStr;
 
-use crate::rpc::{self, rpc_key};
+use crate::rpc::{self, rpc_key, HTTP_CLIENT};
 
 pub async fn parse_signatures(
     confirmed_sigs: &String,
 ) -> Option<(UiTransactionStatusMeta, EncodedTransaction)> {
-    let rpc_client = RpcClient::new(rpc_key());
+    let rpc_client = {
+        let http_client = HTTP_CLIENT.lock().unwrap();
+        http_client.get("http_client").unwrap().clone()
+    };
     let encoding_1 = UiTransactionEncoding::JsonParsed;
 
     let config = RpcTransactionConfig {

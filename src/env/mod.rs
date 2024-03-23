@@ -1,8 +1,7 @@
-use std::{fs, path::PathBuf, str::FromStr};
+use std::fs;
 
 use serde::Deserialize;
 use solana_program::pubkey::Pubkey;
-use solana_sdk::signature::Keypair;
 
 pub mod env_loader;
 
@@ -19,14 +18,14 @@ pub struct EngineSettings {
     pub block_engine_url: String,
 
     /// Account pubkeys to backrun
-    pub backrun_accounts: Vec<Pubkey>,
+    // pub backrun_accounts: Vec<Pubkey>,
 
     /// Path to keypair file used to sign and pay for transactions
     pub payer_keypair: String,
 
     /// Path to keypair file used to authenticate with the Jito Block Engine
     /// See: https://jito-labs.gitbook.io/mev/searcher-resources/getting-started#block-engine-api-key
-    pub auth_keypair: Vec<u8>,
+    // pub auth_keypair: Vec<u8>,
 
     /// RPC Websocket URL.
     /// See: https://solana.com/docs/rpc/websocket
@@ -42,9 +41,12 @@ pub struct EngineSettings {
     /// Message to pass into the memo program as part of a bundle.
     pub message: String,
 
+    /// Bot password
+    pub bot_auth: String,
+
     /// Tip payment program public key
     /// See: https://jito-foundation.gitbook.io/mev/mev-payment-and-distribution/on-chain-addresses
-    pub tip_program_id: Pubkey,
+    // pub tip_program_id: Pubkey,
 
     /// Comma-separated list of regions to request cross-region data from.
     /// If no region specified, then default to the currently connected block engine's region.
@@ -54,6 +56,9 @@ pub struct EngineSettings {
 
     /// Subscribe and print bundle results.
     pub subscribe_bundle_results: bool,
+
+    /// Use Bundles for Buy & Sell
+    pub use_bundles: bool,
 }
 
 #[derive(Deserialize, Clone)]
@@ -64,18 +69,21 @@ struct HelperBackrunAccount {
 
 #[derive(Deserialize, Clone)]
 struct HelperSettings {
-    auth_keypair: Vec<u8>,
+    // auth_keypair: Vec<u8>,
     // whitelisted_keypair: String,
     pubsub_url: String,
     rpc_url: String,
     block_engine_url: String,
-    backrun_accounts: Vec<String>,
     message: String,
     grpc_url: String,
     payer_keypair: String,
-    tip_program_id: String,
+
+    #[serde(rename = "bot:auth")]
+    bot_auth: String,
+    // tip_program_id: String,
     regions: Vec<String>,
     subscribe_bundle_results: bool,
+    use_bundles: bool,
 }
 
 pub async fn load_settings() -> eyre::Result<EngineSettings> {
@@ -95,55 +103,19 @@ pub async fn load_settings() -> eyre::Result<EngineSettings> {
         }
     };
 
-    let tip_program_id = match Pubkey::from_str(&helper_settings.tip_program_id) {
-        Ok(pubkey) => pubkey,
-        Err(e) => {
-            println!("Error parsing tip_program_id: {}", e);
-            std::process::exit(1);
-        }
-    };
-
-    // let bytes = match bs58::decode(helper_settings.payer_keypair).into_vec() {
-    //     Ok(keypair) => keypair,
-    //     Err(e) => {
-    //         println!("Error decoding payer_keypair: {}", e);
-    //         std::process::exit(1);
-    //     }
-    // };
-
-    // let keypair = match Keypair::from_bytes(&bytes) {
-    //     Ok(keypair) => keypair,
-    //     Err(e) => {
-    //         println!("Error parsing payer_keypair: {}", e);
-    //         std::process::exit(1);
-    //     }
-    // };
-
     let settings = EngineSettings {
         block_engine_url: helper_settings.block_engine_url,
-        backrun_accounts: helper_settings
-            .backrun_accounts
-            .iter()
-            .map(|account| {
-                let account = match Pubkey::from_str(account) {
-                    Ok(account) => account,
-                    Err(e) => {
-                        println!("Error parsing backrun account: {}", e);
-                        std::process::exit(1);
-                    }
-                };
-                account
-            })
-            .collect(),
         payer_keypair: helper_settings.payer_keypair,
         grpc_url: helper_settings.grpc_url,
         pubsub_url: helper_settings.pubsub_url,
         rpc_url: helper_settings.rpc_url,
         message: helper_settings.message,
-        tip_program_id,
+        bot_auth: helper_settings.bot_auth,
+        // tip_program_id,
         regions: helper_settings.regions,
         subscribe_bundle_results: helper_settings.subscribe_bundle_results,
-        auth_keypair: helper_settings.auth_keypair,
+        // auth_keypair: helper_settings.auth_keypair,
+        use_bundles: helper_settings.use_bundles,
     };
 
     Ok(settings)

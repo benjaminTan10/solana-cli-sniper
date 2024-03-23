@@ -111,26 +111,15 @@ pub async fn load_json_to_hashmap(
     let mut ids = Vec::new();
     let mut parse_errors = 0;
     for pool in &data.official {
-        match Pubkey::from_str(&pool.id) {
-            Ok(pubkey) => {
-                map.insert(pool.id.clone(), pool.clone());
-                ids.push(pubkey);
-            }
-            Err(_) => {
-                parse_errors += 1;
-            }
-        }
+        let pubkey = &pool.id;
+        map.insert(*pubkey, pool.clone());
+        ids.push(*pubkey);
     }
+
     for pool in &data.unOfficial {
-        match Pubkey::from_str(&pool.id) {
-            Ok(pubkey) => {
-                map.insert(pool.id.clone(), pool.clone());
-                ids.push(pubkey);
-            }
-            Err(_) => {
-                parse_errors += 1;
-            }
-        }
+        let pubkey = &pool.id;
+        map.insert(*pubkey, pool.clone());
+        ids.push(*pubkey);
     }
     info!("Fetched keys for account: {:?}", map.len());
     Ok((

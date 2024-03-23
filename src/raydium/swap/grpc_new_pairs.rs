@@ -10,6 +10,7 @@ use {
         },
     },
     futures::{sink::SinkExt, stream::StreamExt},
+    jito_protos::bundle::BundleResult,
     log::{error, info, warn},
     maplit::hashmap,
     solana_client::nonblocking::rpc_client::RpcClient,
@@ -21,7 +22,7 @@ use {
         sync::Arc,
         time::{Duration, SystemTime, UNIX_EPOCH},
     },
-    tokio::time::sleep,
+    tokio::{sync::mpsc::Receiver, time::sleep},
     yellowstone_grpc_proto::{
         prelude::{
             subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
@@ -78,7 +79,11 @@ impl From<ArgsCommitment> for CommitmentLevel {
     }
 }
 
-pub async fn grpc_pair_sub(mev_ape: MevApe, args: EngineSettings) -> anyhow::Result<()> {
+pub async fn grpc_pair_sub(
+    mev_ape: MevApe,
+    args: EngineSettings,
+    mut bundle_results_receiver: Receiver<BundleResult>,
+) -> anyhow::Result<()> {
     info!("Calling Events..");
 
     let endpoint = args.grpc_url.clone();
@@ -170,7 +175,7 @@ pub async fn grpc_pair_sub(mev_ape: MevApe, args: EngineSettings) -> anyhow::Res
                                 .unwrap())
                             .parse::<u64>()
                             .unwrap();
-
+                            info!("Signature: {:?}", info.signature);
                             warn!("Pool Open Time: {}", open_time);
 
                             let inner_instructions: Vec<CompiledInstruction> = meta
@@ -272,41 +277,38 @@ pub async fn grpc_pair_sub(mev_ape: MevApe, args: EngineSettings) -> anyhow::Res
                                 };
 
                                 pool_keys.push(PoolKeysSniper {
-                                    id: accounts[key_index[4] as usize].to_string(),
-                                    base_mint: accounts[key_index[8] as usize].to_string(),
-                                    quote_mint: accounts[key_index[9] as usize].to_string(),
-                                    lp_mint: accounts[key_index[7] as usize].to_string(),
+                                    id: accounts[key_index[4] as usize],
+                                    base_mint: accounts[key_index[8] as usize],
+                                    quote_mint: accounts[key_index[9] as usize],
+                                    lp_mint: accounts[key_index[7] as usize],
                                     base_decimals: base_mint_info.decimals,
                                     quote_decimals: quote_mint_info.decimals,
                                     lp_decimals: base_mint_info.decimals,
                                     version: 4,
-                                    program_id: program_id.to_string(),
-                                    authority: accounts[key_index[5] as usize].to_string(),
-                                    open_orders: accounts[key_index[6] as usize].to_string(),
-                                    target_orders: accounts[key_index[12] as usize].to_string(),
-                                    base_vault: accounts[key_index[10] as usize].to_string(),
-                                    quote_vault: accounts[key_index[11] as usize].to_string(),
-                                    withdraw_queue: Pubkey::default().to_string(),
-                                    lp_vault: Pubkey::default().to_string(),
+                                    program_id: program_id,
+                                    authority: accounts[key_index[5] as usize],
+                                    open_orders: accounts[key_index[6] as usize],
+                                    target_orders: accounts[key_index[12] as usize],
+                                    base_vault: accounts[key_index[10] as usize],
+                                    quote_vault: accounts[key_index[11] as usize],
+                                    withdraw_queue: Pubkey::default(),
+                                    lp_vault: Pubkey::default(),
                                     market_version: 3,
-                                    market_program_id: market_account.owner.to_string(),
-                                    market_id: accounts[key_index[16] as usize].to_string(),
+                                    market_program_id: market_account.owner,
+                                    market_id: accounts[key_index[16] as usize],
                                     market_authority: market_authority(
                                         rpc_client.clone(),
-                                        &market_info.quoteVault.to_string(),
+                                        market_info.quoteVault,
                                     )
                                     .await,
-                                    market_base_vault: market_info.baseVault.to_string(),
-                                    market_quote_vault: market_info.quoteVault.to_string(),
-                                    market_bids: market_info.bids.to_string(),
-                                    market_asks: market_info.asks.to_string(),
-                                    market_event_queue: market_info.eventQueue.to_string(),
-                                    lookup_table_account: Some(Pubkey::default().to_string()),
+                                    market_base_vault: market_info.baseVault,
+                                    market_quote_vault: market_info.quoteVault,
+                                    market_bids: market_info.bids,
+                                    market_asks: market_info.asks,
+                                    market_event_queue: market_info.eventQueue,
+                                    lookup_table_account: Pubkey::default(),
                                 });
-                                info!(
-                                    "Pool Data: {}",
-                                    serde_json::to_string_pretty(&pool_keys[0]).unwrap()
-                                );
+
                                 break;
                             }
 

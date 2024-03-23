@@ -23,8 +23,7 @@ pub fn process_swap_base_in(
     let user_destination = accounts[16];
     let owner = accounts[17];
 
-    let base_pubkey =
-        get_associated_token_address(&owner, &Pubkey::from_str(&pool_keys.base_mint).unwrap());
+    let base_pubkey = get_associated_token_address(&owner, &pool_keys.base_mint);
     let sol_user_acc = get_associated_token_address(&owner, &SOLC_MINT);
 
     // let amm_coin_vault = unpack_token_account(&amm_coin_vault_info, &token_program_info.key)?;

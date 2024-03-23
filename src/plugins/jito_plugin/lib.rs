@@ -264,21 +264,21 @@ async fn build_bundles(
 
                 // info!("pubkeys: {:?}", pubkeys);
 
-                let tokens_amount = match token_price_data(
-                    rpc_client.clone(),
-                    pool_keys_data.clone(),
-                    keypair.clone(),
-                    buy_amount,
-                )
-                .await
-                {
-                    Ok(r) => r,
-                    Err(e) => {
-                        error!("{}", e);
-                        0
-                    }
-                };
-
+                let tokens_amount = 526000000;
+                // match token_price_data(
+                //     rpc_client.clone(),
+                //     pool_keys_data.clone(),
+                //     keypair,
+                //     buy_amount,
+                // )
+                // .await
+                // {
+                //     Ok(r) => r,
+                //     Err(e) => {
+                //         error!("{}", e);
+                //         0
+                //     }
+                // };
                 let swap_in_future = swap_in_builder(
                     rpc_client.clone(),
                     keypair.clone(),
@@ -745,52 +745,52 @@ async fn run_searcher_loop(
 }
 
 pub async fn backrun_jito(args: EngineSettings, preference: Arc<MEVBotSettings>) -> Result<()> {
-    let payer_keypair = Arc::new(Keypair::from_base58_string(&preference.wallet));
-    let auth_keypair = Arc::new(Keypair::from_bytes(&args.auth_keypair).unwrap());
-    // info!(
-    //     "Accounts: {:?}",
-    //     args.backrun_accounts.iter().map(|a| a).collect::<Vec<_>>()
-    // );
-    set_host_id(auth_keypair.pubkey().to_string());
+    // let payer_keypair = Arc::new(Keypair::from_base58_string(&preference.wallet));
+    // let auth_keypair = Arc::new(Keypair::from_bytes(&args.auth_keypair).unwrap());
+    // // info!(
+    // //     "Accounts: {:?}",
+    // //     args.backrun_accounts.iter().map(|a| a).collect::<Vec<_>>()
+    // // );
+    // set_host_id(auth_keypair.pubkey().to_string());
 
-    let (slot_sender, slot_receiver) = channel(100);
-    let (block_sender, block_receiver) = channel(100);
-    let (bundle_results_sender, bundle_results_receiver) = channel(100);
-    let (pending_tx_sender, pending_tx_receiver) = channel(100);
+    // let (slot_sender, slot_receiver) = channel(100);
+    // let (block_sender, block_receiver) = channel(100);
+    // // let (bundle_results_sender, bundle_results_receiver) = channel(100);
+    // // let (pending_tx_sender, pending_tx_receiver) = channel(100);
 
-    tokio::spawn(slot_subscribe_loop(args.pubsub_url.clone(), slot_sender));
-    tokio::spawn(block_subscribe_loop(args.pubsub_url.clone(), block_sender));
-    tokio::spawn(pending_tx_loop(
-        args.block_engine_url.clone(),
-        auth_keypair.clone(),
-        pending_tx_sender,
-        args.backrun_accounts.clone(),
-    ));
+    // tokio::spawn(slot_subscribe_loop(args.pubsub_url.clone(), slot_sender));
+    // tokio::spawn(block_subscribe_loop(args.pubsub_url.clone(), block_sender));
+    // tokio::spawn(pending_tx_loop(
+    //     args.block_engine_url.clone(),
+    //     auth_keypair.clone(),
+    //     pending_tx_sender,
+    //     args.backrun_accounts.clone(),
+    // ));
 
-    if args.subscribe_bundle_results {
-        tokio::spawn(bundle_results_loop(
-            args.block_engine_url.clone(),
-            auth_keypair.clone(),
-            bundle_results_sender,
-        ));
-    }
+    // if args.subscribe_bundle_results {
+    //     tokio::spawn(bundle_results_loop(
+    //         args.block_engine_url.clone(),
+    //         auth_keypair.clone(),
+    //         bundle_results_sender,
+    //     ));
+    // }
 
-    let result = run_searcher_loop(
-        args.block_engine_url,
-        auth_keypair,
-        &payer_keypair,
-        args.rpc_url,
-        args.regions,
-        args.message,
-        args.tip_program_id,
-        preference,
-        slot_receiver,
-        block_receiver,
-        bundle_results_receiver,
-        pending_tx_receiver,
-    )
-    .await;
-    error!("searcher loop exited result: {result:?}");
+    // let result = run_searcher_loop(
+    //     args.block_engine_url,
+    //     auth_keypair,
+    //     &payer_keypair,
+    //     args.rpc_url,
+    //     args.regions,
+    //     args.message,
+    //     args.tip_program_id,
+    //     preference,
+    //     slot_receiver,
+    //     block_receiver,
+    //     bundle_results_receiver,
+    //     pending_tx_receiver,
+    // )
+    // .await;
+    // error!("searcher loop exited result: {result:?}");
 
     Ok(())
 }

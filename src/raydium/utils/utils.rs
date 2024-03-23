@@ -9,7 +9,10 @@ use solana_client::{
 };
 use solana_program::pubkey::Pubkey;
 
-use crate::{rpc::rpc_key, raydium::subscribe::PoolKeysSniper};
+use crate::{
+    raydium::subscribe::PoolKeysSniper,
+    rpc::{rpc_key, HTTP_CLIENT},
+};
 
 #[allow(non_snake_case)]
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
@@ -314,15 +317,12 @@ impl SPL_MINT_LAYOUT {
     }
 }
 
-pub async fn market_authority(rpc_client: Arc<RpcClient>, address: &str) -> String {
-    let accounts = rpc_client
-        .get_token_account(&Pubkey::from_str(address).unwrap())
-        .await
-        .unwrap();
+pub async fn market_authority(rpc_client: &Arc<RpcClient>, address: Pubkey) -> Pubkey {
+    let accounts = rpc_client.get_token_account(&address).await.unwrap();
 
-    let mut serumsigner = String::new();
+    let mut serumsigner = Pubkey::default();
     if let Some(account) = accounts {
-        serumsigner = account.owner.to_string();
+        serumsigner = Pubkey::from_str(&account.owner).unwrap();
     }
 
     serumsigner
@@ -337,7 +337,10 @@ pub async fn program_address(program_id: &Pubkey) -> eyre::Result<Pubkey> {
 }
 
 pub async fn get_associated_authority(program_id: Pubkey) -> eyre::Result<String> {
-    let rpc_client = RpcClient::new(rpc_key());
+    let rpc_client = {
+        let http_client = HTTP_CLIENT.lock().unwrap();
+        http_client.get("http_client").unwrap().clone()
+    };
 
     // Convert the byte array to a Vec<u8>
     let amm_authority_bytes: Vec<u8> =

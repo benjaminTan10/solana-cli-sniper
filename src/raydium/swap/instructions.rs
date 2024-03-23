@@ -295,7 +295,7 @@ pub struct PoolInfo {
 pub async fn fetch_muliple_info(
     rpc_client: Arc<RpcClient>,
     pool_keys: PoolKeysSniper,
-    wallet: Arc<&Keypair>,
+    wallet: Arc<Keypair>,
 ) -> eyre::Result<PoolInfo> {
     let instructions = vec![make_simulate_pool_info_instruction(pool_keys.clone()).await?];
 
@@ -317,20 +317,17 @@ pub async fn make_simulate_pool_info_instruction(
         serde_json::to_string_pretty(&pool_keys).unwrap()
     );
     let keys = vec![
-        AccountMeta::new_readonly(Pubkey::from_str(&pool_keys.id).unwrap(), false),
-        AccountMeta::new_readonly(Pubkey::from_str(&pool_keys.authority).unwrap(), false),
-        AccountMeta::new_readonly(Pubkey::from_str(&pool_keys.open_orders).unwrap(), false),
-        AccountMeta::new_readonly(Pubkey::from_str(&pool_keys.base_vault).unwrap(), false),
-        AccountMeta::new_readonly(Pubkey::from_str(&pool_keys.quote_vault).unwrap(), false),
-        AccountMeta::new_readonly(Pubkey::from_str(&pool_keys.lp_mint).unwrap(), false),
-        AccountMeta::new_readonly(Pubkey::from_str(&pool_keys.market_id).unwrap(), false),
-        AccountMeta::new_readonly(
-            Pubkey::from_str(&pool_keys.market_event_queue).unwrap(),
-            false,
-        ),
+        AccountMeta::new_readonly(pool_keys.id, false),
+        AccountMeta::new_readonly(pool_keys.authority, false),
+        AccountMeta::new_readonly(pool_keys.open_orders, false),
+        AccountMeta::new_readonly(pool_keys.base_vault, false),
+        AccountMeta::new_readonly(pool_keys.quote_vault, false),
+        AccountMeta::new_readonly(pool_keys.lp_mint, false),
+        AccountMeta::new_readonly(pool_keys.market_id, false),
+        AccountMeta::new_readonly(pool_keys.market_event_queue, false),
     ];
     let instruction = Instruction {
-        program_id: Pubkey::from_str(&pool_keys.program_id).unwrap(),
+        program_id: pool_keys.program_id,
         accounts: keys,
         data: instruction_data.to_vec(),
     };
@@ -341,14 +338,9 @@ pub async fn simulate_multiple_instruction(
     rpc_client: &RpcClient,
     instructions: Vec<Instruction>,
     pool_keys: PoolKeysSniper,
-    wallet: Arc<&Keypair>,
+    wallet: Arc<Keypair>,
 ) -> eyre::Result<Value> {
-    let lookup = address_deserailizer(
-        [Pubkey::from_str(
-            &pool_keys.lookup_table_account.unwrap_or_default(),
-        )?]
-        .to_vec(),
-    );
+    let lookup = address_deserailizer([pool_keys.lookup_table_account].to_vec());
     let message = Message::try_compile(
         &wallet.pubkey(),
         &instructions,
@@ -469,11 +461,11 @@ pub async fn swap_amount_out(pool_info: PoolInfo, amount_in: u64) -> u128 {
 pub async fn token_price_data(
     rpc_client: Arc<RpcClient>,
     pool_keys: PoolKeysSniper,
-    wallet: Arc<&Keypair>,
+    wallet: Arc<Keypair>,
     amount_in: u64,
 ) -> eyre::Result<u128> {
     let mut pool_ids = pool_keys.clone();
-    if pool_keys.base_mint == SOLC_MINT.to_string() {
+    if pool_keys.base_mint == SOLC_MINT {
         pool_ids.base_mint = pool_keys.quote_mint.clone();
         pool_ids.quote_mint = pool_keys.base_mint.clone();
     }

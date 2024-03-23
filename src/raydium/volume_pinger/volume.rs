@@ -26,7 +26,7 @@ use solana_sdk::{
 use spl_associated_token_account::get_associated_token_address;
 
 use crate::{
-    app::{priority_fee, theme, token_env},
+    app::theme,
     env::load_settings,
     raydium::{
         bundles::swap_instructions::volume_swap_base_in,
@@ -37,6 +37,7 @@ use crate::{
         },
         utils::utils::LIQUIDITY_STATE_LAYOUT_V4,
     },
+    user_inputs::{amounts::priority_fee, tokens::token_env},
 };
 
 pub struct VolumeBotSettings {
@@ -70,12 +71,12 @@ pub async fn generate_volume() -> Result<(), Box<dyn Error>> {
     let min_amount = buy_amount("Min Amount").await?;
     let max_amount = buy_amount("Max Amount").await?;
 
-    let priority_fee = priority_fee().await?;
-    let pool_address = token_env().await?;
+    let priority_fee = priority_fee().await;
+    let pool_address = token_env("Pool Address").await;
 
     let secret_key = bs58::decode(args.payer_keypair.clone()).into_vec()?;
 
-    let (pool_keys, amm_info) = pool_keys_fetcher(pool_address.to_string()).await?;
+    let pool_keys = pool_keys_fetcher(pool_address).await?;
 
     info!(
         "Pool Keys: {}",
@@ -93,14 +94,7 @@ pub async fn generate_volume() -> Result<(), Box<dyn Error>> {
             wallet,
         };
 
-        let _ = match volume_round(
-            Arc::new(rpc_client),
-            pool_keys.clone(),
-            amm_info.clone(),
-            volume_settings,
-        )
-        .await
-        {
+        let _ = match volume_round(Arc::new(rpc_client), pool_keys.clone(), volume_settings).await {
             Ok(x) => x,
             Err(e) => {
                 error!("Error: {:?}", e);
@@ -114,13 +108,12 @@ pub async fn generate_volume() -> Result<(), Box<dyn Error>> {
 pub async fn volume_round(
     rpc_client: Arc<RpcClient>,
     pool_keys: PoolKeysSniper,
-    amm_info: LIQUIDITY_STATE_LAYOUT_V4,
     volume_bot: VolumeBotSettings,
 ) -> Result<(), Box<dyn Error>> {
-    let wallet = Arc::new(&volume_bot.wallet);
+    let wallet = Arc::new(volume_bot.wallet);
     let user_source_owner = wallet.pubkey();
 
-    let token_address = if pool_keys.base_mint == SOLC_MINT.to_string() {
+    let token_address = if pool_keys.base_mint == SOLC_MINT {
         pool_keys.clone().quote_mint
     } else {
         pool_keys.clone().base_mint
@@ -138,24 +131,24 @@ pub async fn volume_round(
     info!("Swap amount out: {}", tokens_amount);
 
     let transaction_main_instructions = volume_swap_base_in(
-        &Pubkey::from_str(&"Fq6aKMBQcNpL41JqSgkx2zoiyL3yFaTTtYfLbZLvM6pV").unwrap(),
-        &Pubkey::from_str(&pool_keys.id).unwrap(),
-        &Pubkey::from_str(&pool_keys.authority).unwrap(),
-        &Pubkey::from_str(&pool_keys.open_orders).unwrap(),
-        &Pubkey::from_str(&pool_keys.target_orders).unwrap(),
-        &Pubkey::from_str(&pool_keys.base_vault).unwrap(),
-        &Pubkey::from_str(&pool_keys.quote_vault).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_program_id).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_id).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_bids).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_asks).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_event_queue).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_base_vault).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_quote_vault).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_authority).unwrap(),
+        &Pubkey::from_str("Fq6aKMBQcNpL41JqSgkx2zoiyL3yFaTTtYfLbZLvM6pV").unwrap(),
+        &pool_keys.id,
+        &pool_keys.authority,
+        &pool_keys.open_orders,
+        &pool_keys.target_orders,
+        &pool_keys.base_vault,
+        &pool_keys.quote_vault,
+        &pool_keys.market_program_id,
+        &pool_keys.market_id,
+        &pool_keys.market_bids,
+        &pool_keys.market_asks,
+        &pool_keys.market_event_queue,
+        &pool_keys.market_base_vault,
+        &pool_keys.market_quote_vault,
+        &pool_keys.market_authority,
         &user_source_owner,
         &user_source_owner,
-        &Pubkey::from_str(&token_address).unwrap(),
+        &token_address,
         volume_bot.buy_amount,
         tokens_amount as u64,
         volume_bot.priority_fee,
@@ -251,23 +244,23 @@ pub async fn volume_round(
     // }
     let swap_out_instructions = swap_base_out(
         &Pubkey::from_str("Fq6aKMBQcNpL41JqSgkx2zoiyL3yFaTTtYfLbZLvM6pV").unwrap(),
-        &Pubkey::from_str(&pool_keys.id).unwrap(),
-        &Pubkey::from_str(&pool_keys.authority).unwrap(),
-        &Pubkey::from_str(&pool_keys.open_orders).unwrap(),
-        &Pubkey::from_str(&pool_keys.target_orders).unwrap(),
-        &Pubkey::from_str(&pool_keys.base_vault).unwrap(),
-        &Pubkey::from_str(&pool_keys.quote_vault).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_program_id).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_id).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_bids).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_asks).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_event_queue).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_base_vault).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_quote_vault).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_authority).unwrap(),
+        &pool_keys.id,
+        &pool_keys.authority,
+        &pool_keys.open_orders,
+        &pool_keys.target_orders,
+        &pool_keys.base_vault,
+        &pool_keys.quote_vault,
+        &pool_keys.market_program_id,
+        &pool_keys.market_id,
+        &pool_keys.market_bids,
+        &pool_keys.market_asks,
+        &pool_keys.market_event_queue,
+        &pool_keys.market_base_vault,
+        &pool_keys.market_quote_vault,
+        &pool_keys.market_authority,
         &user_source_owner,
         &user_source_owner,
-        &Pubkey::from_str(&token_address).unwrap(),
+        &token_address,
         tokens_amount as u64,
         0,
         volume_bot.priority_fee,

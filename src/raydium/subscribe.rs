@@ -2,7 +2,7 @@ use crate::app::UserData;
 use crate::raydium::manual_sniper::sniper_txn_in;
 use crate::raydium::utils::parser::parse_signatures;
 use crate::raydium::utils::utils::{market_authority, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT};
-use crate::rpc::{rpc_key, wss_key};
+use crate::rpc::{rpc_key, wss_key, HTTP_CLIENT};
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -116,7 +116,10 @@ pub struct MarketData {
 pub async fn auto_sniper_stream(user_data: UserData) -> eyre::Result<()> {
     let rpc_client_url = wss_key();
     let pubsub_client = PubsubClient::new(&rpc_client_url.clone()).await?;
-    let rpc_client = Arc::new(RpcClient::new(rpc_key()));
+    let rpc_client = {
+        let http_client = HTTP_CLIENT.lock().unwrap();
+        http_client.get("http_client").unwrap().clone()
+    };
 
     let raydium_liquidity = vec!["7YttLkHDoNj9wyDur5pM1ejNaAvT9X4eqaYcHQqtj2G5".to_string()];
 
@@ -249,46 +252,69 @@ pub async fn auto_sniper_stream(user_data: UserData) -> eyre::Result<()> {
                                             };
 
                                             pool_infos = PoolKeysSniper {
-                                                id: account_keys[2].clone().pubkey,
-                                                base_mint: account_keys[17].clone().pubkey,
-                                                quote_mint: account_keys[14].clone().pubkey,
-                                                lp_mint: account_keys[4].clone().pubkey,
+                                                id: Pubkey::from_str(
+                                                    &account_keys[2].clone().pubkey,
+                                                )
+                                                .unwrap(),
+                                                base_mint: Pubkey::from_str(
+                                                    &account_keys[17].clone().pubkey,
+                                                )
+                                                .unwrap(),
+                                                quote_mint: Pubkey::from_str(
+                                                    &account_keys[14].clone().pubkey,
+                                                )
+                                                .unwrap(),
+                                                lp_mint: Pubkey::from_str(
+                                                    &account_keys[4].clone().pubkey,
+                                                )
+                                                .unwrap(),
                                                 base_decimals: base_mint_info.decimals,
                                                 quote_decimals: quote_mint_info.decimals,
                                                 lp_decimals: base_mint_info.decimals,
                                                 version: 4,
-                                                program_id:
-                                                    "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"
-                                                        .to_string(),
-                                                authority: account_keys[16].clone().pubkey,
-                                                open_orders: account_keys[3].clone().pubkey,
-                                                target_orders: account_keys[7].clone().pubkey,
-                                                base_vault: account_keys[5].clone().pubkey,
-                                                quote_vault: account_keys[6].clone().pubkey,
-                                                withdraw_queue: Pubkey::default().to_string(),
-                                                lp_vault: Pubkey::default().to_string(),
+                                                program_id: Pubkey::from_str(
+                                                    "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",
+                                                )
+                                                .unwrap(),
+                                                authority: Pubkey::from_str(
+                                                    &account_keys[16].clone().pubkey,
+                                                )
+                                                .unwrap(),
+                                                open_orders: Pubkey::from_str(
+                                                    &account_keys[3].clone().pubkey,
+                                                )
+                                                .unwrap(),
+                                                target_orders: Pubkey::from_str(
+                                                    &account_keys[7].clone().pubkey,
+                                                )
+                                                .unwrap(),
+                                                base_vault: Pubkey::from_str(
+                                                    &account_keys[5].clone().pubkey,
+                                                )
+                                                .unwrap(),
+                                                quote_vault: Pubkey::from_str(
+                                                    &account_keys[6].clone().pubkey,
+                                                )
+                                                .unwrap(),
+                                                withdraw_queue: Pubkey::default(),
+                                                lp_vault: Pubkey::default(),
                                                 market_version: 3,
-                                                market_program_id: market_account.owner.to_string(),
-                                                market_id: account_keys[19].clone().pubkey,
+                                                market_program_id: market_account.owner,
+                                                market_id: Pubkey::from_str(
+                                                    &account_keys[19].clone().pubkey,
+                                                )
+                                                .unwrap(),
                                                 market_authority: market_authority(
-                                                    Arc::clone(&rpc_client),
-                                                    &market_info.quoteVault.to_string(),
+                                                    &Arc::clone(&rpc_client),
+                                                    market_info.quoteVault,
                                                 )
                                                 .await,
-                                                market_base_vault: market_info
-                                                    .baseVault
-                                                    .to_string(),
-                                                market_quote_vault: market_info
-                                                    .quoteVault
-                                                    .to_string(),
-                                                market_bids: market_info.bids.to_string(),
-                                                market_asks: market_info.asks.to_string(),
-                                                market_event_queue: market_info
-                                                    .eventQueue
-                                                    .to_string(),
-                                                lookup_table_account: Some(
-                                                    Pubkey::default().to_string(),
-                                                ),
+                                                market_base_vault: market_info.baseVault,
+                                                market_quote_vault: market_info.quoteVault,
+                                                market_bids: market_info.bids,
+                                                market_asks: market_info.asks,
+                                                market_event_queue: market_info.eventQueue,
+                                                lookup_table_account: Pubkey::default(),
                                             };
                                         }
                                         _ => println!("Transaction is not of type Accounts"),
@@ -344,35 +370,35 @@ pub async fn auto_sniper_stream(user_data: UserData) -> eyre::Result<()> {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct PoolKeysSniper {
-    pub id: String,
-    pub base_mint: String,
-    pub quote_mint: String,
-    pub lp_mint: String,
+    pub id: Pubkey,
+    pub base_mint: Pubkey,
+    pub quote_mint: Pubkey,
+    pub lp_mint: Pubkey,
     pub base_decimals: u8,
     pub quote_decimals: u8,
     pub lp_decimals: u8,
     pub version: u8,
-    pub program_id: String,
-    pub authority: String,
-    pub open_orders: String,
-    pub target_orders: String,
-    pub base_vault: String,
-    pub quote_vault: String,
-    pub withdraw_queue: String,
-    pub lp_vault: String,
+    pub program_id: Pubkey,
+    pub authority: Pubkey,
+    pub open_orders: Pubkey,
+    pub target_orders: Pubkey,
+    pub base_vault: Pubkey,
+    pub quote_vault: Pubkey,
+    pub withdraw_queue: Pubkey,
+    pub lp_vault: Pubkey,
     pub market_version: u8,
-    pub market_program_id: String,
-    pub market_id: String,
-    pub market_authority: String,
-    pub market_base_vault: String,
-    pub market_quote_vault: String,
-    pub market_bids: String,
-    pub market_asks: String,
-    pub market_event_queue: String,
-    pub lookup_table_account: Option<String>,
+    pub market_program_id: Pubkey,
+    pub market_id: Pubkey,
+    pub market_authority: Pubkey,
+    pub market_base_vault: Pubkey,
+    pub market_quote_vault: Pubkey,
+    pub market_bids: Pubkey,
+    pub market_asks: Pubkey,
+    pub market_event_queue: Pubkey,
+    pub lookup_table_account: Pubkey,
 }
+
 impl PoolKeysSniper {
     pub fn new() -> Self {
         Self {

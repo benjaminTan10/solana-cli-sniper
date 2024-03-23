@@ -1,17 +1,23 @@
+use jito_searcher_client::get_searcher_client;
 use log::{error, info};
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_client::rpc_request::TokenAccountsFilter;
-use solana_program::pubkey::Pubkey;
+use solana_program::pubkey;
 use solana_sdk::commitment_config::CommitmentLevel;
+use solana_sdk::pubkey::Pubkey;
 use solana_sdk::system_instruction::transfer;
-use solana_sdk::transaction::VersionedTransaction;
+use solana_sdk::transaction::{Transaction, VersionedTransaction};
 use solana_sdk::{signature::Keypair, signer::Signer};
+use spl_memo::build_memo;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::env::EngineSettings;
+use crate::plugins::jito_plugin::lib::{generate_tip_accounts, send_bundles, BundledTransactions};
 use crate::raydium::subscribe::PoolKeysSniper;
 use crate::raydium::swap::instructions::{swap_base_in, swap_base_out, SOLC_MINT, TAX_ACCOUNT};
 
@@ -26,31 +32,39 @@ pub async fn raydium_in(
 ) -> eyre::Result<()> {
     let user_source_owner = wallet.pubkey();
 
-    let token_address = if pool_keys.base_mint == SOLC_MINT.to_string() {
+    let mut searcher_client =
+        get_searcher_client(&args.block_engine_url, &Arc::new(auth_keypair())).await?;
+    let tip_accounts =
+        generate_tip_accounts(&pubkey!("T1pyyaTNZsKv2WcRAB8oVnk93mLJw2XzjtVYqCsaHqt"));
+
+    let mut rng = StdRng::from_entropy();
+    let tip_account = tip_accounts[rng.gen_range(0..tip_accounts.len())];
+
+    let token_address = if pool_keys.base_mint == SOLC_MINT {
         pool_keys.clone().quote_mint
     } else {
         pool_keys.clone().base_mint
     };
     let mut swap_instructions = swap_base_in(
-        &Pubkey::from_str(&pool_keys.program_id).unwrap(),
-        &Pubkey::from_str(&pool_keys.id).unwrap(),
-        &Pubkey::from_str(&pool_keys.authority).unwrap(),
-        &Pubkey::from_str(&pool_keys.open_orders).unwrap(),
-        &Pubkey::from_str(&pool_keys.target_orders).unwrap(),
-        &Pubkey::from_str(&pool_keys.base_vault).unwrap(),
-        &Pubkey::from_str(&pool_keys.quote_vault).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_program_id).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_id).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_bids).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_asks).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_event_queue).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_base_vault).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_quote_vault).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_authority).unwrap(),
+        &pool_keys.program_id,
+        &pool_keys.id,
+        &pool_keys.authority,
+        &pool_keys.open_orders,
+        &pool_keys.target_orders,
+        &pool_keys.base_vault,
+        &pool_keys.quote_vault,
+        &pool_keys.market_program_id,
+        &pool_keys.market_id,
+        &pool_keys.market_bids,
+        &pool_keys.market_asks,
+        &pool_keys.market_event_queue,
+        &pool_keys.market_base_vault,
+        &pool_keys.market_quote_vault,
+        &pool_keys.market_authority,
         &user_source_owner,
         &user_source_owner,
         &user_source_owner,
-        &Pubkey::from_str(&token_address).unwrap(),
+        &token_address,
         amount_in,
         amount_out,
         priority_fee,
@@ -101,35 +115,67 @@ pub async fn raydium_in(
         ..Default::default()
     };
 
-    let result = match rpc_client
-        .send_transaction_with_config(&transaction, config)
-        .await
-    {
-        Ok(x) => x,
-        Err(e) => {
-            error!("Error: {:?}", e);
-            return Ok(());
-        }
+    let tip_txn = VersionedTransaction::from(Transaction::new_signed_with_payer(
+        &[
+            build_memo(
+                format!(
+                    "{}: {:?}",
+                    "Nemo was here",
+                    transaction.signatures[0].to_string()
+                )
+                .as_bytes(),
+                &[],
+            ),
+            transfer(&wallet.pubkey(), &tip_account, 100_000),
+        ],
+        Some(&wallet.pubkey()),
+        &[&wallet],
+        rpc_client.get_latest_blockhash().await.unwrap(),
+    ));
+
+    let bundle_txn = BundledTransactions {
+        mempool_txs: vec![transaction],
+        middle_txs: vec![],
+        backrun_txs: vec![tip_txn],
     };
 
-    info!("Transaction Signature: {:?}", result.to_string());
+    let mut results = send_bundles(&mut searcher_client, &[bundle_txn]).await?;
 
-    let rpc_client_1 = rpc_client.clone();
-    tokio::spawn(async move {
-        let _ = match rpc_client_1
-            .confirm_transaction_with_spinner(
-                &result,
-                &rpc_client_1.get_latest_blockhash().await.unwrap(),
-                solana_sdk::commitment_config::CommitmentConfig::confirmed(),
-            )
-            .await
-        {
-            Ok(x) => x,
-            Err(e) => {
-                error!("Error: {:?}", e);
-            }
-        };
-    });
+    if let Ok(response) = results.remove(0) {
+        let message = response.into_inner();
+        let uuid = &message.uuid;
+        info!("UUID: {}", uuid);
+    }
+
+    // let result = match rpc_client
+    //     .send_transaction_with_config(&transaction, config)
+    //     .await
+    // {
+    //     Ok(x) => x,
+    //     Err(e) => {
+    //         error!("Error: {:?}", e);
+    //         return Ok(());
+    //     }
+    // };
+
+    // info!("Transaction Signature: {:?}", result.to_string());
+
+    // let rpc_client_1 = rpc_client.clone();
+    // tokio::spawn(async move {
+    //     let _ = match rpc_client_1
+    //         .confirm_transaction_with_spinner(
+    //             &result,
+    //             &rpc_client_1.get_latest_blockhash().await.unwrap(),
+    //             solana_sdk::commitment_config::CommitmentConfig::confirmed(),
+    //         )
+    //         .await
+    //     {
+    //         Ok(x) => x,
+    //         Err(e) => {
+    //             error!("Error: {:?}", e);
+    //         }
+    //     };
+    // });
 
     let raydium_txn =
         match raydium_txn_backrun(rpc_client, wallet, pool_keys, &args, priority_fee).await {
@@ -157,7 +203,7 @@ pub async fn raydium_txn_backrun(
         let token_accounts = rpc_client
             .get_token_accounts_by_owner(
                 &wallet.pubkey(),
-                TokenAccountsFilter::Mint(Pubkey::from_str(&pool_keys.base_mint).unwrap()),
+                TokenAccountsFilter::Mint(pool_keys.base_mint),
             )
             .await?;
 
@@ -224,31 +270,31 @@ pub async fn raydium_out(
     info!("Swapping Out...");
     let user_source_owner = wallet.pubkey();
 
-    let token_address = if pool_keys.base_mint == SOLC_MINT.to_string() {
+    let token_address = if pool_keys.base_mint == SOLC_MINT {
         pool_keys.clone().quote_mint
     } else {
         pool_keys.clone().base_mint
     };
 
     let swap_instructions = swap_base_out(
-        &Pubkey::from_str(&pool_keys.program_id).unwrap(),
-        &Pubkey::from_str(&pool_keys.id).unwrap(),
-        &Pubkey::from_str(&pool_keys.authority).unwrap(),
-        &Pubkey::from_str(&pool_keys.open_orders).unwrap(),
-        &Pubkey::from_str(&pool_keys.target_orders).unwrap(),
-        &Pubkey::from_str(&pool_keys.base_vault).unwrap(),
-        &Pubkey::from_str(&pool_keys.quote_vault).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_program_id).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_id).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_bids).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_asks).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_event_queue).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_base_vault).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_quote_vault).unwrap(),
-        &Pubkey::from_str(&pool_keys.market_authority).unwrap(),
+        &pool_keys.program_id,
+        &pool_keys.id,
+        &pool_keys.authority,
+        &pool_keys.open_orders,
+        &pool_keys.target_orders,
+        &pool_keys.base_vault,
+        &pool_keys.quote_vault,
+        &pool_keys.market_program_id,
+        &pool_keys.market_id,
+        &pool_keys.market_bids,
+        &pool_keys.market_asks,
+        &pool_keys.market_event_queue,
+        &pool_keys.market_base_vault,
+        &pool_keys.market_quote_vault,
+        &pool_keys.market_authority,
         &user_source_owner,
         &user_source_owner,
-        &Pubkey::from_str(&token_address).unwrap(),
+        &token_address,
         amount_in,
         amount_out,
         priority_fee,
