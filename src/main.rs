@@ -1,8 +1,9 @@
 use chrono::Local;
 use colored::Colorize;
+use log::info;
 use pretty_env_logger::env_logger::fmt::Color;
 use std::io::Write;
-use Mevarik::app::app;
+use Mevarik::app::{app, embeds::embed};
 
 #[tokio::main]
 async fn main() {
@@ -21,7 +22,7 @@ async fn main() {
             let mut style = f.style();
             style.set_color(color).set_bold(true);
 
-            let timestamp = Local::now().format("%d-%m-%Y %H:%M:%S%.3f");
+            let timestamp = Local::now().format("%I:%M:%S %p");
 
             writeln!(
                 f,
@@ -34,18 +35,7 @@ async fn main() {
         })
         .init();
 
-    // let t = Input::new("Bot Password: ")
-    //     .placeholder("5eSB1...vYF49")
-    //     .prompt("Input: ");
+    info!("{}", embed());
 
-    // let input_password = t.run().expect("error running input");
-
-    // let correct_password = "MoonISDW@1234";
-
-    // if input_password != correct_password {
-    //     error!("Invalid password");
-    //     return;
-    // }
-
-    let _ = app().await;
+    let _ = app(true).await;
 }

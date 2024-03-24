@@ -123,6 +123,7 @@ pub async fn volume_round(
         pool_keys.clone(),
         wallet.clone(),
         volume_bot.buy_amount,
+        crate::raydium::swap::instructions::SwapDirection::Coin2PC,
     )
     .await?;
 

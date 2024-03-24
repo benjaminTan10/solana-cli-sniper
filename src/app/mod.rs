@@ -1,15 +1,21 @@
 pub mod embeds;
 pub mod wallets;
+use colored::*;
+use futures::Future;
 use std::error::Error;
+use std::pin::Pin;
 
 use demand::{DemandOption, Input, Select, Theme};
 use log::{error, info};
 use serde::Deserialize;
 use termcolor::{Color, ColorSpec};
 
+use crate::env::load_settings;
 use crate::raydium::bundles::mev_trades::mev_trades;
 use crate::raydium::swap::swap_in::{swap_in, swap_out};
+use crate::raydium::swap::trades::track_trades;
 use crate::raydium::volume_pinger::volume::generate_volume;
+use crate::rpc::rpc_key;
 use crate::user_inputs::mode::{automatic_snipe, wrap_sol_call};
 
 use self::{embeds::embed, wallets::wallet_logger};
@@ -54,18 +60,32 @@ pub fn theme() -> Theme {
     }
 }
 
-pub async fn app() -> Result<(), Box<dyn std::error::Error>> {
-    info!("{}", embed());
+pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error>> {
+    if mainmenu {
+        let args = match load_settings().await {
+            Ok(args) => {
+                info!("{}", "Settings Loaded".bold().bright_white());
+                args
+            }
+            Err(e) => {
+                error!("Error: {:?}", e);
+                return Ok(());
+            }
+        };
+
+        let _http_loader = rpc_key(args.rpc_url.clone());
+    }
+
     let theme = theme();
     let ms = Select::new("Main Menu")
         .description("Select the Mode")
         .theme(&theme)
         .filterable(true)
         .option(DemandOption::new("Wrap Sol Mode").label("📦 Wrap SOL"))
-        .option(DemandOption::new("MEV Trades").label("[1] Sandwich Mode (Depricated)"))
-        .option(DemandOption::new("Swap Tokens").label("[2] Swap Mode"))
+        .option(DemandOption::new("Swap Tokens").label("[1] Swap Mode"))
+        .option(DemandOption::new("Snipe Pools").label("[2] Snipe Mode"))
         .option(DemandOption::new("Generate Volume").label("[3] Spam Volume"))
-        .option(DemandOption::new("Snipe Pools").label("[4] Snipe Mode"))
+        .option(DemandOption::new("MEV Trades").label("[4] Sandwich Mode (Depricated)"))
         .option(DemandOption::new("Wallet Details").label("[5] Wallet Details"));
 
     let selected_option = ms.run().expect("error running select");
@@ -74,11 +94,11 @@ pub async fn app() -> Result<(), Box<dyn std::error::Error>> {
         "Wrap Sol Mode" => {
             let _ = wrap_sol_call().await;
         }
+        "Swap Tokens" => {
+            let _ = swap_mode().await;
+        }
         "Snipe Pools" => {
             let _ = sniper_mode().await;
-        }
-        "Wallet Details" => {
-            let _ = wallet_logger().await;
         }
         "Generate Volume" => {
             let _ = match generate_volume().await {
@@ -86,11 +106,11 @@ pub async fn app() -> Result<(), Box<dyn std::error::Error>> {
                 Err(e) => error!("{}", e),
             };
         }
-        "Swap Tokens" => {
-            let _ = swap_mode().await;
-        }
         "MEV Trades" => {
             let _ = mev_trades().await;
+        }
+        "Wallet Details" => {
+            let _ = wallet_logger().await;
         }
         _ => {
             // Handle unexpected option here
@@ -100,30 +120,41 @@ pub async fn app() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub async fn swap_mode() -> Result<(), Box<dyn Error>> {
-    let theme = theme();
-    let ms = Select::new("Swap Mode")
-        .description("Select the Mode")
-        .theme(&theme)
-        .filterable(true)
-        .option(DemandOption::new("Buy Tokens").label("[1] Buy Tokens"))
-        .option(DemandOption::new("Sell Tokens").label("[2] Sell Tokens"));
+pub fn swap_mode() -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>> {
+    Box::pin(async {
+        let theme = theme();
+        let ms = Select::new("Swap Mode")
+            .description("Select the Mode")
+            .theme(&theme)
+            .filterable(true)
+            .option(DemandOption::new("Buy Tokens").label("[1] Buy Tokens"))
+            .option(DemandOption::new("Sell Tokens").label("[2] Sell Tokens"))
+            .option(DemandOption::new("Track Trade").label("[3] Track Trade"))
+            .option(DemandOption::new("Main Menu").label("[4] Main Menu"));
 
-    let selected_option = ms.run().expect("error running select");
+        let selected_option = ms.run().expect("error running select");
 
-    match selected_option {
-        "Buy Tokens" => {
-            let _ = swap_in().await;
-        }
-        "Sell Tokens" => {
-            let _ = swap_out().await;
-        }
-        _ => {
-            // Handle unexpected option here
-        }
-    }
+        match selected_option {
+            "Buy Tokens" => {
+                let _ = swap_in().await;
+            }
+            "Sell Tokens" => {
+                let _ = swap_out().await;
+            }
+            "Track Trade" => {
+                let _ = track_trades().await;
+            }
+            "Main Menu" => {
+                let _ = app(false).await;
+            }
 
-    Ok(())
+            _ => {
+                // Handle unexpected option here
+            }
+        }
+
+        Ok(())
+    })
 }
 
 pub async fn private_key_env() -> Result<String, Box<dyn Error>> {
@@ -142,8 +173,8 @@ pub async fn sniper_mode() -> Result<(), Box<dyn Error>> {
         .description("Select the Mode")
         .theme(&theme)
         .filterable(true)
-        .option(DemandOption::new("Automatic Sniper").label("[1] Set Automatic Snipe"))
-        .option(DemandOption::new("Manual Sniper").label("[2] Set Manual Snipe"));
+        .option(DemandOption::new("Manual Sniper").label("[1] Set Manual Snipe"))
+        .option(DemandOption::new("Automatic Sniper").label("[2] Set Automatic Snipe"));
 
     let selected_option = ms.run().expect("error running select");
 

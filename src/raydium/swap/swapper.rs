@@ -16,6 +16,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::env::env_loader::tip_account;
 use crate::env::EngineSettings;
 use crate::plugins::jito_plugin::lib::{generate_tip_accounts, send_bundles, BundledTransactions};
 use crate::raydium::subscribe::PoolKeysSniper;
@@ -34,11 +35,8 @@ pub async fn raydium_in(
 
     let mut searcher_client =
         get_searcher_client(&args.block_engine_url, &Arc::new(auth_keypair())).await?;
-    let tip_accounts =
-        generate_tip_accounts(&pubkey!("T1pyyaTNZsKv2WcRAB8oVnk93mLJw2XzjtVYqCsaHqt"));
 
-    let mut rng = StdRng::from_entropy();
-    let tip_account = tip_accounts[rng.gen_range(0..tip_accounts.len())];
+    let tip_account = tip_account().await;
 
     let token_address = if pool_keys.base_mint == SOLC_MINT {
         pool_keys.clone().quote_mint

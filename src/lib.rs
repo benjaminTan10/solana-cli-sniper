@@ -5,3 +5,4 @@ pub mod plugins;
 pub mod raydium;
 pub mod rpc;
 pub mod user_inputs;
+pub mod utils;

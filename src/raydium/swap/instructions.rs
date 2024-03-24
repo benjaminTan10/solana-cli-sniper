@@ -23,7 +23,9 @@ use spl_token::instruction::sync_native;
 use std::{convert::TryInto, sync::Arc};
 use std::{mem::size_of, str::FromStr};
 
-use crate::raydium::{subscribe::PoolKeysSniper, utils::utils::LIQUIDITY_STATE_LAYOUT_V4};
+use crate::raydium::{
+    bundles::swap_direction, subscribe::PoolKeysSniper, utils::utils::LIQUIDITY_STATE_LAYOUT_V4,
+};
 
 /// Instructions supported by the AmmInfo program.
 #[repr(C)]
@@ -153,7 +155,7 @@ pub async fn swap_base_in(
     instructions.push(compute_price);
 
     instructions.push(
-        spl_associated_token_account::instruction::create_associated_token_account(
+        spl_associated_token_account::instruction::create_associated_token_account_idempotent(
             &wallet_address,
             &wallet_address,
             base_mint,
@@ -312,10 +314,6 @@ pub async fn make_simulate_pool_info_instruction(
 ) -> Result<Instruction, ProgramError> {
     let instruction_data: [u8; 2] = [12, 0]; // 12 for instruction, 0 for simulateType
 
-    warn!(
-        "Pool Keys: {}",
-        serde_json::to_string_pretty(&pool_keys).unwrap()
-    );
     let keys = vec![
         AccountMeta::new_readonly(pool_keys.id, false),
         AccountMeta::new_readonly(pool_keys.authority, false),
@@ -368,6 +366,26 @@ pub async fn simulate_multiple_instruction(
         )
         .await?;
     if let Some(logs) = result.value.logs {
+        for log in logs {
+            if log.starts_with("Program log: GetPoolData:") {
+                let json_part = &log["Program log: GetPoolData:".len()..];
+                let pool_data: Value = serde_json::from_str(json_part)?;
+                return Ok(pool_data);
+            }
+        }
+    }
+
+    // Retry once
+    let retry_result = rpc_client
+        .simulate_transaction_with_config(
+            &transaction,
+            RpcSimulateTransactionConfig {
+                commitment: Some(CommitmentConfig::confirmed()),
+                ..RpcSimulateTransactionConfig::default()
+            },
+        )
+        .await?;
+    if let Some(logs) = retry_result.value.logs {
         for log in logs {
             if log.starts_with("Program log: GetPoolData:") {
                 let json_part = &log["Program log: GetPoolData:".len()..];
@@ -439,7 +457,11 @@ pub fn swap_token_amount_base_in(
     return amount_out;
 }
 
-pub async fn swap_amount_out(pool_info: PoolInfo, amount_in: u64) -> u128 {
+pub async fn swap_amount_out(
+    pool_info: PoolInfo,
+    amount_in: u64,
+    swap_direction: SwapDirection,
+) -> u128 {
     let swap_fee_numerator = 25 as u128;
     let swap_fee_denominator = 10000 as u128;
     let swap_fee = u128::from(amount_in)
@@ -453,7 +475,7 @@ pub async fn swap_amount_out(pool_info: PoolInfo, amount_in: u64) -> u128 {
         swap_in_after_deduct_fee,
         pool_info.pool_coin_amount.into(),
         pool_info.pool_pc_amount.into(),
-        SwapDirection::Coin2PC,
+        swap_direction,
     );
     return swap_amount_out;
 }
@@ -463,6 +485,7 @@ pub async fn token_price_data(
     pool_keys: PoolKeysSniper,
     wallet: Arc<Keypair>,
     amount_in: u64,
+    swap_direction: SwapDirection,
 ) -> eyre::Result<u128> {
     let mut pool_ids = pool_keys.clone();
     if pool_keys.base_mint == SOLC_MINT {
@@ -471,9 +494,8 @@ pub async fn token_price_data(
     }
     let pool_info = fetch_muliple_info(rpc_client, pool_ids.clone(), wallet).await?;
     // info!("Pool Info: {}", serde_json::to_string_pretty(&pool_info)?);
-    let swap_amount_out = swap_amount_out(pool_info, amount_in).await;
+    let swap_amount_out = swap_amount_out(pool_info, amount_in, swap_direction).await;
 
-    info!("Swap amount in: {}", amount_in);
     Ok(swap_amount_out)
 }
 

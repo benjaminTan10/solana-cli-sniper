@@ -6,6 +6,7 @@ use solana_program::pubkey::Pubkey;
 use crate::{
     raydium::{
         subscribe::PoolKeysSniper,
+        swap::instructions::SOLC_MINT,
         utils::utils::{
             market_authority, program_address, LIQUIDITY_STATE_LAYOUT_V4, MARKET_STATE_LAYOUT_V3,
             SPL_MINT_LAYOUT,
@@ -37,7 +38,7 @@ pub async fn pool_keys_fetcher(id: Pubkey) -> eyre::Result<PoolKeysSniper> {
     };
 
     let data = account.clone().data;
-    let info = LIQUIDITY_STATE_LAYOUT_V4::decode(&mut &data[..])?;
+    let mut info = LIQUIDITY_STATE_LAYOUT_V4::decode(&mut &data[..])?;
     let marketid = info.marketId;
 
     let market_account = rpc_client.get_account(&marketid).await?;
@@ -53,6 +54,11 @@ pub async fn pool_keys_fetcher(id: Pubkey) -> eyre::Result<PoolKeysSniper> {
     let lp_mint_data = lp_mint_account.data;
 
     let lp_mint_info = SPL_MINT_LAYOUT::decode(&mut &lp_mint_data[..])?;
+
+    if info.baseMint == SOLC_MINT {
+        info.baseMint = info.quoteMint;
+        info.quoteMint = SOLC_MINT;
+    }
 
     let pool_keys = PoolKeysSniper {
         id: id,
