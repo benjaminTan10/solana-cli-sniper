@@ -130,7 +130,7 @@ pub fn swap_mode() -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>> 
             .option(DemandOption::new("Buy Tokens").label("[1] Buy Tokens"))
             .option(DemandOption::new("Sell Tokens").label("[2] Sell Tokens"))
             .option(DemandOption::new("Track Trade").label("[3] Track Trade"))
-            .option(DemandOption::new("Main Menu").label("[4] Main Menu"));
+            .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
 
         let selected_option = ms.run().expect("error running select");
 
@@ -167,30 +167,36 @@ pub async fn private_key_env() -> Result<String, Box<dyn Error>> {
     Ok(private_key)
 }
 
-pub async fn sniper_mode() -> Result<(), Box<dyn Error>> {
-    let theme = theme();
-    let ms = Select::new("Sniper Mode")
-        .description("Select the Mode")
-        .theme(&theme)
-        .filterable(true)
-        .option(DemandOption::new("Manual Sniper").label("[1] Set Manual Snipe"))
-        .option(DemandOption::new("Automatic Sniper").label("[2] Set Automatic Snipe"));
+pub fn sniper_mode() -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>> {
+    Box::pin(async {
+        let theme = theme();
+        let ms = Select::new("Sniper Mode")
+            .description("Select the Mode")
+            .theme(&theme)
+            .filterable(true)
+            .option(DemandOption::new("Manual Sniper").label("[1] Set Manual Snipe"))
+            .option(DemandOption::new("Automatic Sniper").label("[2] Set Automatic Snipe"))
+            .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
 
-    let selected_option = ms.run().expect("error running select");
+        let selected_option = ms.run().expect("error running select");
 
-    match selected_option {
-        "Manual Sniper" => {
-            let _ = automatic_snipe(false).await;
+        match selected_option {
+            "Manual Sniper" => {
+                let _ = automatic_snipe(false).await;
+            }
+            "Automatic Sniper" => {
+                let _ = automatic_snipe(true).await;
+            }
+            "Main Menu" => {
+                let _ = app(false).await;
+            }
+            _ => {
+                // Handle unexpected option here
+            }
         }
-        "Automatic Sniper" => {
-            let _ = automatic_snipe(true).await;
-        }
-        _ => {
-            // Handle unexpected option here
-        }
-    }
 
-    Ok(())
+        Ok(())
+    })
 }
 
 #[derive(Debug)]

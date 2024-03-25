@@ -229,21 +229,17 @@ pub async fn swap_base_out(
     .pack()?;
 
     let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(500000);
-    // let compute_price = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
+    let compute_price = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
 
-    let source_token_account = get_associated_token_address(wallet_address, base_mint);
-    let destination_token_account = get_associated_token_address(wallet_address, &SOLC_MINT);
+    let source_token_account = get_associated_token_address(wallet_address, &SOLC_MINT);
+    let destination_token_account = get_associated_token_address(wallet_address, base_mint);
 
     let mut instructions = Vec::new();
 
-    // instructions.push(compute_price);
+    instructions.push(compute_price);
     instructions.push(unit_limit);
 
     let accounts = vec![
-        AccountMeta::new(
-            Pubkey::from_str("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8").unwrap(),
-            false,
-        ),
         // spl token
         AccountMeta::new_readonly(spl_token::id(), false),
         // amm
@@ -263,8 +259,8 @@ pub async fn swap_base_out(
         AccountMeta::new(*market_pc_vault, false),
         AccountMeta::new_readonly(*market_vault_signer, false),
         // user
-        AccountMeta::new(source_token_account, false),
         AccountMeta::new(destination_token_account, false),
+        AccountMeta::new(source_token_account, false),
         AccountMeta::new_readonly(*user_source_owner, true),
     ];
 

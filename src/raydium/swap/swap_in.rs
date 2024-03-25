@@ -98,9 +98,15 @@ pub async fn swap_out() -> Result<(), Box<dyn std::error::Error>> {
     let sol_amount = amount_percentage().await;
     let mut bundle_tip = 0;
     let mut priority_fee_value = 0;
+    let (bundle_results_sender, bundle_results_receiver) = channel(100);
     if args.use_bundles {
-        bundle_tip = bundle_priority_tip().await;
+        tokio::spawn(bundle_results_loop(
+            args.block_engine_url.clone(),
+            Arc::new(auth_keypair()),
+            bundle_results_sender,
+        ));
         priority_fee_value = priority_fee().await;
+        bundle_tip = bundle_priority_tip().await;
     } else {
         priority_fee_value = priority_fee().await;
     }
@@ -124,6 +130,7 @@ pub async fn swap_out() -> Result<(), Box<dyn std::error::Error>> {
         sol_amount,
         fees,
         args,
+        bundle_results_receiver,
     )
     .await
     {

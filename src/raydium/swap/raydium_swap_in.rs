@@ -25,7 +25,7 @@ use crate::raydium::swap::instructions::{swap_base_in, SwapDirection, SOLC_MINT}
 use crate::raydium::swap::swapper::auth_keypair;
 use crate::rpc::HTTP_CLIENT;
 
-use super::instructions::token_price_data;
+use super::instructions::{swap_base_out, token_price_data};
 use super::swap_in::PriorityTip;
 
 pub async fn raydium_in(
@@ -55,7 +55,32 @@ pub async fn raydium_in(
         pool_keys.clone().base_mint
     };
 
-    let swap_instructions = swap_base_in(
+    // let swap_instructions = swap_base_in(
+    //     &pool_keys.program_id,
+    //     &pool_keys.id,
+    //     &pool_keys.authority,
+    //     &pool_keys.open_orders,
+    //     &pool_keys.target_orders,
+    //     &pool_keys.base_vault,
+    //     &pool_keys.quote_vault,
+    //     &pool_keys.market_program_id,
+    //     &pool_keys.market_id,
+    //     &pool_keys.market_bids,
+    //     &pool_keys.market_asks,
+    //     &pool_keys.market_event_queue,
+    //     &pool_keys.market_base_vault,
+    //     &pool_keys.market_quote_vault,
+    //     &pool_keys.market_authority,
+    //     &user_source_owner,
+    //     &user_source_owner,
+    //     &user_source_owner,
+    //     &token_address,
+    //     amount_in.clone(),
+    //     amount_out,
+    //     fees.priority_fee_value,
+    // )
+    // .await?;
+    let swap_instructions = swap_base_out(
         &pool_keys.program_id,
         &pool_keys.id,
         &pool_keys.authority,
@@ -73,9 +98,8 @@ pub async fn raydium_in(
         &pool_keys.market_authority,
         &user_source_owner,
         &user_source_owner,
-        &user_source_owner,
-        &token_address,
-        amount_in.clone(),
+        &pool_keys.base_mint,
+        amount_in,
         amount_out,
         fees.priority_fee_value,
     )
@@ -169,14 +193,9 @@ pub async fn raydium_in(
             if start_time.elapsed().as_secs() >= 2 {
                 break;
             }
-        }
-
-        if let Some(first_log) = logs.first() {
-            info!("First log: {:?}", first_log);
-        }
-
-        if let Some(last_log) = logs.last() {
-            info!("Last log: {:?}", last_log);
+            if logs.len() >= 2 {
+                break;
+            }
         }
     } else {
         info!("Sending Transaction");

@@ -1,3 +1,4 @@
+use jito_protos::bundle::BundleResult;
 use jito_searcher_client::get_searcher_client;
 use log::{error, info};
 use solana_client::nonblocking::rpc_client::RpcClient;
@@ -12,6 +13,7 @@ use spl_memo::build_memo;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tokio::sync::mpsc::Receiver;
 
 use crate::env::env_loader::tip_account;
 use crate::env::EngineSettings;
@@ -30,10 +32,12 @@ pub async fn raydium_txn_backrun(
     token_amount: u64,
     fees: PriorityTip,
     args: EngineSettings,
+    mut bundle_results_receiver: Receiver<BundleResult>,
 ) -> eyre::Result<()> {
     let start = Instant::now();
     let mut token_balance = 0;
 
+    info!("BaseMint: {:?}", pool_keys.base_mint);
     while start.elapsed() < Duration::from_secs(15) {
         let token_accounts = rpc_client
             .get_token_accounts_by_owner(
@@ -48,7 +52,7 @@ pub async fn raydium_txn_backrun(
             let pubkey = Pubkey::from_str(&pubkey)?;
 
             let balance = rpc_client.get_token_account_balance(&pubkey).await?;
-            info!("balance: {:?}", balance);
+
             let lamports = match balance.amount.parse::<u64>() {
                 Ok(lamports) => lamports,
                 Err(e) => {
@@ -76,11 +80,23 @@ pub async fn raydium_txn_backrun(
         return Ok(());
     }
 
-    let token_amount = token_balance * (token_amount / 100);
+    let percentage = 0.5;
+    let token_amount = (token_balance * 1);
+
+    info!("Token Amount: {:?}", token_amount);
 
     info!("Tokens: {:?}", token_balance);
 
-    let _ = raydium_out(wallet, pool_keys.clone(), token_amount, 1, fees, args).await?;
+    let _ = raydium_out(
+        wallet,
+        pool_keys.clone(),
+        token_amount,
+        1,
+        fees,
+        args,
+        bundle_results_receiver,
+    )
+    .await?;
 
     Ok(())
 }
@@ -92,17 +108,19 @@ pub async fn raydium_out(
     amount_out: u64,
     fees: PriorityTip,
     args: EngineSettings,
+    mut bundle_results_receiver: Receiver<BundleResult>,
 ) -> eyre::Result<()> {
     let user_source_owner = wallet.pubkey();
     let rpc_client = {
         let http_client = HTTP_CLIENT.lock().unwrap();
         http_client.get("http_client").unwrap().clone()
     };
-
     let mut searcher_client =
         get_searcher_client(&args.block_engine_url, &Arc::new(auth_keypair())).await?;
 
     let tip_account = tip_account().await;
+
+    let rpc_client = Arc::new(rpc_client);
 
     let token_address = if pool_keys.base_mint == SOLC_MINT {
         pool_keys.clone().quote_mint
@@ -110,6 +128,31 @@ pub async fn raydium_out(
         pool_keys.clone().base_mint
     };
 
+    // let swap_instructions = swap_base_in(
+    //     &pool_keys.program_id,
+    //     &pool_keys.id,
+    //     &pool_keys.authority,
+    //     &pool_keys.open_orders,
+    //     &pool_keys.target_orders,
+    //     &pool_keys.base_vault,
+    //     &pool_keys.quote_vault,
+    //     &pool_keys.market_program_id,
+    //     &pool_keys.market_id,
+    //     &pool_keys.market_bids,
+    //     &pool_keys.market_asks,
+    //     &pool_keys.market_event_queue,
+    //     &pool_keys.market_base_vault,
+    //     &pool_keys.market_quote_vault,
+    //     &pool_keys.market_authority,
+    //     &user_source_owner,
+    //     &user_source_owner,
+    //     &user_source_owner,
+    //     &token_address,
+    //     amount_in.clone(),
+    //     amount_out,
+    //     fees.priority_fee_value,
+    // )
+    // .await?;
     let swap_instructions = swap_base_out(
         &pool_keys.program_id,
         &pool_keys.id,
@@ -128,7 +171,7 @@ pub async fn raydium_out(
         &pool_keys.market_authority,
         &user_source_owner,
         &user_source_owner,
-        &token_address,
+        &pool_keys.base_mint,
         amount_in,
         amount_out,
         fees.priority_fee_value,
@@ -196,12 +239,36 @@ pub async fn raydium_out(
 
         let mut results = send_bundles(&mut searcher_client, &[bundle_txn]).await?;
 
-        println!("Results: {:?}", results);
         if let Ok(response) = results.remove(0) {
             let message = response.into_inner();
             let uuid = &message.uuid;
-            info!("Message: {:?}", message);
             info!("UUID: {}", uuid);
+        }
+
+        info!("Fetching Bundle Result...");
+
+        // Receive bundle results
+        let mut logs = Vec::new();
+        let start_time = std::time::Instant::now();
+        while let Some(bundle_result) = bundle_results_receiver.recv().await {
+            info!(
+                "received bundle_result: [bundle_id={:?}, result={:?}]",
+                bundle_result.bundle_id, bundle_result.result
+            );
+
+            logs.push(bundle_result.clone());
+
+            // Check if logs stop coming
+            if bundle_result.result.is_none() {
+                break;
+            }
+
+            if start_time.elapsed().as_secs() >= 2 {
+                break;
+            }
+            if logs.len() >= 2 {
+                break;
+            }
         }
     } else {
         info!("Sending Transaction");
@@ -220,6 +287,8 @@ pub async fn raydium_out(
                 return Ok(());
             }
         };
+
+        info!("Transaction sent: {:?}", result);
     }
 
     Ok(())
