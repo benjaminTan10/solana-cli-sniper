@@ -7,13 +7,14 @@ use solana_program::pubkey::Pubkey;
 use solana_sdk::commitment_config::CommitmentLevel;
 use solana_sdk::native_token::{lamports_to_sol, sol_to_lamports};
 use solana_sdk::system_instruction::transfer;
+use solana_sdk::sysvar::fees;
 use solana_sdk::transaction::{Transaction, VersionedTransaction};
 use solana_sdk::{signature::Keypair, signer::Signer};
 use spl_memo::build_memo;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::mpsc::{self, channel, Receiver};
 use tokio::time;
 
 use crate::app::UserData;
@@ -24,8 +25,10 @@ use crate::raydium::subscribe::PoolKeysSniper;
 use crate::raydium::swap::instructions::{swap_base_in, SwapDirection, SOLC_MINT};
 use crate::raydium::swap::swapper::auth_keypair;
 use crate::rpc::HTTP_CLIENT;
+use crate::utils::read_single_key_impl;
 
 use super::instructions::{swap_base_out, token_price_data};
+use super::raydium_swap_out::raydium_out;
 use super::swap_in::PriorityTip;
 
 pub async fn raydium_in(
@@ -55,32 +58,7 @@ pub async fn raydium_in(
         pool_keys.clone().base_mint
     };
 
-    // let swap_instructions = swap_base_in(
-    //     &pool_keys.program_id,
-    //     &pool_keys.id,
-    //     &pool_keys.authority,
-    //     &pool_keys.open_orders,
-    //     &pool_keys.target_orders,
-    //     &pool_keys.base_vault,
-    //     &pool_keys.quote_vault,
-    //     &pool_keys.market_program_id,
-    //     &pool_keys.market_id,
-    //     &pool_keys.market_bids,
-    //     &pool_keys.market_asks,
-    //     &pool_keys.market_event_queue,
-    //     &pool_keys.market_base_vault,
-    //     &pool_keys.market_quote_vault,
-    //     &pool_keys.market_authority,
-    //     &user_source_owner,
-    //     &user_source_owner,
-    //     &user_source_owner,
-    //     &token_address,
-    //     amount_in.clone(),
-    //     amount_out,
-    //     fees.priority_fee_value,
-    // )
-    // .await?;
-    let swap_instructions = swap_base_out(
+    let swap_instructions = swap_base_in(
         &pool_keys.program_id,
         &pool_keys.id,
         &pool_keys.authority,
@@ -98,8 +76,9 @@ pub async fn raydium_in(
         &pool_keys.market_authority,
         &user_source_owner,
         &user_source_owner,
-        &pool_keys.base_mint,
-        amount_in,
+        &user_source_owner,
+        &token_address,
+        amount_in.clone(),
         amount_out,
         fees.priority_fee_value,
     )
@@ -217,19 +196,35 @@ pub async fn raydium_in(
 
         info!("Transaction sent: {:?}", result);
     }
-
     let pool_keys_clone = pool_keys.clone();
-    let wallet_clone = wallet.clone();
-    let _ = price_logger(amount_in.clone(), pool_keys_clone, &wallet_clone).await;
+    let args_clone = args.clone();
+    let fees_clone = fees.clone();
+    let wallet_clone = Arc::clone(&wallet);
+    let (mut stop_tx, mut stop_rx) = tokio::sync::mpsc::channel::<()>(100);
+
+    tokio::spawn(async move {
+        read_single_key_impl(
+            &mut stop_tx,
+            pool_keys_clone,
+            args_clone,
+            fees_clone,
+            &wallet_clone,
+            bundle_results_receiver,
+        )
+        .await
+        .unwrap();
+    });
+
+    price_logger(&mut stop_rx, amount_in, pool_keys, wallet.clone()).await;
     Ok(())
 }
 
 pub async fn price_logger(
-    //mut stop_rx: mpsc::Receiver<()>,
+    stop_rx: &mut mpsc::Receiver<()>,
     amount_in: u64,
     pool_keys: PoolKeysSniper,
-    wallet: &Arc<Keypair>,
-) -> eyre::Result<()> {
+    wallet: Arc<Keypair>,
+) {
     let rpc_client = {
         let http_client = HTTP_CLIENT.lock().unwrap();
         http_client.get("http_client").unwrap().clone()
@@ -242,20 +237,39 @@ pub async fn price_logger(
         let mut token_balance = 0;
         let rpc_client_clone = rpc_client.clone();
         let pool_keys_clone = pool_keys.clone();
-        let wallet_clone = Arc::clone(wallet);
-        let token_accounts = rpc_client_clone
+        let wallet_clone = Arc::clone(&wallet);
+        let token_accounts = match rpc_client_clone
             .get_token_accounts_by_owner(
                 &wallet_clone.pubkey(),
                 TokenAccountsFilter::Mint(pool_keys_clone.base_mint),
             )
-            .await?;
+            .await
+        {
+            Ok(token_accounts) => token_accounts,
+            Err(e) => {
+                error!("Error: {:?}", e);
+                break;
+            }
+        };
 
         for rpc_keyed_account in &token_accounts {
             let pubkey = &rpc_keyed_account.pubkey;
             //convert to pubkey
-            let pubkey = Pubkey::from_str(&pubkey)?;
+            let pubkey = match Pubkey::from_str(&pubkey) {
+                Ok(pubkey) => pubkey,
+                Err(e) => {
+                    eprintln!("Failed to parse pubkey: {}", e);
+                    break;
+                }
+            };
 
-            let balance = rpc_client_clone.get_token_account_balance(&pubkey).await?;
+            let balance = match rpc_client_clone.get_token_account_balance(&pubkey).await {
+                Ok(balance) => balance,
+                Err(e) => {
+                    eprintln!("Failed to get token account balance: {}", e);
+                    break;
+                }
+            };
             let lamports = match balance.amount.parse::<u64>() {
                 Ok(lamports) => lamports,
                 Err(e) => {
@@ -273,14 +287,21 @@ pub async fn price_logger(
             std::thread::sleep(Duration::from_secs(1));
         }
 
-        let price = token_price_data(
+        let price = match token_price_data(
             rpc_client_clone,
             pool_keys_clone,
             wallet_clone,
             token_balance,
             SwapDirection::PC2Coin,
         )
-        .await?;
+        .await
+        {
+            Ok(price) => price,
+            Err(e) => {
+                error!("Error: {:?}", e);
+                break;
+            }
+        };
 
         let total_value = lamports_to_sol(price as u64);
         let profit_percentage =
@@ -294,6 +315,78 @@ pub async fn price_logger(
         );
 
         // Sleep for a while
-        time::sleep(Duration::from_secs(1)).await;
+        time::sleep(Duration::from_millis(500)).await;
     }
+}
+
+pub async fn sell_tokens(
+    amount: u64,
+    pool_keys: PoolKeysSniper,
+    wallet: Arc<Keypair>,
+    fees: PriorityTip,
+    args: EngineSettings,
+    bundle_results_receiver: Receiver<BundleResult>,
+) -> eyre::Result<()> {
+    let rpc_client = {
+        let http_client = HTTP_CLIENT.lock().unwrap();
+        http_client.get("http_client").unwrap().clone()
+    };
+    let mut token_balance = 0;
+    let rpc_client_clone = rpc_client.clone();
+    let pool_keys_clone = pool_keys.clone();
+    let wallet_clone = Arc::clone(&wallet);
+    let token_accounts = rpc_client_clone
+        .get_token_accounts_by_owner(
+            &wallet_clone.pubkey(),
+            TokenAccountsFilter::Mint(pool_keys_clone.base_mint),
+        )
+        .await?;
+
+    for rpc_keyed_account in &token_accounts {
+        let pubkey = &rpc_keyed_account.pubkey;
+        //convert to pubkey
+        let pubkey = Pubkey::from_str(&pubkey)?;
+
+        let balance = rpc_client_clone.get_token_account_balance(&pubkey).await?;
+        let lamports = match balance.amount.parse::<u64>() {
+            Ok(lamports) => lamports,
+            Err(e) => {
+                eprintln!("Failed to parse balance: {}", e);
+                break;
+            }
+        };
+
+        token_balance = lamports;
+
+        if lamports != 0 {
+            break;
+        }
+
+        std::thread::sleep(Duration::from_secs(1));
+    }
+
+    info!("Token Balance: {:?}", token_balance);
+
+    // let tokens_to_sell = token_balance * (amount as f64 / 100.0) as u64;
+
+    // info!("Selling {:?} tokens", tokens_to_sell);
+
+    let _ = match raydium_out(
+        &wallet,
+        pool_keys,
+        token_balance,
+        0,
+        fees,
+        args,
+        bundle_results_receiver,
+    )
+    .await
+    {
+        Ok(_) => {}
+        Err(e) => {
+            error!("{}", e);
+        }
+    };
+
+    Ok(())
 }

@@ -1,91 +1,162 @@
-use std::io::{self, Read, Write};
-use termion::event::Key;
-use termion::input::TermRead;
-use termion::raw::IntoRawMode;
+use jito_protos::bundle::BundleResult;
+use log::info;
+use solana_sdk::signature::Keypair;
+use std::{error::Error, sync::Arc};
+use tokio::sync::mpsc::{Receiver, Sender};
 
-pub fn read_single_key(ctrlc_key: bool) -> io::Result<Key> {
-    let stdin = std::io::stdin();
-    let stdout = std::io::stdout().into_raw_mode()?;
+pub async fn read_single_key(stop_tx: &mut tokio::sync::mpsc::Sender<()>) {
+    // let mut stdin = std::io::stdin();
+    // let stdout = match std::io::stdout().into_raw_mode() {
+    //     Ok(stdout) => stdout,
+    //     Err(e) => {
+    //         info!("Error: {}", e);
+    //         return;
+    //     }
+    // };
 
-    let mut stdout = stdout.lock();
-    write!(stdout, "{}", termion::cursor::Hide)?;
+    // let mut stdout = stdout.lock();
+    // match write!(stdout, "{}", termion::cursor::Hide) {
+    //     Ok(_) => {}
+    //     Err(e) => {
+    //         info!("Error: {}", e);
+    //     }
+    // };
 
-    let key = read_single_key_impl(&mut stdin.lock())?;
+    // let mut stdin_lock = stdin.lock();
+    // let _key = match read_single_key_impl(&mut stdin_lock, stop_tx).await {
+    //     Ok(_) => {}
+    //     Err(e) => {
+    //         info!("Error: {}", e);
+    //     }
+    // };
 
-    write!(
-        stdout,
-        "{}{}",
-        termion::cursor::Show,
-        termion::cursor::BlinkingBlock
-    )?;
-
-    Ok(key)
+    // match write!(
+    //     stdout,
+    //     "{}{}",
+    //     termion::cursor::Show,
+    //     termion::cursor::BlinkingBlock
+    // ) {
+    //     Ok(_) => {}
+    //     Err(e) => {
+    //         info!("Error: {}", e);
+    //     }
+    // };
 }
 
-fn read_single_key_impl<R: Read>(reader: &mut R) -> io::Result<Key> {
-    let mut keys = Vec::new();
-    for c in reader.keys() {
-        let key = c?; // Handle the error from reader.keys()
-        match key {
-            Key::Ctrl('c') => break,
-            Key::F(1) => {
-                // Call a custom function or return a custom value for F1
-                your_custom_f1_function();
-                keys.push(Key::Null);
-                break;
-            }
-            Key::F(2) => {
-                // Call a custom function or return a custom value for F2
-                your_custom_f2_function();
-                keys.push(Key::Null);
-                break;
-            }
+use console::{Key, Term};
+
+use crate::{
+    env::EngineSettings,
+    raydium::{
+        subscribe::PoolKeysSniper,
+        swap::{
+            raydium_swap_in::sell_tokens, raydium_swap_out::raydium_txn_backrun,
+            swap_in::PriorityTip,
+        },
+    },
+};
+
+pub async fn read_single_key_impl(
+    stop_tx: &mut Sender<()>,
+    pool_keys: PoolKeysSniper,
+    args: EngineSettings,
+    fees: PriorityTip,
+    wallet: &Arc<Keypair>,
+    mut bundle_results_receiver: Receiver<BundleResult>,
+) -> Result<(), Box<dyn Error + Send>> {
+    let term = Term::stdout();
+
+    loop {
+        match term.read_key().unwrap() {
             Key::Char('1') => {
-                // Call a custom function or return a custom value for numpad 1
-                your_custom_numpad_1_function();
-                keys.push(Key::Null);
-                break;
+                let _ = stop_tx.send(()).await;
+                info!("Selling 100% of tokens");
+                let _ = match raydium_txn_backrun(
+                    wallet,
+                    pool_keys,
+                    100,
+                    fees,
+                    args,
+                    bundle_results_receiver,
+                )
+                .await
+                {
+                    Ok(_) => {}
+                    Err(e) => {
+                        info!("Error: {}", e);
+                    }
+                };
+                return Ok(());
             }
             Key::Char('2') => {
-                // Call a custom function or return a custom value for numpad 2
-                your_custom_numpad_2_function();
-                keys.push(Key::Null);
-                break;
+                let _ = stop_tx.send(()).await;
+                info!("Selling 75% of tokens");
+                let _ = match sell_tokens(
+                    75,
+                    pool_keys,
+                    wallet.clone(),
+                    fees,
+                    args,
+                    bundle_results_receiver,
+                )
+                .await
+                {
+                    Ok(_) => {}
+                    Err(e) => {
+                        info!("Error: {}", e);
+                    }
+                };
+                return Ok(());
             }
-            // Add more cases for numpad 3 to 9 here
-            Key::Char('9') => {
-                // Call a custom function or return a custom value for numpad 9
-                your_custom_numpad_9_function();
-                keys.push(Key::Null);
-                break;
+            Key::Char('3') => {
+                let _ = stop_tx.send(()).await;
+                info!("Selling 50% of tokens");
+                let _ = match sell_tokens(
+                    50,
+                    pool_keys,
+                    wallet.clone(),
+                    fees,
+                    args,
+                    bundle_results_receiver,
+                )
+                .await
+                {
+                    Ok(_) => {}
+                    Err(e) => {
+                        info!("Error: {}", e);
+                    }
+                };
+                return Ok(());
             }
-            key => keys.push(key),
+            Key::Char('4') => {
+                let _ = stop_tx.send(()).await;
+                info!("Selling 25% of tokens");
+                let _ = match sell_tokens(
+                    25,
+                    pool_keys,
+                    wallet.clone(),
+                    fees,
+                    args,
+                    bundle_results_receiver,
+                )
+                .await
+                {
+                    Ok(_) => {}
+                    Err(e) => {
+                        info!("Error: {}", e);
+                    }
+                };
+                return Ok(());
+            }
+            Key::Escape => {
+                // Handle Escape key
+            }
+            Key::Enter => {
+                // Handle Enter key
+            }
+            _ => {
+                // Handle other keys
+            }
         }
     }
-    Ok(keys.first().cloned().unwrap_or(Key::Null))
-}
-
-fn your_custom_f1_function() {
-    // Implement your custom logic for F1 here
-    println!("F1 key pressed!");
-}
-
-fn your_custom_f2_function() {
-    // Implement your custom logic for F2 here
-    println!("F2 key pressed!");
-}
-
-fn your_custom_numpad_1_function() {
-    // Implement your custom logic for numpad 1 here
-    println!("Numpad 1 key pressed!");
-}
-
-fn your_custom_numpad_2_function() {
-    // Implement your custom logic for numpad 2 here
-    println!("Numpad 2 key pressed!");
-}
-
-fn your_custom_numpad_9_function() {
-    // Implement your custom logic for numpad 9 here
-    println!("Numpad 9 key pressed!");
 }

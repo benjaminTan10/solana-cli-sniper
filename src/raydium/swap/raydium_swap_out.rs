@@ -26,7 +26,6 @@ use super::swap_in::PriorityTip;
 use super::swapper::auth_keypair;
 
 pub async fn raydium_txn_backrun(
-    rpc_client: Arc<RpcClient>,
     wallet: &Arc<Keypair>,
     pool_keys: PoolKeysSniper,
     token_amount: u64,
@@ -36,7 +35,10 @@ pub async fn raydium_txn_backrun(
 ) -> eyre::Result<()> {
     let start = Instant::now();
     let mut token_balance = 0;
-
+    let rpc_client = {
+        let http_client = HTTP_CLIENT.lock().unwrap();
+        http_client.get("http_client").unwrap().clone()
+    };
     info!("BaseMint: {:?}", pool_keys.base_mint);
     while start.elapsed() < Duration::from_secs(15) {
         let token_accounts = rpc_client
@@ -110,6 +112,8 @@ pub async fn raydium_out(
     args: EngineSettings,
     mut bundle_results_receiver: Receiver<BundleResult>,
 ) -> eyre::Result<()> {
+    info!("Building Bundle...");
+
     let user_source_owner = wallet.pubkey();
     let rpc_client = {
         let http_client = HTTP_CLIENT.lock().unwrap();
@@ -128,31 +132,6 @@ pub async fn raydium_out(
         pool_keys.clone().base_mint
     };
 
-    // let swap_instructions = swap_base_in(
-    //     &pool_keys.program_id,
-    //     &pool_keys.id,
-    //     &pool_keys.authority,
-    //     &pool_keys.open_orders,
-    //     &pool_keys.target_orders,
-    //     &pool_keys.base_vault,
-    //     &pool_keys.quote_vault,
-    //     &pool_keys.market_program_id,
-    //     &pool_keys.market_id,
-    //     &pool_keys.market_bids,
-    //     &pool_keys.market_asks,
-    //     &pool_keys.market_event_queue,
-    //     &pool_keys.market_base_vault,
-    //     &pool_keys.market_quote_vault,
-    //     &pool_keys.market_authority,
-    //     &user_source_owner,
-    //     &user_source_owner,
-    //     &user_source_owner,
-    //     &token_address,
-    //     amount_in.clone(),
-    //     amount_out,
-    //     fees.priority_fee_value,
-    // )
-    // .await?;
     let swap_instructions = swap_base_out(
         &pool_keys.program_id,
         &pool_keys.id,

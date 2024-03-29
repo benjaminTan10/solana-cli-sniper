@@ -80,6 +80,7 @@ pub async fn swap_in() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[derive(Debug, Clone)]
 pub struct PriorityTip {
     pub bundle_tip: u64,
     pub priority_fee_value: u64,
@@ -124,7 +125,6 @@ pub async fn swap_out() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let swap = match raydium_txn_backrun(
-        rpc_client,
         &Arc::new(private_key),
         pool_keys,
         sol_amount,

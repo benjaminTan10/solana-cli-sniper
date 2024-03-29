@@ -12,7 +12,7 @@ use termcolor::{Color, ColorSpec};
 
 use crate::env::load_settings;
 use crate::raydium::bundles::mev_trades::mev_trades;
-use crate::raydium::swap::swap_in::{swap_in, swap_out};
+use crate::raydium::swap::swap_in::{swap_in, swap_out, PriorityTip};
 use crate::raydium::swap::trades::track_trades;
 use crate::raydium::volume_pinger::volume::generate_volume;
 use crate::rpc::rpc_key;
@@ -202,7 +202,7 @@ pub fn sniper_mode() -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>
 #[derive(Debug)]
 pub struct MevApe {
     pub sol_amount: u64,
-    pub priority_fee: u64,
+    pub fee: PriorityTip,
     // pub bundle_tip: u64,
     pub wallet: String,
 }

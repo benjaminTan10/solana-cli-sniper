@@ -36,6 +36,5 @@ async fn main() {
         .init();
 
     info!("{}", embed());
-
     let _ = app(true).await;
 }

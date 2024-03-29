@@ -9,7 +9,10 @@ use crate::{
     app::MevApe,
     env::load_settings,
     plugins::jito_plugin::event_loop::bundle_results_loop,
-    raydium::swap::{grpc_new_pairs::grpc_pair_sub, instructions::wrap_sol, swapper::auth_keypair},
+    raydium::swap::{
+        grpc_new_pairs::grpc_pair_sub, instructions::wrap_sol, swap_in::PriorityTip,
+        swapper::auth_keypair,
+    },
 };
 
 use super::{
@@ -40,10 +43,32 @@ pub async fn wrap_sol_call() -> Result<(), Box<dyn Error>> {
 }
 
 pub async fn automatic_snipe(snipe_automatic: bool) -> eyre::Result<()> {
+    let args = match load_settings().await {
+        Ok(args) => args,
+        Err(e) => {
+            error!("Error: {:?}", e);
+            return Err(e.into());
+        }
+    };
     let sol_amount = sol_amount().await;
-    let priority_fee = priority_fee().await;
-    let bundle_tip = bundle_priority_tip().await;
+
     let mut token = Pubkey::default();
+
+    let mut bundle_tip = 0;
+    let mut priority_fee_value = 0;
+    let (bundle_results_sender, bundle_results_receiver) = channel(100);
+
+    if args.use_bundles {
+        tokio::spawn(bundle_results_loop(
+            args.block_engine_url.clone(),
+            Arc::new(auth_keypair()),
+            bundle_results_sender,
+        ));
+        priority_fee_value = priority_fee().await;
+        bundle_tip = bundle_priority_tip().await;
+    } else {
+        priority_fee_value = priority_fee().await;
+    }
 
     if !snipe_automatic {
         token = token_env("Base Mint").await;
@@ -53,30 +78,17 @@ pub async fn automatic_snipe(snipe_automatic: bool) -> eyre::Result<()> {
 
     // let wallet = private_key_env().await?;
 
-    let args = match load_settings().await {
-        Ok(args) => args,
-        Err(e) => {
-            error!("Error: {:?}", e);
-            return Err(e.into());
-        }
+    let fees = PriorityTip {
+        priority_fee_value,
+        bundle_tip,
     };
-    // let private_key = Keypair::from_bytes(&bs58::decode(args.payer_keypair).into_vec().unwrap())?;
-    // let rpc_client = RpcClient::new(args.rpc_url.to_string());
 
     let mev_ape = MevApe {
         sol_amount,
-        priority_fee,
+        fee: fees,
         // bundle_tip,
         wallet: args.payer_keypair.clone(),
     };
-
-    let (bundle_results_sender, bundle_results_receiver) = channel(100);
-
-    tokio::spawn(bundle_results_loop(
-        args.block_engine_url.clone(),
-        Arc::new(auth_keypair()),
-        bundle_results_sender,
-    ));
 
     let _ = match grpc_pair_sub(mev_ape, args, bundle_results_receiver).await {
         Ok(_) => info!("Transaction Sent"),

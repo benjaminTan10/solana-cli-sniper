@@ -22,169 +22,169 @@ use crate::plugins::jito_plugin::lib::{generate_tip_accounts, send_bundles, Bund
 use crate::raydium::subscribe::PoolKeysSniper;
 use crate::raydium::swap::instructions::{swap_base_in, swap_base_out, SOLC_MINT, TAX_ACCOUNT};
 
-pub async fn raydium_in(
-    rpc_client: Arc<RpcClient>,
-    wallet: &Arc<Keypair>,
-    pool_keys: PoolKeysSniper,
-    amount_in: u64,
-    amount_out: u64,
-    priority_fee: u64,
-    args: EngineSettings,
-) -> eyre::Result<()> {
-    let user_source_owner = wallet.pubkey();
+// pub async fn raydium_in(
+//     rpc_client: Arc<RpcClient>,
+//     wallet: &Arc<Keypair>,
+//     pool_keys: PoolKeysSniper,
+//     amount_in: u64,
+//     amount_out: u64,
+//     priority_fee: u64,
+//     args: EngineSettings,
+// ) -> eyre::Result<()> {
+//     let user_source_owner = wallet.pubkey();
 
-    let mut searcher_client =
-        get_searcher_client(&args.block_engine_url, &Arc::new(auth_keypair())).await?;
+//     let mut searcher_client =
+//         get_searcher_client(&args.block_engine_url, &Arc::new(auth_keypair())).await?;
 
-    let tip_account = tip_account().await;
+//     let tip_account = tip_account().await;
 
-    let token_address = if pool_keys.base_mint == SOLC_MINT {
-        pool_keys.clone().quote_mint
-    } else {
-        pool_keys.clone().base_mint
-    };
-    let mut swap_instructions = swap_base_in(
-        &pool_keys.program_id,
-        &pool_keys.id,
-        &pool_keys.authority,
-        &pool_keys.open_orders,
-        &pool_keys.target_orders,
-        &pool_keys.base_vault,
-        &pool_keys.quote_vault,
-        &pool_keys.market_program_id,
-        &pool_keys.market_id,
-        &pool_keys.market_bids,
-        &pool_keys.market_asks,
-        &pool_keys.market_event_queue,
-        &pool_keys.market_base_vault,
-        &pool_keys.market_quote_vault,
-        &pool_keys.market_authority,
-        &user_source_owner,
-        &user_source_owner,
-        &user_source_owner,
-        &token_address,
-        amount_in,
-        amount_out,
-        priority_fee,
-    )
-    .await?;
+//     let token_address = if pool_keys.base_mint == SOLC_MINT {
+//         pool_keys.clone().quote_mint
+//     } else {
+//         pool_keys.clone().base_mint
+//     };
+//     let mut swap_instructions = swap_base_in(
+//         &pool_keys.program_id,
+//         &pool_keys.id,
+//         &pool_keys.authority,
+//         &pool_keys.open_orders,
+//         &pool_keys.target_orders,
+//         &pool_keys.base_vault,
+//         &pool_keys.quote_vault,
+//         &pool_keys.market_program_id,
+//         &pool_keys.market_id,
+//         &pool_keys.market_bids,
+//         &pool_keys.market_asks,
+//         &pool_keys.market_event_queue,
+//         &pool_keys.market_base_vault,
+//         &pool_keys.market_quote_vault,
+//         &pool_keys.market_authority,
+//         &user_source_owner,
+//         &user_source_owner,
+//         &user_source_owner,
+//         &token_address,
+//         amount_in,
+//         amount_out,
+//         priority_fee,
+//     )
+//     .await?;
 
-    //2% of amount_in
-    let tax_amount = amount_in * 2 / 100;
+//     //2% of amount_in
+//     let tax_amount = amount_in * 2 / 100;
 
-    let tax_instruction = transfer(&user_source_owner, &TAX_ACCOUNT, tax_amount);
+//     let tax_instruction = transfer(&user_source_owner, &TAX_ACCOUNT, tax_amount);
 
-    swap_instructions.push(tax_instruction);
+//     swap_instructions.push(tax_instruction);
 
-    let config = CommitmentLevel::Confirmed;
-    let (latest_blockhash, _) = rpc_client
-        .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
-            commitment: config,
-        })
-        .await?;
+//     let config = CommitmentLevel::Confirmed;
+//     let (latest_blockhash, _) = rpc_client
+//         .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
+//             commitment: config,
+//         })
+//         .await?;
 
-    let message = match solana_program::message::v0::Message::try_compile(
-        &user_source_owner,
-        &swap_instructions,
-        &[],
-        latest_blockhash,
-    ) {
-        Ok(x) => x,
-        Err(e) => {
-            println!("Error: {:?}", e);
-            return Ok(());
-        }
-    };
+//     let message = match solana_program::message::v0::Message::try_compile(
+//         &user_source_owner,
+//         &swap_instructions,
+//         &[],
+//         latest_blockhash,
+//     ) {
+//         Ok(x) => x,
+//         Err(e) => {
+//             println!("Error: {:?}", e);
+//             return Ok(());
+//         }
+//     };
 
-    let transaction = match VersionedTransaction::try_new(
-        solana_program::message::VersionedMessage::V0(message),
-        &[&wallet],
-    ) {
-        Ok(x) => x,
-        Err(e) => {
-            println!("Error: {:?}", e);
-            return Ok(());
-        }
-    };
-    let config = RpcSendTransactionConfig {
-        skip_preflight: true,
-        preflight_commitment: Some(CommitmentLevel::Finalized),
-        max_retries: Some(20),
-        ..Default::default()
-    };
+//     let transaction = match VersionedTransaction::try_new(
+//         solana_program::message::VersionedMessage::V0(message),
+//         &[&wallet],
+//     ) {
+//         Ok(x) => x,
+//         Err(e) => {
+//             println!("Error: {:?}", e);
+//             return Ok(());
+//         }
+//     };
+//     let config = RpcSendTransactionConfig {
+//         skip_preflight: true,
+//         preflight_commitment: Some(CommitmentLevel::Finalized),
+//         max_retries: Some(20),
+//         ..Default::default()
+//     };
 
-    let tip_txn = VersionedTransaction::from(Transaction::new_signed_with_payer(
-        &[
-            build_memo(
-                format!(
-                    "{}: {:?}",
-                    "Nemo was here",
-                    transaction.signatures[0].to_string()
-                )
-                .as_bytes(),
-                &[],
-            ),
-            transfer(&wallet.pubkey(), &tip_account, 100_000),
-        ],
-        Some(&wallet.pubkey()),
-        &[&wallet],
-        rpc_client.get_latest_blockhash().await.unwrap(),
-    ));
+//     let tip_txn = VersionedTransaction::from(Transaction::new_signed_with_payer(
+//         &[
+//             build_memo(
+//                 format!(
+//                     "{}: {:?}",
+//                     "Nemo was here",
+//                     transaction.signatures[0].to_string()
+//                 )
+//                 .as_bytes(),
+//                 &[],
+//             ),
+//             transfer(&wallet.pubkey(), &tip_account, 100_000),
+//         ],
+//         Some(&wallet.pubkey()),
+//         &[&wallet],
+//         rpc_client.get_latest_blockhash().await.unwrap(),
+//     ));
 
-    let bundle_txn = BundledTransactions {
-        mempool_txs: vec![transaction],
-        middle_txs: vec![],
-        backrun_txs: vec![tip_txn],
-    };
+//     let bundle_txn = BundledTransactions {
+//         mempool_txs: vec![transaction],
+//         middle_txs: vec![],
+//         backrun_txs: vec![tip_txn],
+//     };
 
-    let mut results = send_bundles(&mut searcher_client, &[bundle_txn]).await?;
+//     let mut results = send_bundles(&mut searcher_client, &[bundle_txn]).await?;
 
-    if let Ok(response) = results.remove(0) {
-        let message = response.into_inner();
-        let uuid = &message.uuid;
-        info!("UUID: {}", uuid);
-    }
+//     if let Ok(response) = results.remove(0) {
+//         let message = response.into_inner();
+//         let uuid = &message.uuid;
+//         info!("UUID: {}", uuid);
+//     }
 
-    // let result = match rpc_client
-    //     .send_transaction_with_config(&transaction, config)
-    //     .await
-    // {
-    //     Ok(x) => x,
-    //     Err(e) => {
-    //         error!("Error: {:?}", e);
-    //         return Ok(());
-    //     }
-    // };
+//     // let result = match rpc_client
+//     //     .send_transaction_with_config(&transaction, config)
+//     //     .await
+//     // {
+//     //     Ok(x) => x,
+//     //     Err(e) => {
+//     //         error!("Error: {:?}", e);
+//     //         return Ok(());
+//     //     }
+//     // };
 
-    // info!("Transaction Signature: {:?}", result.to_string());
+//     // info!("Transaction Signature: {:?}", result.to_string());
 
-    // let rpc_client_1 = rpc_client.clone();
-    // tokio::spawn(async move {
-    //     let _ = match rpc_client_1
-    //         .confirm_transaction_with_spinner(
-    //             &result,
-    //             &rpc_client_1.get_latest_blockhash().await.unwrap(),
-    //             solana_sdk::commitment_config::CommitmentConfig::confirmed(),
-    //         )
-    //         .await
-    //     {
-    //         Ok(x) => x,
-    //         Err(e) => {
-    //             error!("Error: {:?}", e);
-    //         }
-    //     };
-    // });
+//     // let rpc_client_1 = rpc_client.clone();
+//     // tokio::spawn(async move {
+//     //     let _ = match rpc_client_1
+//     //         .confirm_transaction_with_spinner(
+//     //             &result,
+//     //             &rpc_client_1.get_latest_blockhash().await.unwrap(),
+//     //             solana_sdk::commitment_config::CommitmentConfig::confirmed(),
+//     //         )
+//     //         .await
+//     //     {
+//     //         Ok(x) => x,
+//     //         Err(e) => {
+//     //             error!("Error: {:?}", e);
+//     //         }
+//     //     };
+//     // });
 
-    let raydium_txn =
-        match raydium_txn_backrun(rpc_client, wallet, pool_keys, &args, priority_fee).await {
-            Ok(x) => x,
-            Err(e) => {
-                error!("Error: {:?}", e);
-            }
-        };
+//     let raydium_txn =
+//         match raydium_txn_backrun(rpc_client, wallet, pool_keys, &args, priority_fee).await {
+//             Ok(x) => x,
+//             Err(e) => {
+//                 error!("Error: {:?}", e);
+//             }
+//         };
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 pub async fn raydium_txn_backrun(
     rpc_client: Arc<RpcClient>,
@@ -256,101 +256,101 @@ pub async fn raydium_txn_backrun(
     Ok(())
 }
 
-pub async fn raydium_out(
-    wallet: &Arc<Keypair>,
-    pool_keys: PoolKeysSniper,
-    amount_in: u64,
-    amount_out: u64,
-    priority_fee: u64,
-    args: EngineSettings,
-    rpc_client: Arc<RpcClient>,
-) -> eyre::Result<()> {
-    info!("Swapping Out...");
-    let user_source_owner = wallet.pubkey();
+// pub async fn raydium_out(
+//     wallet: &Arc<Keypair>,
+//     pool_keys: PoolKeysSniper,
+//     amount_in: u64,
+//     amount_out: u64,
+//     priority_fee: u64,
+//     args: EngineSettings,
+//     rpc_client: Arc<RpcClient>,
+// ) -> eyre::Result<()> {
+//     info!("Swapping Out...");
+//     let user_source_owner = wallet.pubkey();
 
-    let token_address = if pool_keys.base_mint == SOLC_MINT {
-        pool_keys.clone().quote_mint
-    } else {
-        pool_keys.clone().base_mint
-    };
+//     let token_address = if pool_keys.base_mint == SOLC_MINT {
+//         pool_keys.clone().quote_mint
+//     } else {
+//         pool_keys.clone().base_mint
+//     };
 
-    let swap_instructions = swap_base_out(
-        &pool_keys.program_id,
-        &pool_keys.id,
-        &pool_keys.authority,
-        &pool_keys.open_orders,
-        &pool_keys.target_orders,
-        &pool_keys.base_vault,
-        &pool_keys.quote_vault,
-        &pool_keys.market_program_id,
-        &pool_keys.market_id,
-        &pool_keys.market_bids,
-        &pool_keys.market_asks,
-        &pool_keys.market_event_queue,
-        &pool_keys.market_base_vault,
-        &pool_keys.market_quote_vault,
-        &pool_keys.market_authority,
-        &user_source_owner,
-        &user_source_owner,
-        &token_address,
-        amount_in,
-        amount_out,
-        priority_fee,
-    )
-    .await?;
+//     let swap_instructions = swap_base_out(
+//         &pool_keys.program_id,
+//         &pool_keys.id,
+//         &pool_keys.authority,
+//         &pool_keys.open_orders,
+//         &pool_keys.target_orders,
+//         &pool_keys.base_vault,
+//         &pool_keys.quote_vault,
+//         &pool_keys.market_program_id,
+//         &pool_keys.market_id,
+//         &pool_keys.market_bids,
+//         &pool_keys.market_asks,
+//         &pool_keys.market_event_queue,
+//         &pool_keys.market_base_vault,
+//         &pool_keys.market_quote_vault,
+//         &pool_keys.market_authority,
+//         &user_source_owner,
+//         &user_source_owner,
+//         &token_address,
+//         amount_in,
+//         amount_out,
+//         priority_fee,
+//     )
+//     .await?;
 
-    let config = CommitmentLevel::Confirmed;
-    let (latest_blockhash, _) = rpc_client
-        .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
-            commitment: config,
-        })
-        .await?;
+//     let config = CommitmentLevel::Confirmed;
+//     let (latest_blockhash, _) = rpc_client
+//         .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
+//             commitment: config,
+//         })
+//         .await?;
 
-    let message = match solana_program::message::v0::Message::try_compile(
-        &user_source_owner,
-        &swap_instructions,
-        &[],
-        latest_blockhash,
-    ) {
-        Ok(x) => x,
-        Err(e) => {
-            println!("Error: {:?}", e);
-            return Ok(());
-        }
-    };
+//     let message = match solana_program::message::v0::Message::try_compile(
+//         &user_source_owner,
+//         &swap_instructions,
+//         &[],
+//         latest_blockhash,
+//     ) {
+//         Ok(x) => x,
+//         Err(e) => {
+//             println!("Error: {:?}", e);
+//             return Ok(());
+//         }
+//     };
 
-    let transaction = match VersionedTransaction::try_new(
-        solana_program::message::VersionedMessage::V0(message),
-        &[&wallet],
-    ) {
-        Ok(x) => x,
-        Err(e) => {
-            println!("Error: {:?}", e);
-            return Ok(());
-        }
-    };
+//     let transaction = match VersionedTransaction::try_new(
+//         solana_program::message::VersionedMessage::V0(message),
+//         &[&wallet],
+//     ) {
+//         Ok(x) => x,
+//         Err(e) => {
+//             println!("Error: {:?}", e);
+//             return Ok(());
+//         }
+//     };
 
-    let config = RpcSendTransactionConfig {
-        skip_preflight: true,
-        preflight_commitment: Some(CommitmentLevel::Finalized),
-        max_retries: Some(20),
-        ..Default::default()
-    };
+//     let config = RpcSendTransactionConfig {
+//         skip_preflight: true,
+//         preflight_commitment: Some(CommitmentLevel::Finalized),
+//         max_retries: Some(20),
+//         ..Default::default()
+//     };
 
-    let result = match rpc_client
-        .send_transaction_with_config(&transaction, config)
-        .await
-    {
-        Ok(x) => {
-            info!("Transaction Signature: {:?}", x.to_string());
-        }
-        Err(e) => {
-            error!("Error: {:?}", e);
-        }
-    };
+//     let result = match rpc_client
+//         .send_transaction_with_config(&transaction, config)
+//         .await
+//     {
+//         Ok(x) => {
+//             info!("Transaction Signature: {:?}", x.to_string());
+//         }
+//         Err(e) => {
+//             error!("Error: {:?}", e);
+//         }
+//     };
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 pub fn auth_keypair() -> Keypair {
     let bytes_auth_vec = vec![

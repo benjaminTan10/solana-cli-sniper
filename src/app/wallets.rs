@@ -67,6 +67,7 @@ fn private_keys_loader() -> io::Result<Vec<(String, String)>> {
     Ok(keys)
 }
 pub async fn wallet_logger() -> io::Result<()> {
+    info!("Loading details...");
     let args = match load_settings().await {
         Ok(args) => args,
         Err(e) => {
@@ -88,7 +89,8 @@ pub async fn wallet_logger() -> io::Result<()> {
     let balance = rpc_client.get_balance(&wallet.pubkey()).await;
     match balance {
         Ok(balance) => {
-            info!("Balance: {:?} Sol", lamports_to_sol(balance));
+            info!("Wallet: {}", wallet.pubkey());
+            info!("Balance: {:.5} Sol", lamports_to_sol(balance));
         }
         Err(e) => {
             error!("Error: {:?}", e);

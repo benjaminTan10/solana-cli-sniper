@@ -1,4 +1,5 @@
 use {
+    super::raydium_swap_in::raydium_in,
     crate::{
         app::MevApe,
         env::{load_settings, EngineSettings},
@@ -6,11 +7,10 @@ use {
         raydium::{
             sniper::utils::{market_authority, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT},
             subscribe::PoolKeysSniper,
-            swap::swapper::raydium_in,
         },
     },
     futures::{sink::SinkExt, stream::StreamExt},
-    jito_protos::bundle::BundleResult,
+    jito_protos::bundle::{self, BundleResult},
     log::{error, info, warn},
     maplit::hashmap,
     solana_client::nonblocking::rpc_client::RpcClient,
@@ -100,6 +100,8 @@ pub async fn grpc_pair_sub(
 
     info!("Successfully Subscribed to the stream...!");
 
+    let bundle_results_receiver = Arc::new(bundle_results_receiver);
+
     let wallet = Keypair::from_bytes(&secret_key)?;
     let commitment = 0;
     subscribe_tx
@@ -129,6 +131,7 @@ pub async fn grpc_pair_sub(
         let mev_ape = Arc::clone(&mev_ape);
         let private_key = &mev_ape.wallet;
         let secret_key = bs58::decode(private_key.clone()).into_vec()?;
+        let bundle_results_receiver = Arc::clone(&bundle_results_receiver);
 
         let wallet = Keypair::from_bytes(&secret_key)?;
         tokio::spawn(async move {
@@ -314,9 +317,9 @@ pub async fn grpc_pair_sub(
 
                             let _ = sniper_txn_in_2(
                                 pool_keys[0].clone(),
-                                rpc_client.clone(),
                                 open_time,
                                 mev_ape,
+                                bundle_results_receiver,
                             )
                             .await;
                         }
@@ -337,9 +340,9 @@ pub async fn grpc_pair_sub(
 
 pub async fn sniper_txn_in_2(
     pool_keys: PoolKeysSniper,
-    rpc_client: Arc<RpcClient>,
     sleep_duration: u64,
     mev_ape: Arc<MevApe>,
+    bundle_results_receiver: Arc<Receiver<BundleResult>>,
 ) -> eyre::Result<()> {
     let args = match load_settings().await {
         Ok(args) => args,
@@ -354,7 +357,7 @@ pub async fn sniper_txn_in_2(
 
     let wallet = Keypair::from_bytes(&secret_key)?;
     let amount_in = &mev_ape.sol_amount;
-    let priority_fee = &mev_ape.priority_fee;
+    let fees = &mev_ape.fee;
 
     let current_time = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -373,14 +376,17 @@ pub async fn sniper_txn_in_2(
 
     sleep(sleep_duration).await;
 
+    let bundle_results_receiver =
+        Arc::try_unwrap(bundle_results_receiver).expect("Failed to unwrap bundle_results_receiver");
+
     let _ = match raydium_in(
-        rpc_client,
         &Arc::new(wallet),
         pool_keys.clone(),
         *amount_in,
         1,
-        *priority_fee,
+        fees.clone(),
         args,
+        bundle_results_receiver,
     )
     .await
     {
