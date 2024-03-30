@@ -84,9 +84,9 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error>> {
         .option(DemandOption::new("Wrap Sol Mode").label("📦 Wrap SOL"))
         .option(DemandOption::new("Swap Tokens").label("[1] Swap Mode"))
         .option(DemandOption::new("Snipe Pools").label("[2] Snipe Mode"))
-        .option(DemandOption::new("Generate Volume").label("[3] Spam Volume"))
-        .option(DemandOption::new("MEV Trades").label("[4] Sandwich Mode (Depricated)"))
-        .option(DemandOption::new("Wallet Details").label("[5] Wallet Details"));
+        // .option(DemandOption::new("Generate Volume").label("[3] Spam Volume"))
+        // .option(DemandOption::new("MEV Trades").label("[4] Sandwich Mode (Depricated)"))
+        .option(DemandOption::new("Wallet Details").label("[3] Wallet Details"));
 
     let selected_option = ms.run().expect("error running select");
 
@@ -182,10 +182,10 @@ pub fn sniper_mode() -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>
 
         match selected_option {
             "Manual Sniper" => {
-                let _ = automatic_snipe(false).await;
+                let _ = automatic_snipe(true).await;
             }
             "Automatic Sniper" => {
-                let _ = automatic_snipe(true).await;
+                let _ = automatic_snipe(false).await;
             }
             "Main Menu" => {
                 let _ = app(false).await;

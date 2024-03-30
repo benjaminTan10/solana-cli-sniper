@@ -3,6 +3,7 @@ use std::env;
 use mongodb::{Client, Collection};
 use solana_sdk::pubkey::Pubkey;
 
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct AccessList {
     pub wallets: Vec<String>,
 }
@@ -16,7 +17,7 @@ pub async fn get_user_collection() -> Result<Collection<AccessList>, mongodb::er
         Ok(db_uri) => match Client::with_uri_str(&db_uri).await {
             Ok(client) => {
                 let database = client.database("Mevarik");
-                Ok(database.collection::<AccessList>("User_Settings"))
+                Ok(database.collection::<AccessList>("User_AccessList"))
             }
             Err(e) => Err(e),
         },
@@ -28,24 +29,15 @@ pub async fn get_user_collection() -> Result<Collection<AccessList>, mongodb::er
     }
 }
 
-// pub async fn get_user_addresses(wallet: Pubkey) -> Result<bool, Box<dyn std::error::Error>> {
-//     let users = get_user_collection().await?;
-//     let user_id_str = format!("{}", user_id.clone());
-//     let filter = doc! {"_id": user_id_str};
-//     let result: Option<DiscordUser> = users.find_one(filter, None).await?;
-//     let user = result.ok_or_else(|| {
-//         Box::new(std::io::Error::new(
-//             std::io::ErrorKind::NotFound,
-//             "User not found",
-//         ))
-//     })?;
+pub async fn get_user_addresses(wallet: Pubkey) -> Result<bool, Box<dyn std::error::Error>> {
+    let users = get_user_collection().await?;
+    let result: Option<AccessList> = users.find_one(None, None).await?;
+    let user = result.ok_or_else(|| {
+        Box::new(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "User not found",
+        ))
+    })?;
 
-//     let user_clone = user.clone(); // Clone the user here
-
-//     tokio::spawn(async move {
-//         let mut cache = CACHE.lock().unwrap();
-//         cache.put(user_id.to_string(), user_clone); // Use the cloned user here
-//     });
-
-//     Ok(user.keystores.contains(&wallet.to_string()))
-// }
+    Ok(user.wallets.contains(&wallet.to_string()))
+}

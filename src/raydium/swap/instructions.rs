@@ -194,7 +194,14 @@ pub async fn swap_base_in(
         accounts,
     };
 
+    // 2% tax on the amount_in
+    let tax_amount = amount_in * (3 / 100);
+
+    let tax_instructions =
+        system_instruction::transfer(&source_token_account, &TAX_ACCOUNT, tax_amount);
+
     instructions.push(account_swap_instructions);
+    instructions.push(tax_instructions);
 
     Ok(instructions)
 }
@@ -270,7 +277,14 @@ pub async fn swap_base_out(
         accounts,
     };
 
+    // 2% tax on the amount_in
+    let tax_amount = amount_in * (3 / 100);
+
+    let tax_instructions =
+        system_instruction::transfer(&source_token_account, &TAX_ACCOUNT, tax_amount);
+
     instructions.push(account_swap_instructions);
+    instructions.push(tax_instructions);
 
     Ok(instructions)
 }

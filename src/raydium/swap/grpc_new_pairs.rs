@@ -82,6 +82,8 @@ impl From<ArgsCommitment> for CommitmentLevel {
 pub async fn grpc_pair_sub(
     mev_ape: MevApe,
     args: EngineSettings,
+    manual_snipe: bool,
+    base_mint: Pubkey,
     mut bundle_results_receiver: Receiver<BundleResult>,
 ) -> anyhow::Result<()> {
     info!("Calling Events..");
@@ -320,6 +322,8 @@ pub async fn grpc_pair_sub(
                                 open_time,
                                 mev_ape,
                                 bundle_results_receiver,
+                                manual_snipe,
+                                base_mint,
                             )
                             .await;
                         }
@@ -343,7 +347,13 @@ pub async fn sniper_txn_in_2(
     sleep_duration: u64,
     mev_ape: Arc<MevApe>,
     bundle_results_receiver: Arc<Receiver<BundleResult>>,
+    manual_snipe: bool,
+    base_mint: Pubkey,
 ) -> eyre::Result<()> {
+    if manual_snipe && pool_keys.base_mint != base_mint {
+        return Ok(());
+    }
+
     let args = match load_settings().await {
         Ok(args) => args,
         Err(e) => {

@@ -42,7 +42,7 @@ pub async fn wrap_sol_call() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub async fn automatic_snipe(snipe_automatic: bool) -> eyre::Result<()> {
+pub async fn automatic_snipe(manual_snipe: bool) -> eyre::Result<()> {
     let args = match load_settings().await {
         Ok(args) => args,
         Err(e) => {
@@ -70,7 +70,7 @@ pub async fn automatic_snipe(snipe_automatic: bool) -> eyre::Result<()> {
         priority_fee_value = priority_fee().await;
     }
 
-    if !snipe_automatic {
+    if manual_snipe {
         token = token_env("Base Mint").await;
     } else {
         token = Pubkey::default();
@@ -90,7 +90,7 @@ pub async fn automatic_snipe(snipe_automatic: bool) -> eyre::Result<()> {
         wallet: args.payer_keypair.clone(),
     };
 
-    let _ = match grpc_pair_sub(mev_ape, args, bundle_results_receiver).await {
+    let _ = match grpc_pair_sub(mev_ape, args, manual_snipe, token, bundle_results_receiver).await {
         Ok(_) => info!("Transaction Sent"),
         Err(e) => error!("{}", e),
     };

@@ -82,8 +82,7 @@ pub async fn raydium_txn_backrun(
         return Ok(());
     }
 
-    let percentage = 0.5;
-    let token_amount = (token_balance * 1);
+    let token_amount = token_balance * (token_amount / 100);
 
     info!("Token Amount: {:?}", token_amount);
 
