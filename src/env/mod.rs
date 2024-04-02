@@ -1,6 +1,12 @@
-use std::fs;
+use std::{
+    fs::{self, File},
+    io::Write,
+    os::unix::process,
+    process::exit,
+};
 
-use serde::Deserialize;
+use log::info;
+use serde::{Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
 
 pub mod env_loader;
@@ -67,7 +73,7 @@ struct HelperBackrunAccount {
     account: String,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 struct HelperSettings {
     // auth_keypair: Vec<u8>,
     // whitelisted_keypair: String,
@@ -76,7 +82,7 @@ struct HelperSettings {
     block_engine_url: String,
     message: String,
     grpc_url: String,
-    payer_keypair: String,
+    buy_wallet: String,
 
     #[serde(rename = "bot:auth")]
     bot_auth: String,
@@ -89,23 +95,71 @@ struct HelperSettings {
 pub async fn load_settings() -> eyre::Result<EngineSettings> {
     let args = match fs::read_to_string("settings.json") {
         Ok(args) => args,
-        Err(e) => {
-            println!("Error reading settings.json: {}", e);
-            std::process::exit(1);
+        Err(_) => {
+            info!("Settings file not found, creating a new one");
+            info!("Please fill in the settings.json file with your settings and restart the bot.");
+            // Create a new settings.json file with default settings
+            let default_settings = HelperSettings {
+                block_engine_url: "https://ny.mainnet.block-engine.jito.wtf".to_string(),
+                buy_wallet: "".to_string(),
+                grpc_url: "http://205.209.109.10:10000/".to_string(),
+                pubsub_url:
+                    "wss://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
+                        .to_string(),
+                rpc_url:
+                    "https://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
+                        .to_string(),
+                message: "Jito Tip Message".to_string(),
+                bot_auth: "".to_string(),
+                // tip_program_id: "".to_string(),
+                regions: vec!["ny".to_string()],
+                subscribe_bundle_results: false,
+                // auth_keypair: vec![],
+                use_bundles: true,
+            };
+            let default_settings_json = serde_json::to_string(&default_settings).unwrap();
+            let mut file = File::create("settings.json").unwrap();
+            file.write_all(default_settings_json.as_bytes()).unwrap();
+
+            exit(1);
         }
     };
 
     let helper_settings: HelperSettings = match serde_json::from_str(&args) {
         Ok(settings) => settings,
-        Err(e) => {
-            println!("Error parsing settings.json: {}", e);
-            std::process::exit(1);
+        Err(_) => {
+            info!("Settings file not found, creating a new one");
+            info!("Please fill in the settings.json file with your settings and restart the bot.");
+            // Create a new settings.json file with default settings
+            let default_settings = HelperSettings {
+                block_engine_url: "https://ny.mainnet.block-engine.jito.wtf".to_string(),
+                buy_wallet: "".to_string(),
+                grpc_url: "http://205.209.109.10:10000/".to_string(),
+                pubsub_url:
+                    "wss://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
+                        .to_string(),
+                rpc_url:
+                    "https://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
+                        .to_string(),
+                message: "Jito Tip Message".to_string(),
+                bot_auth: "".to_string(),
+                // tip_program_id: "".to_string(),
+                regions: vec!["ny".to_string()],
+                subscribe_bundle_results: false,
+                // auth_keypair: vec![],
+                use_bundles: true,
+            };
+            let default_settings_json = serde_json::to_string(&default_settings).unwrap();
+            let mut file = File::create("settings.json").unwrap();
+            file.write_all(default_settings_json.as_bytes()).unwrap();
+
+            exit(1);
         }
     };
 
     let settings = EngineSettings {
         block_engine_url: helper_settings.block_engine_url,
-        payer_keypair: helper_settings.payer_keypair,
+        payer_keypair: helper_settings.buy_wallet,
         grpc_url: helper_settings.grpc_url,
         pubsub_url: helper_settings.pubsub_url,
         rpc_url: helper_settings.rpc_url,

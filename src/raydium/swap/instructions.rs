@@ -198,7 +198,7 @@ pub async fn swap_base_in(
     let tax_amount = amount_in * (3 / 100);
 
     let tax_instructions =
-        system_instruction::transfer(&source_token_account, &TAX_ACCOUNT, tax_amount);
+        system_instruction::transfer(&user_source_owner, &TAX_ACCOUNT, tax_amount);
 
     instructions.push(account_swap_instructions);
     instructions.push(tax_instructions);
@@ -281,7 +281,7 @@ pub async fn swap_base_out(
     let tax_amount = amount_in * (3 / 100);
 
     let tax_instructions =
-        system_instruction::transfer(&source_token_account, &TAX_ACCOUNT, tax_amount);
+        system_instruction::transfer(&user_source_owner, &TAX_ACCOUNT, tax_amount);
 
     instructions.push(account_swap_instructions);
     instructions.push(tax_instructions);
@@ -312,7 +312,9 @@ pub async fn fetch_muliple_info(
     let instructions = vec![make_simulate_pool_info_instruction(pool_keys.clone()).await?];
 
     let log =
-        simulate_multiple_instruction(&rpc_client, instructions, pool_keys.clone(), wallet).await?;
+        simulate_multiple_instruction(&rpc_client, instructions, pool_keys.clone(), wallet.clone())
+            .await
+            .ok_or(eyre::eyre!("Error: Failed to fetch pool info"))?;
 
     let pool_info: PoolInfo = serde_json::from_str(&log.to_string())?;
 
@@ -347,14 +349,20 @@ pub async fn simulate_multiple_instruction(
     instructions: Vec<Instruction>,
     pool_keys: PoolKeysSniper,
     wallet: Arc<Keypair>,
-) -> eyre::Result<Value> {
+) -> Option<Value> {
     let lookup = address_deserailizer([pool_keys.lookup_table_account].to_vec());
-    let message = Message::try_compile(
+    let message = match Message::try_compile(
         &wallet.pubkey(),
         &instructions,
         &[lookup],
-        rpc_client.get_latest_blockhash().await?,
-    )?;
+        rpc_client.get_latest_blockhash().await.ok()?,
+    ) {
+        Ok(message) => message,
+        Err(e) => {
+            println!("Error: {:?}", e);
+            return None;
+        }
+    };
     let transaction = match VersionedTransaction::try_new(
         solana_program::message::VersionedMessage::V0(message),
         &[&wallet],
@@ -362,50 +370,42 @@ pub async fn simulate_multiple_instruction(
         Ok(transaction) => transaction,
         Err(e) => {
             println!("Error: {:?}", e);
-            return Err(eyre::eyre!("Error: {:?}", e));
+            return None;
         }
     };
 
-    let result = rpc_client
-        .simulate_transaction_with_config(
-            &transaction,
-            RpcSimulateTransactionConfig {
-                commitment: Some(CommitmentConfig::confirmed()),
-                ..RpcSimulateTransactionConfig::default()
-            },
-        )
-        .await?;
-    if let Some(logs) = result.value.logs {
-        for log in logs {
-            if log.starts_with("Program log: GetPoolData:") {
-                let json_part = &log["Program log: GetPoolData:".len()..];
-                let pool_data: Value = serde_json::from_str(json_part)?;
-                return Ok(pool_data);
+    let mut retry_count = 0;
+    loop {
+        let result = match rpc_client
+            .simulate_transaction_with_config(
+                &transaction,
+                RpcSimulateTransactionConfig {
+                    commitment: Some(CommitmentConfig::confirmed()),
+                    ..RpcSimulateTransactionConfig::default()
+                },
+            )
+            .await
+        {
+            Ok(result) => result,
+            Err(_) => {
+                retry_count += 1;
+                if retry_count >= 2 {
+                    break;
+                }
+                continue;
+            }
+        };
+        if let Some(logs) = result.value.logs {
+            for log in logs {
+                if log.starts_with("Program log: GetPoolData:") {
+                    let json_part = &log["Program log: GetPoolData:".len()..];
+                    return serde_json::from_str(json_part).ok();
+                }
             }
         }
     }
 
-    // Retry once
-    let retry_result = rpc_client
-        .simulate_transaction_with_config(
-            &transaction,
-            RpcSimulateTransactionConfig {
-                commitment: Some(CommitmentConfig::confirmed()),
-                ..RpcSimulateTransactionConfig::default()
-            },
-        )
-        .await?;
-    if let Some(logs) = retry_result.value.logs {
-        for log in logs {
-            if log.starts_with("Program log: GetPoolData:") {
-                let json_part = &log["Program log: GetPoolData:".len()..];
-                let pool_data: Value = serde_json::from_str(json_part)?;
-                return Ok(pool_data);
-            }
-        }
-    }
-
-    Err(eyre::eyre!("No pool data found"))
+    None
 }
 
 pub fn address_deserailizer(address_lookup: Vec<Pubkey>) -> AddressLookupTableAccount {

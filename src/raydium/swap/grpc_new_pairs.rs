@@ -9,6 +9,7 @@ use {
             subscribe::PoolKeysSniper,
         },
     },
+    chrono::{LocalResult, TimeZone, Utc},
     futures::{sink::SinkExt, stream::StreamExt},
     jito_protos::bundle::{self, BundleResult},
     log::{error, info, warn},
@@ -22,7 +23,10 @@ use {
         sync::Arc,
         time::{Duration, SystemTime, UNIX_EPOCH},
     },
-    tokio::{sync::mpsc::Receiver, time::sleep},
+    tokio::{
+        sync::mpsc::{channel, Receiver},
+        time::sleep,
+    },
     yellowstone_grpc_proto::{
         prelude::{
             subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
@@ -170,18 +174,43 @@ pub async fn grpc_pair_sub(
                             let open_time_match =
                                 log_messages.iter().find(|m| m.contains("open_time"));
 
-                            let open_time = (open_time_match
+                            let open_time_split = open_time_match
                                 .clone()
-                                .unwrap()
-                                .split("open_time: ")
-                                .collect::<Vec<&str>>()[1]
-                                .split(',')
-                                .next()
-                                .unwrap())
-                            .parse::<u64>()
-                            .unwrap();
-                            info!("Signature: {:?}", info.signature);
-                            warn!("Pool Open Time: {}", open_time);
+                                .and_then(|s| s.split("open_time: ").nth(1))
+                                .and_then(|s| s.split(',').next());
+
+                            let open_time = match open_time_split {
+                                Some(time_str) => match time_str.parse::<u64>() {
+                                    Ok(time) => time,
+                                    Err(_) => {
+                                        info!("No open time found");
+                                        0
+                                    }
+                                },
+                                None => {
+                                    info!("No open time found");
+                                    0
+                                }
+                            };
+                            let signature = String::from_utf8_lossy(&info.signature);
+                            info!("Signature: {}", signature);
+
+                            let open_time_i64: i64 = match open_time.try_into() {
+                                Ok(time) => time,
+                                Err(_) => {
+                                    warn!("Open time is out of range");
+                                    0
+                                }
+                            };
+
+                            match Utc.timestamp_opt(open_time_i64, 0) {
+                                LocalResult::Single(datetime) => {
+                                    warn!("Pool Open Time: {}", datetime);
+                                }
+                                _ => {
+                                    warn!("Open time is out of range");
+                                }
+                            }
 
                             let inner_instructions: Vec<CompiledInstruction> = meta
                                 .clone()
@@ -386,8 +415,7 @@ pub async fn sniper_txn_in_2(
 
     sleep(sleep_duration).await;
 
-    let bundle_results_receiver =
-        Arc::try_unwrap(bundle_results_receiver).expect("Failed to unwrap bundle_results_receiver");
+    let (bundle_results_sender, bundle_results_receiver) = channel(100);
 
     let _ = match raydium_in(
         &Arc::new(wallet),

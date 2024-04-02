@@ -1,9 +1,12 @@
 use chrono::Local;
 use colored::Colorize;
-use log::info;
+use log::{error, info};
 use pretty_env_logger::env_logger::fmt::Color;
 use std::io::Write;
-use Mevarik::app::{app, embeds::embed};
+use Mevarik::{
+    app::{app, embeds::embed},
+    auth::auth_verification,
+};
 
 #[tokio::main]
 async fn main() {
@@ -36,5 +39,15 @@ async fn main() {
         .init();
 
     info!("{}", embed());
+
+    info!("Authenticating...");
+    let _auth = match auth_verification().await {
+        Ok(_) => {}
+        Err(e) => {
+            error!("Error: {}", e);
+            return;
+        }
+    };
+    info!("{}", "Authentication successful!".bold().green());
     let _ = app(true).await;
 }

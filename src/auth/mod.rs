@@ -1,32 +1,27 @@
 use std::env;
 
+use colored::Colorize;
+use log::{error, info};
 use mongodb::{Client, Collection};
-use solana_sdk::pubkey::Pubkey;
+use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer};
+
+use crate::env::load_settings;
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct AccessList {
     pub wallets: Vec<String>,
 }
 
-pub fn get_database_uri() -> Result<String, env::VarError> {
-    env::var("DATABASE_URI")
+pub fn get_database_uri() -> String {
+    let db_url = "mongodb+srv://tamur:TjiMEHQ6eEAMJSKv@serverlessinstance0.rpbkjvq.mongodb.net/";
+    db_url.to_string()
 }
 
 pub async fn get_user_collection() -> Result<Collection<AccessList>, mongodb::error::Error> {
-    match get_database_uri() {
-        Ok(db_uri) => match Client::with_uri_str(&db_uri).await {
-            Ok(client) => {
-                let database = client.database("Mevarik");
-                Ok(database.collection::<AccessList>("User_AccessList"))
-            }
-            Err(e) => Err(e),
-        },
-        Err(_) => {
-            let io_error =
-                std::io::Error::new(std::io::ErrorKind::InvalidInput, "DATABASE_URI not found");
-            Err(mongodb::error::Error::from(io_error))
-        }
-    }
+    let client = Client::with_uri_str(&get_database_uri()).await?;
+    let db = client.database("Mevarik");
+    let users = db.collection("AccessList");
+    Ok(users)
 }
 
 pub async fn get_user_addresses(wallet: Pubkey) -> Result<bool, Box<dyn std::error::Error>> {
@@ -40,4 +35,41 @@ pub async fn get_user_addresses(wallet: Pubkey) -> Result<bool, Box<dyn std::err
     })?;
 
     Ok(user.wallets.contains(&wallet.to_string()))
+}
+
+pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
+    let args = match load_settings().await {
+        Ok(args) => args,
+        Err(e) => {
+            error!("Error: {:?}", e);
+            return Err(e.into()); // Return the error
+        }
+    };
+
+    let auth_wallet = args.bot_auth;
+
+    let keypair = match Keypair::from_bytes(match &bs58::decode(&auth_wallet).into_vec() {
+        Ok(key) => key,
+        Err(e) => {
+            error!("Error: {:?}", e);
+            return Ok(()); // Return the error
+        }
+    }) {
+        Ok(keypair) => keypair,
+        Err(e) => {
+            error!("Error: {:?}", e);
+            return Err(e.into()); // Return the error
+        }
+    };
+
+    let wallet = keypair.pubkey();
+
+    let is_user = get_user_addresses(wallet).await?;
+
+    if !is_user {
+        error!("{}: {}", "Unauthorized User".bold().red(), wallet);
+        std::process::exit(1); // Stop the bot and exit the process
+    }
+
+    Ok(())
 }

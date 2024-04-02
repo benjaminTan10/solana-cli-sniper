@@ -13,9 +13,10 @@ use solana_sdk::{signature::Keypair, signer::Signer};
 use spl_memo::build_memo;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
 use tokio::sync::mpsc::{self, channel, Receiver};
-use tokio::time;
+use tokio::time::{self, sleep};
 
 use crate::app::UserData;
 use crate::env::env_loader::tip_account;
@@ -202,20 +203,25 @@ pub async fn raydium_in(
     let wallet_clone = Arc::clone(&wallet);
     let (mut stop_tx, mut stop_rx) = tokio::sync::mpsc::channel::<()>(100);
 
-    tokio::spawn(async move {
-        read_single_key_impl(
-            &mut stop_tx,
-            pool_keys_clone,
-            args_clone,
-            fees_clone,
-            &wallet_clone,
-            bundle_results_receiver,
-        )
-        .await
-        .unwrap();
+    let handle = thread::spawn(move || {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        runtime.block_on(async {
+            read_single_key_impl(
+                &mut stop_tx,
+                pool_keys_clone,
+                args_clone,
+                fees_clone,
+                &wallet_clone,
+                bundle_results_receiver,
+            )
+            .await
+            .unwrap();
+        });
     });
 
     price_logger(&mut stop_rx, amount_in, pool_keys, wallet.clone()).await;
+
+    handle.join().unwrap();
     Ok(())
 }
 
@@ -230,9 +236,10 @@ pub async fn price_logger(
         http_client.get("http_client").unwrap().clone()
     };
     loop {
-        // if let Ok(_) = stop_rx.try_recv() {
-        //     break;
-        // }
+        if let Ok(_) = stop_rx.try_recv() {
+            sleep(Duration::from_secs(10)).await;
+            break;
+        }
 
         let mut token_balance = 0;
         let rpc_client_clone = rpc_client.clone();
