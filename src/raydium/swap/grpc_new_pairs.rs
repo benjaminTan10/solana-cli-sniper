@@ -7,9 +7,12 @@ use {
         raydium::{
             sniper::utils::{market_authority, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT},
             subscribe::PoolKeysSniper,
+            swap::metadata::decode_metadata,
         },
     },
     chrono::{LocalResult, TimeZone, Utc},
+    colorize::AnsiColor,
+    crossterm::style::Stylize,
     futures::{sink::SinkExt, stream::StreamExt},
     jito_protos::bundle::{self, BundleResult},
     log::{error, info, warn},
@@ -88,7 +91,6 @@ pub async fn grpc_pair_sub(
     args: EngineSettings,
     manual_snipe: bool,
     base_mint: Pubkey,
-    mut bundle_results_receiver: Receiver<BundleResult>,
 ) -> anyhow::Result<()> {
     info!("Calling Events..");
 
@@ -105,8 +107,6 @@ pub async fn grpc_pair_sub(
     let secret_key = bs58::decode(private_key.clone()).into_vec()?;
 
     info!("Successfully Subscribed to the stream...!");
-
-    let bundle_results_receiver = Arc::new(bundle_results_receiver);
 
     let wallet = Keypair::from_bytes(&secret_key)?;
     let commitment = 0;
@@ -137,7 +137,6 @@ pub async fn grpc_pair_sub(
         let mev_ape = Arc::clone(&mev_ape);
         let private_key = &mev_ape.wallet;
         let secret_key = bs58::decode(private_key.clone()).into_vec()?;
-        let bundle_results_receiver = Arc::clone(&bundle_results_receiver);
 
         let wallet = Keypair::from_bytes(&secret_key)?;
         tokio::spawn(async move {
@@ -192,8 +191,6 @@ pub async fn grpc_pair_sub(
                                     0
                                 }
                             };
-                            let signature = String::from_utf8_lossy(&info.signature);
-                            info!("Signature: {}", signature);
 
                             let open_time_i64: i64 = match open_time.try_into() {
                                 Ok(time) => time,
@@ -350,7 +347,6 @@ pub async fn grpc_pair_sub(
                                 pool_keys[0].clone(),
                                 open_time,
                                 mev_ape,
-                                bundle_results_receiver,
                                 manual_snipe,
                                 base_mint,
                             )
@@ -375,13 +371,39 @@ pub async fn sniper_txn_in_2(
     pool_keys: PoolKeysSniper,
     sleep_duration: u64,
     mev_ape: Arc<MevApe>,
-    bundle_results_receiver: Arc<Receiver<BundleResult>>,
     manual_snipe: bool,
     base_mint: Pubkey,
 ) -> eyre::Result<()> {
     if manual_snipe && pool_keys.base_mint != base_mint {
         return Ok(());
     }
+    let (token, data) = mpl_token_metadata::accounts::Metadata::find_pda(&pool_keys.base_mint);
+    let metadata = match decode_metadata(&token).await {
+        Ok(metadata) => Some(metadata),
+        Err(e) => {
+            error!("Error: {:?}", e);
+            None
+        }
+    };
+
+    let token_name = metadata
+        .clone()
+        .and_then(|m| Some(m.name))
+        .unwrap_or_else(|| "Unknown".to_string());
+    let token_symbol = metadata
+        .clone()
+        .and_then(|m| Some(m.symbol))
+        .unwrap_or_else(|| "Unknown".to_string());
+
+    println!(
+        "---------------------------------------------------------------\n\
+        Name: {}\nSymb: {}\nBase Mint: {}\nPool ID: {}\n\
+        ----------------------------------------------------------------",
+        colorize::AnsiColor::bold(token_name.to_string()).white(),
+        colorize::AnsiColor::bold(token_name.to_string()).b_cyan(),
+        pool_keys.base_mint.to_string(),
+        pool_keys.id.to_string(),
+    );
 
     let args = match load_settings().await {
         Ok(args) => args,

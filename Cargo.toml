@@ -19,6 +19,7 @@ spl-associated-token-account = "2.2.0"
 spl-token = "4.0.0"
 spl-token-client = "0.8.0"
 
+mpl-token-metadata = { version = "3.1.0", features = ["serde"] }
 #tokio
 eyre = "0.6.11"
 tokio = { version = "1.35.1", features = ["full"] }

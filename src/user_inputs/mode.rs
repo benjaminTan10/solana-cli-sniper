@@ -1,5 +1,7 @@
 use std::{error::Error, sync::Arc};
 
+use colorize::AnsiColor;
+use crossterm::style::Stylize;
 use log::{error, info};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{pubkey::Pubkey, signature::Keypair};
@@ -10,8 +12,8 @@ use crate::{
     env::load_settings,
     plugins::jito_plugin::event_loop::bundle_results_loop,
     raydium::swap::{
-        grpc_new_pairs::grpc_pair_sub, instructions::wrap_sol, swap_in::PriorityTip,
-        swapper::auth_keypair,
+        grpc_new_pairs::grpc_pair_sub, instructions::wrap_sol, metadata::decode_metadata,
+        swap_in::PriorityTip, swapper::auth_keypair,
     },
 };
 
@@ -56,14 +58,8 @@ pub async fn automatic_snipe(manual_snipe: bool) -> eyre::Result<()> {
 
     let mut bundle_tip = 0;
     let mut priority_fee_value = 0;
-    let (bundle_results_sender, bundle_results_receiver) = channel(100);
 
     if args.use_bundles {
-        tokio::spawn(bundle_results_loop(
-            args.block_engine_url.clone(),
-            Arc::new(auth_keypair()),
-            bundle_results_sender,
-        ));
         priority_fee_value = priority_fee().await;
         bundle_tip = bundle_priority_tip().await;
     } else {
@@ -72,6 +68,32 @@ pub async fn automatic_snipe(manual_snipe: bool) -> eyre::Result<()> {
 
     if manual_snipe {
         token = token_env("Base Mint").await;
+
+        let (token, data) = mpl_token_metadata::accounts::Metadata::find_pda(&token);
+        let metadata = match decode_metadata(&token).await {
+            Ok(metadata) => Some(metadata),
+            Err(e) => {
+                error!("Error: {:?}", e);
+                None
+            }
+        };
+
+        let token_name = metadata
+            .clone()
+            .and_then(|m| Some(m.name))
+            .unwrap_or_else(|| "Unknown".to_string());
+        let token_symbol = metadata
+            .clone()
+            .and_then(|m| Some(m.symbol))
+            .unwrap_or_else(|| "Unknown".to_string());
+
+        println!(
+            "Name: {}\nSymb: {}",
+            colorize::AnsiColor::bold(token_name.to_string()).white(),
+            colorize::AnsiColor::bold(token_name.to_string()).b_cyan(),
+        );
+
+        info!("Listening for the Launch...")
     } else {
         token = Pubkey::default();
     }
@@ -90,7 +112,7 @@ pub async fn automatic_snipe(manual_snipe: bool) -> eyre::Result<()> {
         wallet: args.payer_keypair.clone(),
     };
 
-    let _ = match grpc_pair_sub(mev_ape, args, manual_snipe, token, bundle_results_receiver).await {
+    let _ = match grpc_pair_sub(mev_ape, args, manual_snipe, token).await {
         Ok(_) => info!("Transaction Sent"),
         Err(e) => error!("{}", e),
     };

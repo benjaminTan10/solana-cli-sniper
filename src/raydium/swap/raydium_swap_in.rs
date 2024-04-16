@@ -184,18 +184,22 @@ pub async fn raydium_in(
             ..Default::default()
         };
 
-        let result = match rpc_client
-            .send_transaction_with_config(&transaction, config)
-            .await
-        {
-            Ok(x) => x,
-            Err(e) => {
-                error!("Error: {:?}", e);
-                return Ok(());
-            }
-        };
+        let mut counter = 0;
+        while counter < 30 {
+            let result = match rpc_client
+                .send_transaction_with_config(&transaction, config)
+                .await
+            {
+                Ok(x) => x,
+                Err(e) => {
+                    error!("Error: {:?}", e);
+                    return Ok(());
+                }
+            };
 
-        info!("Transaction sent: {:?}", result);
+            info!("Transaction Sent {:?}", result);
+            counter += 1;
+        }
     }
     let pool_keys_clone = pool_keys.clone();
     let args_clone = args.clone();
