@@ -82,6 +82,7 @@ pub async fn raydium_in(
         amount_in.clone(),
         amount_out,
         fees.priority_fee_value,
+        args.clone(),
     )
     .await?;
 
@@ -184,8 +185,24 @@ pub async fn raydium_in(
             ..Default::default()
         };
 
-        let mut counter = 0;
-        while counter < 30 {
+        if args.spam {
+            let mut counter = 0;
+            while counter < args.spam_count {
+                let result = match rpc_client
+                    .send_transaction_with_config(&transaction, config)
+                    .await
+                {
+                    Ok(x) => x,
+                    Err(e) => {
+                        error!("Error: {:?}", e);
+                        return Ok(());
+                    }
+                };
+
+                info!("Transaction Sent {:?}", result);
+                counter += 1;
+            }
+        } else {
             let result = match rpc_client
                 .send_transaction_with_config(&transaction, config)
                 .await
@@ -198,7 +215,6 @@ pub async fn raydium_in(
             };
 
             info!("Transaction Sent {:?}", result);
-            counter += 1;
         }
     }
     let pool_keys_clone = pool_keys.clone();

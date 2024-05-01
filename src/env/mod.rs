@@ -65,6 +65,9 @@ pub struct EngineSettings {
 
     /// Use Bundles for Buy & Sell
     pub use_bundles: bool,
+
+    pub spam: bool,
+    pub spam_count: i32,
 }
 
 #[derive(Deserialize, Clone)]
@@ -90,6 +93,8 @@ struct HelperSettings {
     regions: Vec<String>,
     subscribe_bundle_results: bool,
     use_bundles: bool,
+    spam: bool,
+    spam_count: i32,
 }
 
 pub async fn load_settings() -> eyre::Result<EngineSettings> {
@@ -116,6 +121,8 @@ pub async fn load_settings() -> eyre::Result<EngineSettings> {
                 subscribe_bundle_results: false,
                 // auth_keypair: vec![],
                 use_bundles: true,
+                spam: false,
+                spam_count: 15,
             };
             let default_settings_json = serde_json::to_string(&default_settings).unwrap();
             let mut file = File::create("settings.json").unwrap();
@@ -148,6 +155,8 @@ pub async fn load_settings() -> eyre::Result<EngineSettings> {
                 subscribe_bundle_results: false,
                 // auth_keypair: vec![],
                 use_bundles: true,
+                spam: false,
+                spam_count: 15,
             };
             let default_settings_json = serde_json::to_string(&default_settings).unwrap();
             let mut file = File::create("settings.json").unwrap();
@@ -170,6 +179,8 @@ pub async fn load_settings() -> eyre::Result<EngineSettings> {
         subscribe_bundle_results: helper_settings.subscribe_bundle_results,
         // auth_keypair: helper_settings.auth_keypair,
         use_bundles: helper_settings.use_bundles,
+        spam: helper_settings.spam,
+        spam_count: helper_settings.spam_count,
     };
 
     Ok(settings)

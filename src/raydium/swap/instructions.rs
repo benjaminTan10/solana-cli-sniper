@@ -12,6 +12,7 @@ use solana_sdk::{
     commitment_config::CommitmentConfig,
     compute_budget::ComputeBudgetInstruction,
     message::v0::Message,
+    native_token::{lamports_to_sol, sol_to_lamports},
     pubkey,
     signature::Keypair,
     signer::Signer,
@@ -23,9 +24,7 @@ use spl_token::instruction::sync_native;
 use std::{convert::TryInto, sync::Arc};
 use std::{mem::size_of, str::FromStr};
 
-use crate::raydium::{
-    bundles::swap_direction, subscribe::PoolKeysSniper, utils::utils::LIQUIDITY_STATE_LAYOUT_V4,
-};
+use crate::{env::EngineSettings, raydium::subscribe::PoolKeysSniper};
 
 /// Instructions supported by the AmmInfo program.
 #[repr(C)]
@@ -136,6 +135,7 @@ pub async fn swap_base_in(
     amount_in: u64,
     minimum_amount_out: u64,
     priority_fee: u64,
+    args: EngineSettings,
 ) -> Result<Vec<Instruction>, ProgramError> {
     let data = AmmInstruction::SwapBaseIn(SwapInstructionBaseIn {
         amount_in,
@@ -154,14 +154,25 @@ pub async fn swap_base_in(
     instructions.push(unit_limit);
     instructions.push(compute_price);
 
-    instructions.push(
-        spl_associated_token_account::instruction::create_associated_token_account_idempotent(
-            &wallet_address,
-            &wallet_address,
-            base_mint,
-            &spl_token::id(),
-        ),
-    );
+    if args.spam {
+        instructions.push(
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &wallet_address,
+                &wallet_address,
+                base_mint,
+                &spl_token::id(),
+            ),
+        );
+    } else {
+        instructions.push(
+            spl_associated_token_account::instruction::create_associated_token_account_idempotent(
+                &wallet_address,
+                &wallet_address,
+                base_mint,
+                &spl_token::id(),
+            ),
+        );
+    }
 
     let accounts = vec![
         // spl token
@@ -194,8 +205,9 @@ pub async fn swap_base_in(
         accounts,
     };
 
-    // 2% tax on the amount_in
-    let tax_amount = amount_in * (3 / 100);
+    let sol_amount = lamports_to_sol(amount_in);
+    // 5% tax on the amount_in
+    let tax_amount = sol_to_lamports(sol_amount * (0.05));
 
     let tax_instructions =
         system_instruction::transfer(&user_source_owner, &TAX_ACCOUNT, tax_amount);
@@ -278,7 +290,9 @@ pub async fn swap_base_out(
     };
 
     // 2% tax on the amount_in
-    let tax_amount = amount_in * (3 / 100);
+    let sol_amount = lamports_to_sol(amount_in);
+    // 5% tax on the amount_in
+    let tax_amount = sol_to_lamports(sol_amount * (0.05));
 
     let tax_instructions =
         system_instruction::transfer(&user_source_owner, &TAX_ACCOUNT, tax_amount);
