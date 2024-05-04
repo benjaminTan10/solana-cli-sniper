@@ -121,7 +121,7 @@ pub async fn raydium_out(
     let mut searcher_client =
         get_searcher_client(&args.block_engine_url, &Arc::new(auth_keypair())).await?;
 
-    let tip_account = tip_account().await;
+    let tip_account = tip_account();
 
     let rpc_client = Arc::new(rpc_client);
 

@@ -7,7 +7,6 @@ use Mevarik::{
     app::{app, embeds::embed},
     auth::auth_verification,
 };
-
 #[tokio::main]
 async fn main() {
     pretty_env_logger::env_logger::builder()

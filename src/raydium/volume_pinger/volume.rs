@@ -1,29 +1,13 @@
-use std::{
-    error::Error,
-    str::FromStr,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{error::Error, str::FromStr, sync::Arc};
 
 use demand::Input;
 use log::{error, info};
 use rand::Rng;
-use solana_client::{
-    nonblocking::rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig,
-    rpc_request::TokenAccountsFilter,
-};
+use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
 use solana_sdk::{
-    commitment_config::CommitmentLevel,
-    compute_budget::ComputeBudgetInstruction,
-    instruction::{AccountMeta, Instruction},
-    native_token::sol_to_lamports,
-    program_error::ProgramError,
-    pubkey::Pubkey,
-    signature::Keypair,
-    signer::Signer,
-    transaction::VersionedTransaction,
+    commitment_config::CommitmentLevel, native_token::sol_to_lamports, pubkey::Pubkey,
+    signature::Keypair, signer::Signer, transaction::VersionedTransaction,
 };
-use spl_associated_token_account::get_associated_token_address;
 
 use crate::{
     app::theme,
@@ -32,10 +16,7 @@ use crate::{
         bundles::swap_instructions::volume_swap_base_in,
         pool_searcher::amm_keys::pool_keys_fetcher,
         subscribe::PoolKeysSniper,
-        swap::instructions::{
-            swap_base_out, token_price_data, AmmInstruction, SwapInstructionBaseIn, SOLC_MINT,
-        },
-        utils::utils::LIQUIDITY_STATE_LAYOUT_V4,
+        swap::instructions::{swap_base_out, token_price_data, SOLC_MINT},
     },
     user_inputs::{amounts::priority_fee, tokens::token_env},
 };

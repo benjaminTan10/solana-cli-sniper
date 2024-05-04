@@ -1,7 +1,6 @@
 use std::{
     fs::{self, File},
     io::Write,
-    os::unix::process,
     process::exit,
 };
 
@@ -10,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
 
 pub mod env_loader;
+pub mod minter;
 
 #[derive(Debug, Clone)]
 pub struct BackrunAccount {

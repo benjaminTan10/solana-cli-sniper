@@ -1,8 +1,11 @@
 pub mod app;
 pub mod auth;
 pub mod env;
+pub mod instruction;
+pub mod liquidity;
 pub mod plugins;
 pub mod raydium;
 pub mod rpc;
 pub mod user_inputs;
 pub mod utils;
+pub mod volume_bot;

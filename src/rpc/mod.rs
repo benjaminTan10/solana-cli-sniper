@@ -11,7 +11,7 @@ use std::{
 pub static HTTP_CLIENT: Lazy<Mutex<HashMap<&str, Arc<RpcClient>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
-pub fn rpc_key(rpc_client: String) -> Arc<RpcClient> {
+pub async fn rpc_key(rpc_client: String) -> Arc<RpcClient> {
     let rpc_client_instance =
         RpcClient::new_with_commitment(rpc_client.clone(), CommitmentConfig::confirmed());
     let rpc_client_instance = Arc::new(rpc_client_instance);

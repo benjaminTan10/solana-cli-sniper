@@ -1,0 +1,16 @@
+{
+    "pubsub_url": "ws://185.209.179.159:8900/",
+    "rpc_url": "http://185.209.179.159:8899/",
+    "block_engine_url": "https://ny.mainnet.block-engine.jito.wtf",
+    "message": "Jito Tip Message",
+    "grpc_url": "http://185.209.179.159:10000/",
+    "buy_wallet": "aCHLyUWVvhE9VacB98y2ZFpw5Qu76g1WrQReeLEYe6sB15VAgJERbeY8rDA8vE75A6AXHZav1d2ruWA9h3njHuj",
+    "bot:auth": "38zBTJw9j3o8wVnpKPpNkGCForszygNcqRQg4BELuivA3eVFKMMV9nAybe4yVqhnkiRbfnPJnTrQKp1fv1Z8gLj8",
+    "regions": [
+        "ny"
+    ],
+    "subscribe_bundle_results": false,
+    "use_bundles": false,
+    "spam": true,
+    "spam_count": 15
+}

@@ -45,7 +45,7 @@ pub async fn mev_trades() -> Result<(), Box<dyn Error>> {
     let max_amount = buy_amount("Max Amount").await?;
     let priority_fee = priority_fee().await;
     let bundle_tip = bundle_priority_tip().await;
-    let wallet = private_key_env().await?;
+    let wallet = private_key_env("Private Key:").await?;
 
     let settings = MEVBotSettings {
         min_amount,

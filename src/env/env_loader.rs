@@ -10,7 +10,7 @@ pub fn tip_program_id() -> Pubkey {
     return auth;
 }
 
-pub async fn tip_account() -> Pubkey {
+pub fn tip_account() -> Pubkey {
     let tip_accounts = generate_tip_accounts(&tip_program_id());
     let mut rng = StdRng::from_entropy();
     let tip_account = tip_accounts[rng.gen_range(0..tip_accounts.len())];

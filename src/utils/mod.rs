@@ -1,3 +1,5 @@
+pub mod rand;
+
 use jito_protos::bundle::BundleResult;
 use log::info;
 use solana_sdk::signature::Keypair;
