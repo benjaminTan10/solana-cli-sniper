@@ -1,24 +1,20 @@
-use log::{error, info};
+use log::{error};
 use once_cell::sync::Lazy;
 use solana_sdk::pubkey::Pubkey;
 use std::collections::HashMap;
 use std::error::Error;
-use std::sync::{Arc, Mutex};
-use tokio::fs::write;
+use std::sync::{Mutex};
 
 use crate::app::private_key_env;
 use crate::raydium::subscribe::PoolKeysSniper;
-use crate::raydium::utils::utils::LIQUIDITY_STATE_LAYOUT_V4;
 use crate::raydium::volume_pinger::volume::buy_amount;
 use crate::user_inputs::amounts::{bundle_priority_tip, priority_fee};
 use crate::{
-    env::load_settings, plugins::jito_plugin::lib::backrun_jito,
-    raydium::pool_searcher::amm_keys::pool_keys_fetcher,
+    env::load_settings,
 };
 
-use futures::stream::StreamExt;
 
-use super::raydiumupdate::{load_json_to_hashmap, update_raydium};
+use super::raydiumupdate::{update_raydium};
 
 pub static POOL_KEYS: Lazy<Mutex<HashMap<Pubkey, PoolKeysSniper>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));

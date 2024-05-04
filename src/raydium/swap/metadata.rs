@@ -1,6 +1,5 @@
 use mpl_token_metadata::accounts::Metadata;
 
-use solana_client::{client_error::ClientErrorKind, rpc_client::RpcClient};
 use solana_program::pubkey::Pubkey;
 use thiserror::Error;
 

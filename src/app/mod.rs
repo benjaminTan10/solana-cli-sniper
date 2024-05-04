@@ -16,12 +16,11 @@ use crate::liquidity::minter_main::raydium_creator;
 use crate::raydium::bundles::mev_trades::mev_trades;
 use crate::raydium::swap::swap_in::{swap_in, swap_out, PriorityTip};
 use crate::raydium::swap::trades::track_trades;
-use crate::raydium::volume_pinger::volume::generate_volume;
 use crate::rpc::rpc_key;
 use crate::user_inputs::mode::{automatic_snipe, wrap_sol_call};
 use crate::volume_bot::volume_menu;
 
-use self::{embeds::embed, wallets::wallet_logger};
+use self::{wallets::wallet_logger};
 
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize, Clone)]

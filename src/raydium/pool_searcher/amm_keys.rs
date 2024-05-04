@@ -1,6 +1,4 @@
-use std::{str::FromStr, sync::Arc};
 
-use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::pubkey::Pubkey;
 
 use crate::{
@@ -12,7 +10,7 @@ use crate::{
             SPL_MINT_LAYOUT,
         },
     },
-    rpc::{rpc_key, HTTP_CLIENT},
+    rpc::{HTTP_CLIENT},
 };
 
 pub async fn pool_keys_fetcher(id: Pubkey) -> eyre::Result<PoolKeysSniper> {

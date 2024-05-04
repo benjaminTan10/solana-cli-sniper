@@ -5,7 +5,7 @@ use crate::app::theme;
 
 pub async fn amount_percentage() -> u64 {
     let theme = theme();
-    let mut amount: u64;
+    let amount: u64;
     loop {
         let t = Input::new("Sell Amount Percentage:")
             .placeholder("50 (%)")
@@ -29,7 +29,7 @@ pub async fn amount_percentage() -> u64 {
 }
 
 pub async fn bundle_priority_tip() -> u64 {
-    let mut amount: u64;
+    let amount: u64;
     loop {
         let t = Input::new("Bundle Tip:")
             .placeholder("0.0001")
@@ -53,7 +53,7 @@ pub async fn bundle_priority_tip() -> u64 {
 
 pub async fn priority_fee() -> u64 {
     let theme = theme();
-    let mut amount: u64;
+    let amount: u64;
 
     loop {
         let t = Input::new("Priority Fee:")
@@ -80,7 +80,7 @@ pub async fn priority_fee() -> u64 {
 
 pub async fn sol_amount() -> u64 {
     let theme = theme();
-    let mut amount: u64;
+    let amount: u64;
 
     loop {
         let t = Input::new("Sol Amount:")

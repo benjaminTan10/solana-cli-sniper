@@ -1,34 +1,18 @@
 use std::{
-    str::FromStr,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use futures_util::{pin_mut, StreamExt};
-use log::{error, info};
-use serde_json::Value;
 use solana_client::{
-    nonblocking::{pubsub_client::PubsubClient, rpc_client::RpcClient},
-    rpc_config::{RpcTransactionLogsConfig, RpcTransactionLogsFilter},
-};
-use solana_program::pubkey::Pubkey;
-use solana_sdk::commitment_config::CommitmentConfig;
-use solana_transaction_status::{
-    option_serializer::OptionSerializer, EncodedTransaction, UiInstruction, UiMessage,
-    UiParsedInstruction,
+    nonblocking::{rpc_client::RpcClient},
 };
 use tokio::time::sleep;
 
 use crate::{
     app::UserData,
     raydium::{
-        subscribe::{ParsedObject, PoolKeysSniper},
-        utils::{
-            parser::parse_signatures,
-            utils::{market_authority, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT},
-        },
+        subscribe::{PoolKeysSniper},
     },
-    rpc::{rpc_key, wss_key},
 };
 
 // pub async fn raydium_stream(user_data: UserData) -> eyre::Result<()> {

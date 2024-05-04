@@ -10,8 +10,7 @@ use solana_client::{
 use solana_program::pubkey::Pubkey;
 
 use crate::{
-    raydium::subscribe::PoolKeysSniper,
-    rpc::{rpc_key, HTTP_CLIENT},
+    rpc::{HTTP_CLIENT},
 };
 
 #[allow(non_snake_case)]

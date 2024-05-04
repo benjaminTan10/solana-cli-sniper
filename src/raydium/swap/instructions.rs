@@ -1,4 +1,4 @@
-use log::{info, warn};
+use log::{info};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcSimulateTransactionConfig};
@@ -22,7 +22,7 @@ use solana_sdk::{
 use spl_associated_token_account::get_associated_token_address;
 use spl_token::instruction::sync_native;
 use std::{convert::TryInto, sync::Arc};
-use std::{mem::size_of, str::FromStr};
+use std::{mem::size_of};
 
 use crate::{env::EngineSettings, raydium::subscribe::PoolKeysSniper};
 

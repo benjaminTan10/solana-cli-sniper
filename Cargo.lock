@@ -66,7 +66,6 @@ dependencies = [
  "solana-sdk",
  "solana-transaction-status",
  "spl-associated-token-account",
- "spl-memo 3.0.1",
  "spl-token 4.0.0",
  "spl-token-client",
  "termcolor",
@@ -4781,7 +4780,7 @@ dependencies = [
  "solana-sdk",
  "solana-transaction-status",
  "solana-vote-program",
- "spl-memo 4.0.0",
+ "spl-memo",
 ]
 
 [[package]]
@@ -5568,7 +5567,7 @@ dependencies = [
  "solana-account-decoder",
  "solana-sdk",
  "spl-associated-token-account",
- "spl-memo 4.0.0",
+ "spl-memo",
  "spl-token 4.0.0",
  "spl-token-2022",
  "thiserror",
@@ -5783,15 +5782,6 @@ dependencies = [
 
 [[package]]
 name = "spl-memo"
-version = "3.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd0dc6f70db6bacea7ff25870b016a65ba1d1b6013536f08e4fd79a8f9005325"
-dependencies = [
- "solana-program",
-]
-
-[[package]]
-name = "spl-memo"
 version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0f180b03318c3dbab3ef4e1e4d46d5211ae3c780940dd0a28695aba4b59a75a"
@@ -5895,7 +5885,7 @@ dependencies = [
  "solana-program",
  "solana-security-txt",
  "solana-zk-token-sdk",
- "spl-memo 4.0.0",
+ "spl-memo",
  "spl-pod",
  "spl-token 4.0.0",
  "spl-token-group-interface",
@@ -5922,7 +5912,7 @@ dependencies = [
  "solana-rpc-client-api",
  "solana-sdk",
  "spl-associated-token-account",
- "spl-memo 4.0.0",
+ "spl-memo",
  "spl-token 4.0.0",
  "spl-token-2022",
  "spl-token-group-interface",

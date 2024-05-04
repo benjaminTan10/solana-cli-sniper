@@ -5,10 +5,10 @@ use log::error;
 use solana_sdk::pubkey::Pubkey;
 
 pub async fn token_env(token_identifier: &str) -> Pubkey {
-    let mut token_pubkey: Pubkey;
+    let token_pubkey: Pubkey;
 
     loop {
-        let t = Input::new(token_identifier.clone())
+        let t = Input::new(token_identifier)
             .placeholder("5eSB1...vYF49")
             .prompt("Input: ");
 

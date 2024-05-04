@@ -1,18 +1,16 @@
-use std::{error::Error, pin::Pin};
+use std::error::Error;
 
 use demand::{DemandOption, Select};
-use futures::Future;
 
 use crate::{
     app::theme,
-    env::minter::load_minter_settings,
     liquidity::{
         option::sol_distribution::distributor, pool_27::pool_main,
         remove_liq::remover::remove_liquidity,
     },
 };
 
-use super::option::wallet_gen::{gen_wallet_save, list_folders};
+use super::option::wallet_gen::gen_wallet_save;
 
 use async_recursion::async_recursion;
 

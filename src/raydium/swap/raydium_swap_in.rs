@@ -5,20 +5,17 @@ use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_client::rpc_request::TokenAccountsFilter;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::commitment_config::CommitmentLevel;
-use solana_sdk::native_token::{lamports_to_sol, sol_to_lamports};
+use solana_sdk::native_token::lamports_to_sol;
 use solana_sdk::system_instruction::transfer;
-use solana_sdk::sysvar::fees;
 use solana_sdk::transaction::{Transaction, VersionedTransaction};
 use solana_sdk::{signature::Keypair, signer::Signer};
-use spl_memo::build_memo;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use tokio::sync::mpsc::{self, channel, Receiver};
+use tokio::sync::mpsc::{self, Receiver};
 use tokio::time::{self, sleep};
 
-use crate::app::UserData;
 use crate::env::env_loader::tip_account;
 use crate::env::EngineSettings;
 use crate::plugins::jito_plugin::lib::{send_bundles, BundledTransactions};
@@ -28,7 +25,7 @@ use crate::raydium::swap::swapper::auth_keypair;
 use crate::rpc::HTTP_CLIENT;
 use crate::utils::read_single_key_impl;
 
-use super::instructions::{swap_base_out, token_price_data};
+use super::instructions::token_price_data;
 use super::raydium_swap_out::raydium_out;
 use super::swap_in::PriorityTip;
 
@@ -120,29 +117,29 @@ pub async fn raydium_in(
     if args.use_bundles {
         info!("Building Bundle");
 
-        let tip_txn = VersionedTransaction::from(Transaction::new_signed_with_payer(
-            &[
-                build_memo(
-                    format!(
-                        "{}: {:?}",
-                        "{args.message}",
-                        transaction.signatures[0].to_string(),
-                        // Fix: Add a placeholder for the missing argument
-                    )
-                    .as_bytes(),
-                    &[],
-                ),
-                transfer(&wallet.pubkey(), &tip_account, fees.bundle_tip),
-            ],
-            Some(&wallet.pubkey()),
-            &[&wallet],
-            rpc_client.get_latest_blockhash().await.unwrap(),
-        ));
+        // let tip_txn = VersionedTransaction::from(Transaction::new_signed_with_payer(
+        //     &[
+        //         build_memo(
+        //             format!(
+        //                 "{}: {:?}",
+        //                 "{args.message}",
+        //                 transaction.signatures[0].to_string(),
+        //                 // Fix: Add a placeholder for the missing argument
+        //             )
+        //             .as_bytes(),
+        //             &[],
+        //         ),
+        //         transfer(&wallet.pubkey(), &tip_account, fees.bundle_tip),
+        //     ],
+        //     Some(&wallet.pubkey()),
+        //     &[&wallet],
+        //     rpc_client.get_latest_blockhash().await.unwrap(),
+        // ));
 
         let bundle_txn = BundledTransactions {
             mempool_txs: vec![transaction],
             middle_txs: vec![],
-            backrun_txs: vec![tip_txn],
+            backrun_txs: vec![],
         };
 
         let mut results = send_bundles(&mut searcher_client, &[bundle_txn]).await?;

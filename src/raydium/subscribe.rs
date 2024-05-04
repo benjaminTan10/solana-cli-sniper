@@ -2,12 +2,11 @@ use crate::app::UserData;
 use crate::raydium::manual_sniper::sniper_txn_in;
 use crate::raydium::utils::parser::parse_signatures;
 use crate::raydium::utils::utils::{market_authority, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT};
-use crate::rpc::{rpc_key, wss_key, HTTP_CLIENT};
+use crate::rpc::{wss_key, HTTP_CLIENT};
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use solana_client::nonblocking::pubsub_client::PubsubClient;
-use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_config::{RpcTransactionLogsConfig, RpcTransactionLogsFilter};
 
 use solana_program::pubkey::Pubkey;
@@ -20,7 +19,6 @@ use solana_transaction_status::option_serializer::OptionSerializer;
 use solana_transaction_status::{
     EncodedTransaction, UiInstruction, UiMessage, UiParsedInstruction,
 };
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Deserialize)]
 #[allow(non_snake_case, dead_code)]

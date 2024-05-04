@@ -1,13 +1,12 @@
 use std::str::FromStr;
 
-use console::Key;
 use solana_sdk::{
     instruction::Instruction,
     message::{v0::Message, VersionedMessage},
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
-    transaction::{self, VersionedTransaction},
+    transaction::{VersionedTransaction},
 };
 use spl_associated_token_account::{
     get_associated_token_address, instruction::create_associated_token_account_idempotent,
@@ -16,7 +15,7 @@ use spl_associated_token_account::{
 use crate::{
     env::minter::PoolDataSettings,
     instruction::instruction::{
-        get_keys_for_market, load_amm_keys, swap, swap_base_in, AmmKeys, MarketPubkeys,
+        get_keys_for_market, swap, AmmKeys, MarketPubkeys,
         PoolKeysSniper, SOL_MINT,
     },
     rpc::HTTP_CLIENT,

@@ -1,7 +1,6 @@
 use solana_address_lookup_table_program::instruction::create_lookup_table;
 use solana_sdk::{
     instruction::Instruction, pubkey::Pubkey, signature::Keypair, signer::Signer,
-    transaction::Transaction,
 };
 
 use crate::{env::minter::PoolDataSettings, rpc::HTTP_CLIENT};

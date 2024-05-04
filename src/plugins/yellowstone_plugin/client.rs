@@ -7,8 +7,7 @@ use {
     solana_sdk::{bs58, pubkey::Pubkey, signature::Signature},
     solana_transaction_status::{EncodedTransactionWithStatusMeta, UiTransactionEncoding},
     std::{
-        collections::HashMap,
-        env, fmt,
+        collections::HashMap, fmt,
         fs::File,
         sync::{Arc, Mutex},
         time::Duration,

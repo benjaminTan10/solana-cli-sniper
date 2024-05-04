@@ -71,7 +71,6 @@ tonic-health = "0.10.2"
 
 histogram = "0.6.9"
 rand = "0.8.5"
-spl-memo = "3.0.1"
 
 http = "1.0.0"
 thiserror = "1.0.29"
@@ -100,8 +99,8 @@ members = [
 ]
 resolver = "2"
 
-[profile.dev]
-opt-level = 0
+# [profile.dev]
+# opt-level = 0
 
-[profile.release]
-opt-level = 3
+# [profile.release]
+# opt-level = 3

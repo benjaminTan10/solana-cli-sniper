@@ -1,7 +1,6 @@
 use jito_protos::bundle::BundleResult;
 use jito_searcher_client::get_searcher_client;
 use log::{error, info};
-use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_client::rpc_request::TokenAccountsFilter;
 use solana_program::pubkey::Pubkey;
@@ -9,18 +8,17 @@ use solana_sdk::commitment_config::CommitmentLevel;
 use solana_sdk::system_instruction::transfer;
 use solana_sdk::transaction::{Transaction, VersionedTransaction};
 use solana_sdk::{signature::Keypair, signer::Signer};
-use spl_memo::build_memo;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc::Receiver;
 
 use crate::env::env_loader::tip_account;
 use crate::env::EngineSettings;
 use crate::plugins::jito_plugin::lib::{send_bundles, BundledTransactions};
 use crate::raydium::subscribe::PoolKeysSniper;
-use crate::raydium::swap::instructions::{swap_base_in, swap_base_out, SOLC_MINT};
-use crate::rpc::{rpc_key, HTTP_CLIENT};
+use crate::raydium::swap::instructions::{swap_base_out, SOLC_MINT};
+use crate::rpc::HTTP_CLIENT;
 
 use super::swap_in::PriorityTip;
 use super::swapper::auth_keypair;
@@ -31,7 +29,7 @@ pub async fn raydium_txn_backrun(
     token_amount: u64,
     fees: PriorityTip,
     args: EngineSettings,
-    mut bundle_results_receiver: Receiver<BundleResult>,
+    bundle_results_receiver: Receiver<BundleResult>,
 ) -> eyre::Result<()> {
     let start = Instant::now();
     let mut token_balance = 0;
@@ -191,19 +189,7 @@ pub async fn raydium_out(
         info!("Building Bundle");
 
         let tip_txn = VersionedTransaction::from(Transaction::new_signed_with_payer(
-            &[
-                build_memo(
-                    format!(
-                        "{}: {:?}",
-                        "{args.message}",
-                        transaction.signatures[0].to_string(),
-                        // Fix: Add a placeholder for the missing argument
-                    )
-                    .as_bytes(),
-                    &[],
-                ),
-                transfer(&wallet.pubkey(), &tip_account, fees.bundle_tip),
-            ],
+            &[transfer(&wallet.pubkey(), &tip_account, fees.bundle_tip)],
             Some(&wallet.pubkey()),
             &[&wallet],
             rpc_client.get_latest_blockhash().await.unwrap(),

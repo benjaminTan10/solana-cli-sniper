@@ -1,7 +1,6 @@
 use std::{
     fs::{self, File},
     io::Write,
-    process::exit,
 };
 
 use log::info;

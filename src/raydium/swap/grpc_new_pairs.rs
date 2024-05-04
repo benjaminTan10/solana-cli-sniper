@@ -14,7 +14,6 @@ use {
     colorize::AnsiColor,
     crossterm::style::Stylize,
     futures::{sink::SinkExt, stream::StreamExt},
-    jito_protos::bundle::{self, BundleResult},
     log::{error, info, warn},
     maplit::hashmap,
     solana_client::nonblocking::rpc_client::RpcClient,
@@ -27,7 +26,7 @@ use {
         time::{Duration, SystemTime, UNIX_EPOCH},
     },
     tokio::{
-        sync::mpsc::{channel, Receiver},
+        sync::mpsc::{channel},
         time::sleep,
     },
     yellowstone_grpc_proto::{

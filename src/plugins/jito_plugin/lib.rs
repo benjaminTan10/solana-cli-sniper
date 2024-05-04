@@ -1,4 +1,3 @@
-use clap::Parser;
 use futures::stream::StreamExt;
 use histogram::Histogram;
 use jito_protos::{
@@ -10,11 +9,10 @@ use jito_protos::{
     },
 };
 use jito_searcher_client::{
-    get_searcher_client, send_bundle_no_wait, send_bundle_with_confirmation,
+    get_searcher_client, send_bundle_no_wait,
     token_authenticator::ClientInterceptor, BlockEngineConnectionError,
 };
 use log::*;
-use pretty_env_logger::env_logger::TimestampPrecision;
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 use solana_client::{
     client_error::ClientError,
@@ -22,21 +20,18 @@ use solana_client::{
     rpc_response,
     rpc_response::RpcBlockUpdate,
 };
-use solana_metrics::{datapoint_info, set_host_id};
+use solana_metrics::{datapoint_info};
 use solana_sdk::{
     clock::Slot,
     commitment_config::{CommitmentConfig, CommitmentLevel},
     hash::Hash,
     message::VersionedMessage,
     pubkey::Pubkey,
-    signature::{read_keypair_file, Keypair, Signature, Signer},
-    system_instruction::transfer,
-    transaction::{Transaction, VersionedTransaction},
+    signature::{Keypair, Signature},
+    transaction::{VersionedTransaction},
 };
-use spl_memo::build_memo;
 use std::{
     collections::{hash_map::Entry, HashMap, HashSet},
-    path::PathBuf,
     result,
     str::FromStr,
     sync::{Arc, Mutex},
@@ -45,25 +40,20 @@ use std::{
 use thiserror::Error;
 use tokio::{
     join,
-    runtime::Builder,
-    sync::mpsc::{channel, Receiver},
+    sync::mpsc::{Receiver},
     time::interval,
 };
-use tonic::{codegen::InterceptedService, transport::Channel, Response, Status, Streaming};
+use tonic::{codegen::InterceptedService, transport::Channel, Response, Status};
 
 use crate::{
     env::EngineSettings,
-    plugins::jito_plugin::event_loop::{
-        block_subscribe_loop, bundle_results_loop, pending_tx_loop, slot_subscribe_loop,
-    },
     raydium::{
         bundles::{
             mev_trades::{MEVBotSettings, POOL_KEYS},
-            swap_direction::{process_swap_base_in, unpack},
+            swap_direction::{unpack},
             swap_instructions::{swap_base_out_bundler, swap_in_builder},
         },
-        subscribe::PoolKeysSniper,
-        swap::instructions::{token_price_data, AmmInstruction, SwapDirection},
+        swap::instructions::{AmmInstruction},
     },
 };
 
@@ -674,7 +664,7 @@ async fn run_searcher_loop(
 
     let mut searcher_client = get_searcher_client(&block_engine_url, &auth_keypair).await?;
 
-    let mut rng = Arc::new(Mutex::new(thread_rng()));
+    let rng = Arc::new(Mutex::new(thread_rng()));
 
     let tip_accounts = generate_tip_accounts(&tip_program_pubkey);
     info!("tip accounts: {:?}", tip_accounts);

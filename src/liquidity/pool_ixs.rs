@@ -4,7 +4,7 @@ use crate::{
     app::theme,
     env::minter::PoolDataSettings,
     instruction::instruction::{
-        get_amm_pda_keys, initialize_amm_pool, AmmKeys, PoolKeysSniper, SOL_MINT,
+        get_amm_pda_keys, initialize_amm_pool, AmmKeys, SOL_MINT,
     },
     rpc::HTTP_CLIENT,
 };
@@ -12,12 +12,11 @@ use demand::Input;
 use solana_client::rpc_request::TokenAccountsFilter;
 use solana_sdk::{
     instruction::Instruction,
-    native_token::{lamports_to_sol, sol_to_lamports, Sol},
+    native_token::{lamports_to_sol, sol_to_lamports},
     pubkey,
 };
 use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer};
 
-use super::utils::JitoPoolData;
 
 pub const AMM_PROGRAM: Pubkey = pubkey!("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8");
 

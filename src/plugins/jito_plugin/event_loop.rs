@@ -4,7 +4,7 @@ use futures_util::StreamExt;
 use jito_protos::{
     bundle::BundleResult,
     searcher::{
-        mempool_subscription, MempoolSubscription, PendingTxNotification, ProgramSubscriptionV0,
+        mempool_subscription, MempoolSubscription, PendingTxNotification,
         SubscribeBundleResultsRequest, WriteLockedAccountSubscriptionV0,
     },
 };

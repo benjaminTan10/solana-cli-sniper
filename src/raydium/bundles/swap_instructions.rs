@@ -1,14 +1,12 @@
 use std::{str::FromStr, sync::Arc};
 
-use jito_protos::block;
 use log::error;
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_request::TokenAccountsFilter};
 use solana_sdk::{
-    commitment_config::CommitmentLevel,
     compute_budget::ComputeBudgetInstruction,
     instruction::{AccountMeta, Instruction},
     program_error::ProgramError,
-    pubkey::{self, Pubkey},
+    pubkey::{Pubkey},
     signature::Keypair,
     signer::Signer,
     system_instruction::transfer,
@@ -19,9 +17,8 @@ use spl_associated_token_account::get_associated_token_address;
 use crate::raydium::{
     subscribe::PoolKeysSniper,
     swap::instructions::{
-        swap_base_out, token_price_data, AmmInstruction, SwapInstructionBaseIn, SOLC_MINT,
+        swap_base_out, AmmInstruction, SwapInstructionBaseIn, SOLC_MINT,
     },
-    volume_pinger::volume::{self, VolumeBotSettings},
 };
 
 use super::mev_trades::MEVBotSettings;

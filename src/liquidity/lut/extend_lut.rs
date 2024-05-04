@@ -2,10 +2,8 @@ use std::{str::FromStr, sync::Arc};
 
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
-use log::info;
 use solana_address_lookup_table_program::instruction::extend_lookup_table;
 use solana_sdk::{
-    address_lookup_table::AddressLookupTableAccount,
     instruction::Instruction,
     message::{v0::Message, VersionedMessage},
     native_token::sol_to_lamports,
@@ -15,18 +13,13 @@ use solana_sdk::{
     transaction::VersionedTransaction,
 };
 use spl_associated_token_account::{
-    get_associated_token_address, instruction::create_associated_token_account,
+    get_associated_token_address,
 };
-use tokio::sync::mpsc::channel;
 
 use crate::{
     env::minter::PoolDataSettings,
-    instruction::instruction::{AmmKeys, MarketPubkeys, PoolKeysSniper, SOL_MINT},
-    liquidity::utils::{tip_account, tip_txn, JitoPoolData},
-    plugins::jito_plugin::{
-        event_loop::bundle_results_loop,
-        lib::{send_bundles, BundledTransactions},
-    },
+    instruction::instruction::{AmmKeys, MarketPubkeys, SOL_MINT},
+    liquidity::utils::{tip_account, tip_txn},
     raydium::swap::swapper::auth_keypair,
     rpc::HTTP_CLIENT,
 };

@@ -1,10 +1,8 @@
-use log::info;
 use once_cell::sync::Lazy;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
 use std::{
     collections::HashMap,
-    env,
     sync::{Arc, Mutex},
 };
 

@@ -1,6 +1,5 @@
 //! Error types
 
-use num_derive::FromPrimitive;
 use solana_program::{
     decode_error::DecodeError,
     msg,

@@ -15,24 +15,19 @@ use crate::{
     rpc::HTTP_CLIENT,
     user_inputs::tokens::token_env,
 };
-use anyhow::Error;
 use async_recursion::async_recursion;
-use demand::{DemandOption, Input, Select};
+use demand::{DemandOption, Select};
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
 use log::info;
 use solana_sdk::{
-    compute_budget::ComputeBudgetInstruction,
-    instruction::{AccountMeta, Instruction},
+    instruction::{AccountMeta},
     message::{v0::Message, VersionedMessage},
-    native_token::{lamports_to_sol, sol_to_lamports},
+    native_token::{sol_to_lamports},
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
     transaction::VersionedTransaction,
-};
-use spl_associated_token_account::{
-    get_associated_token_address, instruction::create_associated_token_account_idempotent,
 };
 
 #[async_recursion]

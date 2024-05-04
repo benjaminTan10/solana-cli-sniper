@@ -1,7 +1,6 @@
-use std::env;
 
 use colored::Colorize;
-use log::{error, info};
+use log::{error};
 use mongodb::{Client, Collection};
 use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer};
 

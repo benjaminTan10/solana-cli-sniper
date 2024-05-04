@@ -19,7 +19,7 @@ pub fn generate_wallets(count: i32) -> Vec<String> {
 pub async fn gen_wallet_save() -> eyre::Result<()> {
     let theme = theme();
 
-    let mut amount: u64;
+    let amount: u64;
     let mut folder_name = String::new();
     loop {
         let deployment = new_deployment().await.unwrap();

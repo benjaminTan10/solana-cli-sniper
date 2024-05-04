@@ -1,9 +1,8 @@
-use std::{cell::RefMut, str::FromStr};
 
 use crate::raydium::swap::instructions::AmmInstruction::{self, SwapBaseIn};
 use log::info;
 use solana_sdk::{
-    account_info::{next_account_info, AccountInfo},
+    account_info::{AccountInfo},
     program_error::ProgramError,
     program_pack::Pack,
     pubkey::Pubkey,
@@ -11,7 +10,7 @@ use solana_sdk::{
 use spl_associated_token_account::get_associated_token_address;
 
 use crate::raydium::{
-    subscribe::{Info, PoolKeysSniper},
+    subscribe::{PoolKeysSniper},
     swap::instructions::{SwapDirection, SwapInstructionBaseIn, SOLC_MINT},
 };
 
@@ -105,7 +104,6 @@ fn unpack_u64(input: &[u8]) -> Result<(u64, &[u8]), ProgramError> {
 //     Ok(data)
 // }
 
-use num_derive::FromPrimitive;
 use solana_program::{decode_error::DecodeError, msg, program_error::PrintProgramError};
 use thiserror::Error;
 

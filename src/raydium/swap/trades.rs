@@ -1,13 +1,11 @@
 use std::{
-    io::{self, stdin},
     sync::Arc,
 };
 
 use log::{error, info};
 use solana_sdk::signature::Keypair;
 use tokio::sync::{
-    mpsc::{self, channel},
-    Mutex,
+    mpsc::{channel},
 };
 
 use crate::{
@@ -21,7 +19,7 @@ use crate::{
         amounts::{bundle_priority_tip, priority_fee, sol_amount},
         tokens::token_env,
     },
-    utils::{read_single_key, read_single_key_impl},
+    utils::{read_single_key_impl},
 };
 
 pub async fn track_trades() -> eyre::Result<()> {

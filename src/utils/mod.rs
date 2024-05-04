@@ -64,7 +64,7 @@ pub async fn read_single_key_impl(
     args: EngineSettings,
     fees: PriorityTip,
     wallet: &Arc<Keypair>,
-    mut bundle_results_receiver: Receiver<BundleResult>,
+    bundle_results_receiver: Receiver<BundleResult>,
 ) -> Result<(), Box<dyn Error + Send>> {
     let term = Term::stdout();
 

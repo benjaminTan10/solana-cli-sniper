@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use log::{error, info};
-use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{bs58, signature::Keypair};
 use tokio::sync::mpsc::channel;
 
@@ -18,7 +17,7 @@ use crate::{
 
 use super::{
     raydium_swap_in::raydium_in,
-    raydium_swap_out::{raydium_out, raydium_txn_backrun},
+    raydium_swap_out::{raydium_txn_backrun},
 };
 
 pub async fn swap_in() -> Result<(), Box<dyn std::error::Error>> {

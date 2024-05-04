@@ -21,10 +21,10 @@ use crate::{
     env::minter::{load_minter_settings, PoolDataSettings},
     instruction::instruction::SOL_MINT,
     liquidity::{
-        option::wallet_gen::{generate_wallets, load_wallets},
-        utils::{tip_account, tip_txn, JitoPoolData},
+        option::wallet_gen::{load_wallets},
+        utils::{tip_account, tip_txn},
     },
-    raydium::swap::{metadata::decode_metadata, swapper::auth_keypair},
+    raydium::swap::{swapper::auth_keypair},
     rpc::HTTP_CLIENT,
     user_inputs::amounts::{bundle_priority_tip, sol_amount},
     utils::rand::distribute_randomly,

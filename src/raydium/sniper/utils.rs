@@ -8,9 +8,7 @@ use solana_client::{
     rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
 };
 use solana_program::pubkey::Pubkey;
-use solana_sdk::signature::Keypair;
 
-use crate::raydium::subscribe::PoolKeysSniper;
 
 #[allow(non_snake_case)]
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]

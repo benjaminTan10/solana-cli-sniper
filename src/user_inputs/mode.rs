@@ -5,15 +5,13 @@ use crossterm::style::Stylize;
 use log::{error, info};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{pubkey::Pubkey, signature::Keypair};
-use tokio::sync::mpsc::channel;
 
 use crate::{
     app::MevApe,
     env::load_settings,
-    plugins::jito_plugin::event_loop::bundle_results_loop,
     raydium::swap::{
         grpc_new_pairs::grpc_pair_sub, instructions::wrap_sol, metadata::decode_metadata,
-        swap_in::PriorityTip, swapper::auth_keypair,
+        swap_in::PriorityTip,
     },
 };
 

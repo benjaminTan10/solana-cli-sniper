@@ -1,7 +1,6 @@
-use std::str::FromStr;
 
 use demand::Confirm;
-use solana_client::{nonblocking::rpc_client::RpcClient, rpc_request::TokenAccountsFilter};
+use solana_client::{rpc_request::TokenAccountsFilter};
 use solana_sdk::{
     instruction::Instruction,
     message::{v0::Message, VersionedMessage},

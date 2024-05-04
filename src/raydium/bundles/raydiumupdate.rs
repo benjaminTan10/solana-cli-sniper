@@ -1,9 +1,8 @@
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use log::{error, info};
 use serde::Deserialize;
-use solana_program::pubkey;
 use solana_sdk::pubkey::Pubkey;
-use std::{str::FromStr, time::Instant};
+use std::{time::Instant};
 use tokio::io::AsyncWriteExt;
 
 use super::mev_trades::POOL_KEYS;
@@ -109,7 +108,7 @@ pub async fn load_json_to_hashmap(
     );
     let mut map = POOL_KEYS.lock().unwrap();
     let mut ids = Vec::new();
-    let mut parse_errors = 0;
+    let parse_errors = 0;
     for pool in &data.official {
         let pubkey = &pool.id;
         map.insert(*pubkey, pool.clone());

@@ -1,11 +1,11 @@
-use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcTransactionConfig};
+use solana_client::{rpc_config::RpcTransactionConfig};
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_transaction_status::{
     EncodedTransaction, UiTransactionEncoding, UiTransactionStatusMeta,
 };
 use std::str::FromStr;
 
-use crate::rpc::{self, rpc_key, HTTP_CLIENT};
+use crate::rpc::{HTTP_CLIENT};
 
 pub async fn parse_signatures(
     confirmed_sigs: &String,

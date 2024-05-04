@@ -1,8 +1,7 @@
-use std::{str::FromStr, sync::Arc, thread::sleep};
+use std::{sync::Arc};
 
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
-use serde::Serialize;
 use solana_address_lookup_table_program::state::AddressLookupTable;
 use solana_sdk::{
     address_lookup_table::AddressLookupTableAccount,
@@ -19,7 +18,7 @@ use crate::{
     env::minter::load_minter_settings,
     instruction::instruction::SOL_MINT,
     liquidity::{
-        option::{sol_distribution::sol_distribution, wallet_gen::list_folders},
+        option::{wallet_gen::list_folders},
         utils::{tip_account, tip_txn},
     },
     raydium::swap::{instructions::TAX_ACCOUNT, swapper::auth_keypair},
@@ -31,7 +30,6 @@ use super::{
     lut::extend_lut::lut_main,
     pool_ixs::pool_ixs,
     swap_ixs::{load_pool_keys, swap_ixs},
-    utils::JitoPoolData,
 };
 
 #[derive(Debug, serde::Serialize)]

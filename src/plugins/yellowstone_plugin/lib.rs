@@ -5,7 +5,6 @@ use {
         sink::{Sink, SinkExt},
         stream::Stream,
     },
-    http::uri::InvalidUri,
     std::{collections::HashMap, time::Duration},
     tonic::{
         codec::Streaming,

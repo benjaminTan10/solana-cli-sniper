@@ -4,15 +4,12 @@ use yellowstone_grpc_proto::geyser::SubscribeRequestFilterTransactions;
 
 use crate::plugins::yellowstone_plugin::lib::GeyserGrpcClient;
 use {
-    clap::Parser,
     futures::{sink::SinkExt, stream::StreamExt},
     log::info,
-    std::env,
     tokio::time::{interval, Duration},
     yellowstone_grpc_proto::prelude::{
         subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
-        SubscribeRequestFilterSlots, SubscribeRequestPing, SubscribeUpdatePong,
-        SubscribeUpdateSlot,
+        SubscribeRequestFilterSlots, SubscribeRequestPing,
     },
 };
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
