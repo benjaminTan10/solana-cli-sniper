@@ -6,7 +6,7 @@ use crate::{
     app::theme,
     liquidity::{
         option::sol_distribution::distributor, pool_27::pool_main,
-        remove_liq::remover::remove_liquidity,
+        remove_liq::remover::remove_liquidity, sell_mode::sell_percentage::sell_specific,
     },
 };
 
@@ -25,6 +25,8 @@ pub async fn raydium_creator() -> Result<(), Box<dyn Error>> {
         .option(DemandOption::new("Distribute SOL & ATAs").label("[2] Distribute SOL & ATAs"))
         .option(DemandOption::new("Add Liquidity").label("[3] Add Liquidity"))
         .option(DemandOption::new("Remove Liquidity").label("[4] Remove Liquidity"))
+        .option(DemandOption::new("Sell%").label("[5] Percentage Sell"))
+        .option(DemandOption::new("SellAll").label("[5] All Sell"))
         .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
 
     let selected_option = ms.run().expect("error running select");
@@ -46,7 +48,23 @@ pub async fn raydium_creator() -> Result<(), Box<dyn Error>> {
             raydium_creator().await?;
         }
         "Remove Liquidity" => {
-            let _ = remove_liquidity().await;
+            let _ = match remove_liquidity().await {
+                Ok(_) => {}
+                Err(e) => {
+                    println!("Error: {:?}", e);
+                }
+            };
+            println!("-------------------Returning to Main Menu-------------------");
+            raydium_creator().await?;
+        }
+        "Sell%" => {
+            let _ = sell_specific(true).await;
+            println!("-------------------Returning to Main Menu-------------------");
+            raydium_creator().await?;
+        }
+        "SellAll" => {
+            let _ = sell_specific(false).await;
+
             println!("-------------------Returning to Main Menu-------------------");
             raydium_creator().await?;
         }
@@ -80,7 +98,7 @@ pub async fn pooler_mode() -> Result<(), Box<dyn Error>> {
         "Multiple Wallets" => {
             let _ = pool_main().await;
             println!("-------------------Returning to Main Menu-------------------");
-            raydium_creator().await?;
+            pooler_mode().await?;
         }
         _ => {
             // Handle unexpected option here

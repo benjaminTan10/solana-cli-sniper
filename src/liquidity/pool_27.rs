@@ -1,4 +1,4 @@
-use std::{sync::Arc};
+use std::sync::Arc;
 
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
@@ -18,7 +18,7 @@ use crate::{
     env::minter::load_minter_settings,
     instruction::instruction::SOL_MINT,
     liquidity::{
-        option::{wallet_gen::list_folders},
+        option::wallet_gen::list_folders,
         utils::{tip_account, tip_txn},
     },
     raydium::swap::{instructions::TAX_ACCOUNT, swapper::auth_keypair},
@@ -189,6 +189,7 @@ pub async fn pool_main() -> eyre::Result<()> {
                     market_keys.clone(),
                     wallet,
                     balance_amounts[index * 7 + j],
+                    false,
                 )
                 .unwrap();
 

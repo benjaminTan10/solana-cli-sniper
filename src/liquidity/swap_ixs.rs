@@ -6,7 +6,7 @@ use solana_sdk::{
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
-    transaction::{VersionedTransaction},
+    transaction::VersionedTransaction,
 };
 use spl_associated_token_account::{
     get_associated_token_address, instruction::create_associated_token_account_idempotent,
@@ -15,8 +15,7 @@ use spl_associated_token_account::{
 use crate::{
     env::minter::PoolDataSettings,
     instruction::instruction::{
-        get_keys_for_market, swap, AmmKeys, MarketPubkeys,
-        PoolKeysSniper, SOL_MINT,
+        get_keys_for_market, swap, AmmKeys, MarketPubkeys, PoolKeysSniper, SOL_MINT,
     },
     rpc::HTTP_CLIENT,
 };
@@ -27,17 +26,17 @@ pub fn swap_ixs(
     server_data: PoolDataSettings,
     amm_keys: AmmKeys,
     market_keys: MarketPubkeys,
-    buyer_wallet: &Keypair,
+    wallet: &Keypair,
     amount_in: u64,
+    out: bool,
 ) -> eyre::Result<Instruction> {
-    let connection = {
-        let http_client = HTTP_CLIENT.lock().unwrap();
-        http_client.get("http_client").unwrap().clone()
-    };
+    let buyer_keypair = Keypair::from_base58_string(&server_data.buyer_key);
+    let mut buyer_wallet = wallet;
+    if out {
+        buyer_wallet = &buyer_keypair;
+    }
 
-    // let buyer_wallet = Keypair::from_base58_string(&server_data.buyerPrivateKey);
-
-    let user_token_source = get_associated_token_address(&buyer_wallet.pubkey(), &SOL_MINT);
+    let user_token_source = get_associated_token_address(&wallet.pubkey(), &SOL_MINT);
 
     let user_token_destination = get_associated_token_address(
         &buyer_wallet.pubkey(),
@@ -81,6 +80,7 @@ pub fn swap_ixs(
         &user_token_destination,
         amount_in,
         0,
+        out,
     )?;
 
     Ok(build_swap_instruction)

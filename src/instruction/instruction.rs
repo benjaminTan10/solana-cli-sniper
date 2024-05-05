@@ -1502,30 +1502,55 @@ pub fn swap(
     user_destination: &Pubkey,
     amount_specified: u64,
     other_amount_threshold: u64,
+    out: bool,
 ) -> eyre::Result<Instruction> {
-    let swap_instruction = swap_base_in(
-        &amm_program,
-        &amm_keys.amm_pool,
-        &amm_keys.amm_authority,
-        &amm_keys.amm_open_order,
-        &amm_keys.amm_target,
-        &amm_keys.amm_coin_vault,
-        &amm_keys.amm_pc_vault,
-        &amm_keys.market_program,
-        &amm_keys.market,
-        &market_keys.bids,
-        &market_keys.asks,
-        &market_keys.event_q,
-        &market_keys.coin_vault,
-        &market_keys.pc_vault,
-        &market_keys.vault_signer_key,
-        user_source,
-        user_destination,
-        user_owner,
-        amount_specified,
-        other_amount_threshold,
-    )?;
-
+    let mut swap_instruction;
+    if out {
+        swap_instruction = swap_base_out(
+            &amm_program,
+            &amm_keys.amm_pool,
+            &amm_keys.amm_authority,
+            &amm_keys.amm_open_order,
+            &amm_keys.amm_coin_vault,
+            &amm_keys.amm_pc_vault,
+            &amm_keys.market_program,
+            &amm_keys.market,
+            &market_keys.bids,
+            &market_keys.asks,
+            &market_keys.event_q,
+            &market_keys.coin_vault,
+            &market_keys.pc_vault,
+            &market_keys.vault_signer_key,
+            user_destination,
+            user_source,
+            user_owner,
+            amount_specified,
+            other_amount_threshold,
+        )?;
+    } else {
+        swap_instruction = swap_base_in(
+            &amm_program,
+            &amm_keys.amm_pool,
+            &amm_keys.amm_authority,
+            &amm_keys.amm_open_order,
+            &amm_keys.amm_target,
+            &amm_keys.amm_coin_vault,
+            &amm_keys.amm_pc_vault,
+            &amm_keys.market_program,
+            &amm_keys.market,
+            &market_keys.bids,
+            &market_keys.asks,
+            &market_keys.event_q,
+            &market_keys.coin_vault,
+            &market_keys.pc_vault,
+            &market_keys.vault_signer_key,
+            user_source,
+            user_destination,
+            user_owner,
+            amount_specified,
+            other_amount_threshold,
+        )?;
+    }
     Ok(swap_instruction)
 }
 

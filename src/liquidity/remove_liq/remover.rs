@@ -1,6 +1,5 @@
-
 use demand::Confirm;
-use solana_client::{rpc_request::TokenAccountsFilter};
+use solana_client::rpc_request::TokenAccountsFilter;
 use solana_sdk::{
     instruction::Instruction,
     message::{v0::Message, VersionedMessage},
@@ -46,7 +45,13 @@ pub async fn remove_liquidity() -> eyre::Result<()> {
     // let withdraw_lp_amount = 10000_000000;
 
     // load amm keys
-    let amm_keys = load_amm_keys(&client, &AMM_PROGRAM, &amm_pool_id).await?;
+    let amm_keys = match load_amm_keys(&client, &AMM_PROGRAM, &amm_pool_id).await {
+        Ok(amm_keys) => amm_keys,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            return Ok(());
+        }
+    };
     // load market keys
     let token_accounts = client
         .get_token_accounts_by_owner(
@@ -150,5 +155,5 @@ pub async fn rem_liq() -> Result<bool, Box<dyn std::error::Error>> {
         .run()
         .unwrap();
 
-    Ok(!confirm) // Flip the boolean value because we swapped the labels
+    Ok(confirm)
 }
