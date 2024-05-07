@@ -11,20 +11,22 @@ use solana_sdk::{
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
+    system_instruction,
     transaction::VersionedTransaction,
 };
 use spl_associated_token_account::{
     get_associated_token_address, instruction::create_associated_token_account,
 };
+use spl_token::instruction::sync_native;
 
 use crate::{
     env::minter::{load_minter_settings, PoolDataSettings},
     instruction::instruction::SOL_MINT,
     liquidity::{
-        option::wallet_gen::{load_wallets},
+        option::wallet_gen::load_wallets,
         utils::{tip_account, tip_txn},
     },
-    raydium::swap::{swapper::auth_keypair},
+    raydium::swap::{instructions::SOLC_MINT, swapper::auth_keypair},
     rpc::HTTP_CLIENT,
     user_inputs::amounts::{bundle_priority_tip, sol_amount},
     utils::rand::distribute_randomly,
@@ -50,12 +52,49 @@ pub async fn sol_distribution(
     let rand_amount = distribute_randomly(buy_amount, wallets.len());
 
     let mut distribution_ix: Vec<Instruction> = vec![];
-    for (index, wallet) in wallets.iter().enumerate() {
-        distribution_ix.push(solana_sdk::system_instruction::transfer(
+
+    //------------------------------------Wrapped-SOL Distribution------------------------------------
+    let user_token_destination = get_associated_token_address(&buyer_wallet.pubkey(), &SOLC_MINT);
+    distribution_ix.push(
+        spl_associated_token_account::instruction::create_associated_token_account(
             &buyer_wallet.pubkey(),
-            &wallet.pubkey(),
+            &buyer_wallet.pubkey(),
+            &SOLC_MINT,
+            &spl_token::id(),
+        ),
+    );
+
+    distribution_ix.push(system_instruction::transfer(
+        &buyer_wallet.pubkey(),
+        &user_token_destination,
+        buy_amount,
+    ));
+
+    let sync_native = sync_native(&spl_token::id(), &user_token_destination)?;
+    distribution_ix.push(sync_native);
+
+    //-----------------------------------------------------------------------------------------------
+
+    let source_ata = get_associated_token_address(&buyer_wallet.pubkey(), &SOLC_MINT);
+
+    for (index, wallet) in wallets.iter().enumerate() {
+        // distribution_ix.push(
+        //     solana_sdk::system_instruction::transfer(
+        //     &buyer_wallet.pubkey(),
+        //     &wallet.pubkey(),
+        //     rand_amount[index],
+        // ));
+        let tax_destination = get_associated_token_address(&wallet.pubkey(), &SOLC_MINT);
+        let transfer_instruction = spl_token::instruction::transfer(
+            &spl_token::id(),
+            &source_ata,
+            &tax_destination,
+            &buyer_wallet.pubkey(),
+            &[&buyer_wallet.pubkey()],
             rand_amount[index],
-        ));
+        )?;
+
+        distribution_ix.push(transfer_instruction);
     }
 
     let tip_ix = tip_txn(buyer_wallet.pubkey(), tip_account(), sol_to_lamports(0.005));

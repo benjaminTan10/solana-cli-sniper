@@ -87,9 +87,9 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error>> {
         .option(DemandOption::new("Swap Tokens").label("[1] Swap Mode"))
         .option(DemandOption::new("Snipe Pools").label("[2] Snipe Mode"))
         .option(DemandOption::new("Minter Mode").label("[4] Minter Mode"))
-        // .option(DemandOption::new("Generate Volume").label("[5] Spam Volume"))
+        // .option(DemandOption::new("Generate Volume").label("[5] Volume Mode"))
         // .option(DemandOption::new("MEV Trades").label("[4] Sandwich Mode (Depricated)"))
-        .option(DemandOption::new("Wallet Details").label("[.] Wallet Details"));
+        .option(DemandOption::new("Wallet Details").label("[•] Wallet Details"));
 
     let selected_option = ms.run().expect("error running select");
 

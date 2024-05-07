@@ -1,5 +1,6 @@
 use jito_protos::bundle::BundleResult;
-use jito_searcher_client::get_searcher_client;
+use jito_protos::searcher::SubscribeBundleResultsRequest;
+use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
 use log::{error, info};
 use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_client::rpc_request::TokenAccountsFilter;
@@ -36,7 +37,6 @@ pub async fn raydium_in(
     amount_out: u64,
     fees: PriorityTip,
     args: EngineSettings,
-    mut bundle_results_receiver: Receiver<BundleResult>,
 ) -> eyre::Result<()> {
     let user_source_owner = wallet.pubkey();
     let rpc_client = {
@@ -117,64 +117,39 @@ pub async fn raydium_in(
     if args.use_bundles {
         info!("Building Bundle");
 
-        // let tip_txn = VersionedTransaction::from(Transaction::new_signed_with_payer(
-        //     &[
-        //         build_memo(
-        //             format!(
-        //                 "{}: {:?}",
-        //                 "{args.message}",
-        //                 transaction.signatures[0].to_string(),
-        //                 // Fix: Add a placeholder for the missing argument
-        //             )
-        //             .as_bytes(),
-        //             &[],
-        //         ),
-        //         transfer(&wallet.pubkey(), &tip_account, fees.bundle_tip),
-        //     ],
-        //     Some(&wallet.pubkey()),
-        //     &[&wallet],
-        //     rpc_client.get_latest_blockhash().await.unwrap(),
-        // ));
+        let tip_txn = VersionedTransaction::from(Transaction::new_signed_with_payer(
+            &[transfer(&wallet.pubkey(), &tip_account, fees.bundle_tip)],
+            Some(&wallet.pubkey()),
+            &[&wallet],
+            rpc_client.get_latest_blockhash().await.unwrap(),
+        ));
 
-        let bundle_txn = BundledTransactions {
-            mempool_txs: vec![transaction],
-            middle_txs: vec![],
-            backrun_txs: vec![],
-        };
-
-        let mut results = send_bundles(&mut searcher_client, &[bundle_txn]).await?;
-
-        if let Ok(response) = results.remove(0) {
-            let message = response.into_inner();
-            let uuid = &message.uuid;
-            info!("UUID: {}", uuid);
-        }
+        let bundle_txn = vec![transaction, tip_txn];
 
         info!("Fetching Bundle Result...");
 
-        // Receive bundle results
-        let mut logs = Vec::new();
-        let start_time = std::time::Instant::now();
-        while let Some(bundle_result) = bundle_results_receiver.recv().await {
-            info!(
-                "received bundle_result: [bundle_id={:?}, result={:?}]",
-                bundle_result.bundle_id, bundle_result.result
-            );
+        let mut bundle_results_subscription = searcher_client
+            .subscribe_bundle_results(SubscribeBundleResultsRequest {})
+            .await
+            .expect("subscribe to bundle results")
+            .into_inner();
 
-            logs.push(bundle_result.clone());
+        info!("Subscribed to bundle results");
 
-            // Check if logs stop coming
-            if bundle_result.result.is_none() {
-                break;
+        let bundle = match send_bundle_with_confirmation(
+            &bundle_txn,
+            &rpc_client,
+            &mut searcher_client,
+            &mut bundle_results_subscription,
+        )
+        .await
+        {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("Distribution Error: {}", e);
+                panic!("Error: {}", e);
             }
-
-            if start_time.elapsed().as_secs() >= 2 {
-                break;
-            }
-            if logs.len() >= 2 {
-                break;
-            }
-        }
+        };
     } else {
         info!("Sending Transaction");
         let config = RpcSendTransactionConfig {
@@ -229,7 +204,6 @@ pub async fn raydium_in(
                 args_clone,
                 fees_clone,
                 &wallet_clone,
-                bundle_results_receiver,
             )
             .await
             .unwrap();
@@ -349,7 +323,6 @@ pub async fn sell_tokens(
     wallet: Arc<Keypair>,
     fees: PriorityTip,
     args: EngineSettings,
-    bundle_results_receiver: Receiver<BundleResult>,
 ) -> eyre::Result<()> {
     let rpc_client = {
         let http_client = HTTP_CLIENT.lock().unwrap();
@@ -395,17 +368,7 @@ pub async fn sell_tokens(
 
     // info!("Selling {:?} tokens", tokens_to_sell);
 
-    let _ = match raydium_out(
-        &wallet,
-        pool_keys,
-        token_balance,
-        0,
-        fees,
-        args,
-        bundle_results_receiver,
-    )
-    .await
-    {
+    let _ = match raydium_out(&wallet, pool_keys, token_balance, 0, fees, args).await {
         Ok(_) => {}
         Err(e) => {
             error!("{}", e);

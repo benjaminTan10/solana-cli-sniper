@@ -11,7 +11,10 @@ use crate::{
         swap_ixs::load_pool_keys,
         utils::tip_txn,
     },
-    raydium::swap::{instructions::TAX_ACCOUNT, swapper::auth_keypair},
+    raydium::{
+        swap::{instructions::TAX_ACCOUNT, swapper::auth_keypair},
+        volume_pinger::volume::generate_volume,
+    },
     rpc::HTTP_CLIENT,
     user_inputs::tokens::token_env,
 };
@@ -21,9 +24,9 @@ use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
 use log::info;
 use solana_sdk::{
-    instruction::{AccountMeta},
+    instruction::AccountMeta,
     message::{v0::Message, VersionedMessage},
-    native_token::{sol_to_lamports},
+    native_token::sol_to_lamports,
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
@@ -46,6 +49,11 @@ pub async fn volume_menu() -> eyre::Result<()> {
     match selected_option {
         "LookupTable" => {
             let _ = volume_lut().await;
+            println!("-------------------Returning to Main Menu-------------------");
+            volume_menu().await?;
+        }
+        "Volume" => {
+            let _ = generate_volume().await;
             println!("-------------------Returning to Main Menu-------------------");
             volume_menu().await?;
         }

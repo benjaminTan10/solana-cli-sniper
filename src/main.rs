@@ -50,3 +50,19 @@ async fn main() {
     info!("{}", "Authentication successful!".bold().green());
     let _ = app(true).await;
 }
+
+use self_update::cargo_crate_version;
+
+// pub async fn self_update() -> Result<(), Box<dyn std::error::Error>> {
+//     let status = self_update::backends::s3::Update::configure()
+//         .bucket_name("my-bucket")
+//         .asset_prefix("my-app/new-version")
+//         .region("us-east-1")
+//         .bin_name("my-app")
+//         .show_download_progress(true)
+//         .current_version(cargo_crate_version!())
+//         .build()?
+//         .update()?;
+//     println!("S3 Update status: `{}`!", status.version());
+//     Ok(())
+// }

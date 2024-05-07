@@ -64,7 +64,6 @@ pub async fn read_single_key_impl(
     args: EngineSettings,
     fees: PriorityTip,
     wallet: &Arc<Keypair>,
-    bundle_results_receiver: Receiver<BundleResult>,
 ) -> Result<(), Box<dyn Error + Send>> {
     let term = Term::stdout();
 
@@ -73,16 +72,7 @@ pub async fn read_single_key_impl(
             Key::Char('1') => {
                 let _ = stop_tx.send(()).await;
                 info!("Selling 100% of tokens");
-                let _ = match raydium_txn_backrun(
-                    wallet,
-                    pool_keys,
-                    100,
-                    fees,
-                    args,
-                    bundle_results_receiver,
-                )
-                .await
-                {
+                let _ = match raydium_txn_backrun(wallet, pool_keys, 100, fees, args).await {
                     Ok(_) => {}
                     Err(e) => {
                         info!("Error: {}", e);
@@ -93,16 +83,7 @@ pub async fn read_single_key_impl(
             Key::Char('2') => {
                 let _ = stop_tx.send(()).await;
                 info!("Selling 75% of tokens");
-                let _ = match sell_tokens(
-                    75,
-                    pool_keys,
-                    wallet.clone(),
-                    fees,
-                    args,
-                    bundle_results_receiver,
-                )
-                .await
-                {
+                let _ = match sell_tokens(75, pool_keys, wallet.clone(), fees, args).await {
                     Ok(_) => {}
                     Err(e) => {
                         info!("Error: {}", e);
@@ -113,16 +94,7 @@ pub async fn read_single_key_impl(
             Key::Char('3') => {
                 let _ = stop_tx.send(()).await;
                 info!("Selling 50% of tokens");
-                let _ = match sell_tokens(
-                    50,
-                    pool_keys,
-                    wallet.clone(),
-                    fees,
-                    args,
-                    bundle_results_receiver,
-                )
-                .await
-                {
+                let _ = match sell_tokens(50, pool_keys, wallet.clone(), fees, args).await {
                     Ok(_) => {}
                     Err(e) => {
                         info!("Error: {}", e);
@@ -133,16 +105,7 @@ pub async fn read_single_key_impl(
             Key::Char('4') => {
                 let _ = stop_tx.send(()).await;
                 info!("Selling 25% of tokens");
-                let _ = match sell_tokens(
-                    25,
-                    pool_keys,
-                    wallet.clone(),
-                    fees,
-                    args,
-                    bundle_results_receiver,
-                )
-                .await
-                {
+                let _ = match sell_tokens(25, pool_keys, wallet.clone(), fees, args).await {
                     Ok(_) => {}
                     Err(e) => {
                         info!("Error: {}", e);

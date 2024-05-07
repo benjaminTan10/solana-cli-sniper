@@ -25,10 +25,7 @@ use {
         sync::Arc,
         time::{Duration, SystemTime, UNIX_EPOCH},
     },
-    tokio::{
-        sync::mpsc::{channel},
-        time::sleep,
-    },
+    tokio::{sync::mpsc::channel, time::sleep},
     yellowstone_grpc_proto::{
         prelude::{
             subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
@@ -143,7 +140,7 @@ pub async fn grpc_pair_sub(
                 Ok(msg) => {
                     match msg.update_oneof {
                         Some(UpdateOneof::Transaction(tx)) => {
-                            let info = tx.transaction.unwrap_or_default();
+                            let info = tx.clone().transaction.unwrap_or_default();
                             let accounts = info
                                 .transaction
                                 .clone()
@@ -436,8 +433,6 @@ pub async fn sniper_txn_in_2(
 
     sleep(sleep_duration).await;
 
-    let (bundle_results_sender, bundle_results_receiver) = channel(100);
-
     let _ = match raydium_in(
         &Arc::new(wallet),
         pool_keys.clone(),
@@ -445,7 +440,6 @@ pub async fn sniper_txn_in_2(
         1,
         fees.clone(),
         args,
-        bundle_results_receiver,
     )
     .await
     {

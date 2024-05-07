@@ -9,9 +9,7 @@ use solana_client::{
 };
 use solana_program::pubkey::Pubkey;
 
-use crate::{
-    rpc::{HTTP_CLIENT},
-};
+use crate::rpc::HTTP_CLIENT;
 
 #[allow(non_snake_case)]
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]

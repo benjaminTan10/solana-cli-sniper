@@ -9,11 +9,26 @@ use std::{
 pub static HTTP_CLIENT: Lazy<Mutex<HashMap<&str, Arc<RpcClient>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
+pub static HTTP_CLIENT_BLOCKING: Lazy<
+    Mutex<HashMap<&str, Arc<solana_client::rpc_client::RpcClient>>>,
+> = Lazy::new(|| Mutex::new(HashMap::new()));
+
 pub async fn rpc_key(rpc_client: String) -> Arc<RpcClient> {
     let rpc_client_instance =
         RpcClient::new_with_commitment(rpc_client.clone(), CommitmentConfig::confirmed());
     let rpc_client_instance = Arc::new(rpc_client_instance);
     let mut http_client = HTTP_CLIENT.lock().unwrap();
+    http_client.insert("http_client", Arc::clone(&rpc_client_instance));
+    rpc_client_instance
+}
+
+pub async fn rpc_key_blocking(rpc_client: String) -> Arc<solana_client::rpc_client::RpcClient> {
+    let rpc_client_instance = solana_client::rpc_client::RpcClient::new_with_commitment(
+        rpc_client.clone(),
+        CommitmentConfig::confirmed(),
+    );
+    let rpc_client_instance = Arc::new(rpc_client_instance);
+    let mut http_client = HTTP_CLIENT_BLOCKING.lock().unwrap();
     http_client.insert("http_client", Arc::clone(&rpc_client_instance));
     rpc_client_instance
 }

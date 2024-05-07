@@ -1,7 +1,10 @@
+use std::sync::Arc;
 
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::pubkey::Pubkey;
 
 use crate::{
+    env::load_settings,
     raydium::{
         subscribe::PoolKeysSniper,
         swap::instructions::SOLC_MINT,
@@ -10,12 +13,21 @@ use crate::{
             SPL_MINT_LAYOUT,
         },
     },
-    rpc::{HTTP_CLIENT},
+    rpc::HTTP_CLIENT,
 };
 
 pub async fn pool_keys_fetcher(id: Pubkey) -> eyre::Result<PoolKeysSniper> {
-    let http_client = HTTP_CLIENT.lock().unwrap();
-    let rpc_client = http_client.get("http_client").unwrap();
+    // let http_client = HTTP_CLIENT.lock().unwrap();
+    // let rpc_client = http_client.get("http_client").unwrap();
+    let args = match load_settings().await {
+        Ok(args) => args,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            panic!("Error: {}", e);
+        }
+    };
+
+    let rpc_client = Arc::new(RpcClient::new(args.rpc_url));
     let mut retries = 0;
     let max_retries = 1000;
     let mut account = None;
@@ -78,7 +90,7 @@ pub async fn pool_keys_fetcher(id: Pubkey) -> eyre::Result<PoolKeysSniper> {
         market_version: 3,
         market_program_id: info.marketProgramId,
         market_id: info.marketId,
-        market_authority: market_authority(rpc_client, market_info.quoteVault).await,
+        market_authority: market_authority(&rpc_client, market_info.quoteVault).await,
         market_base_vault: market_info.baseVault,
         market_quote_vault: market_info.quoteVault,
         market_bids: market_info.bids,

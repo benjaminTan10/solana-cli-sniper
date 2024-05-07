@@ -15,10 +15,7 @@ use crate::{
     },
 };
 
-use super::{
-    raydium_swap_in::raydium_in,
-    raydium_swap_out::{raydium_txn_backrun},
-};
+use super::{raydium_swap_in::raydium_in, raydium_swap_out::raydium_txn_backrun};
 
 pub async fn swap_in() -> Result<(), Box<dyn std::error::Error>> {
     let args = match load_settings().await {
@@ -33,14 +30,8 @@ pub async fn swap_in() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut bundle_tip = 0;
     let mut priority_fee_value = 0;
-    let (bundle_results_sender, bundle_results_receiver) = channel(100);
 
     if args.use_bundles {
-        tokio::spawn(bundle_results_loop(
-            args.block_engine_url.clone(),
-            Arc::new(auth_keypair()),
-            bundle_results_sender,
-        ));
         priority_fee_value = priority_fee().await;
         bundle_tip = bundle_priority_tip().await;
     } else {
@@ -61,16 +52,7 @@ pub async fn swap_in() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("---------------------------------------------------");
 
-    let _swap = match raydium_in(
-        &Arc::new(private_key),
-        pool_keys,
-        sol_amount,
-        0,
-        fees,
-        args,
-        bundle_results_receiver,
-    )
-    .await
+    let _swap = match raydium_in(&Arc::new(private_key), pool_keys, sol_amount, 0, fees, args).await
     {
         Ok(_) => {}
         Err(e) => error!("{}", e),
@@ -98,13 +80,7 @@ pub async fn swap_out() -> Result<(), Box<dyn std::error::Error>> {
     let sol_amount = amount_percentage().await;
     let mut bundle_tip = 0;
     let mut priority_fee_value = 0;
-    let (bundle_results_sender, bundle_results_receiver) = channel(100);
     if args.use_bundles {
-        tokio::spawn(bundle_results_loop(
-            args.block_engine_url.clone(),
-            Arc::new(auth_keypair()),
-            bundle_results_sender,
-        ));
         priority_fee_value = priority_fee().await;
         bundle_tip = bundle_priority_tip().await;
     } else {
@@ -123,15 +99,8 @@ pub async fn swap_out() -> Result<(), Box<dyn std::error::Error>> {
         priority_fee_value,
     };
 
-    let swap = match raydium_txn_backrun(
-        &Arc::new(private_key),
-        pool_keys,
-        sol_amount,
-        fees,
-        args,
-        bundle_results_receiver,
-    )
-    .await
+    let swap = match raydium_txn_backrun(&Arc::new(private_key), pool_keys, sol_amount, fees, args)
+        .await
     {
         Ok(_) => {}
         Err(e) => error!("{}", e),

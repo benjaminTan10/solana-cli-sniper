@@ -130,13 +130,17 @@ pub async fn sell_specific(percentage: bool) -> eyre::Result<()> {
                     &Pubkey::from_str(&data.token_mint).unwrap(),
                 );
 
-                let balance = client
-                    .get_token_account_balance(&token_account)
-                    .await
-                    .unwrap()
-                    .amount
-                    .parse::<u64>()
-                    .unwrap();
+                let balance = sol_to_lamports(
+                    lamports_to_sol(
+                        client
+                            .get_token_account_balance(&token_account)
+                            .await
+                            .unwrap()
+                            .amount
+                            .parse::<u64>()
+                            .unwrap(),
+                    ) * percentage_tokens,
+                );
 
                 let swap_ixs = swap_ixs(
                     data.clone(),

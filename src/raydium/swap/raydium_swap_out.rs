@@ -1,5 +1,6 @@
 use jito_protos::bundle::BundleResult;
-use jito_searcher_client::get_searcher_client;
+use jito_protos::searcher::SubscribeBundleResultsRequest;
+use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
 use log::{error, info};
 use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_client::rpc_request::TokenAccountsFilter;
@@ -29,7 +30,6 @@ pub async fn raydium_txn_backrun(
     token_amount: u64,
     fees: PriorityTip,
     args: EngineSettings,
-    bundle_results_receiver: Receiver<BundleResult>,
 ) -> eyre::Result<()> {
     let start = Instant::now();
     let mut token_balance = 0;
@@ -86,16 +86,7 @@ pub async fn raydium_txn_backrun(
 
     info!("Tokens: {:?}", token_balance);
 
-    let _ = raydium_out(
-        wallet,
-        pool_keys.clone(),
-        token_amount,
-        1,
-        fees,
-        args,
-        bundle_results_receiver,
-    )
-    .await?;
+    let _ = raydium_out(wallet, pool_keys.clone(), token_amount, 1, fees, args).await?;
 
     Ok(())
 }
@@ -107,7 +98,6 @@ pub async fn raydium_out(
     amount_out: u64,
     fees: PriorityTip,
     args: EngineSettings,
-    mut bundle_results_receiver: Receiver<BundleResult>,
 ) -> eyre::Result<()> {
     info!("Building Bundle...");
 
@@ -195,45 +185,32 @@ pub async fn raydium_out(
             rpc_client.get_latest_blockhash().await.unwrap(),
         ));
 
-        let bundle_txn = BundledTransactions {
-            mempool_txs: vec![transaction],
-            middle_txs: vec![],
-            backrun_txs: vec![tip_txn],
+        let bundle_txn = vec![transaction, tip_txn];
+
+        let mut bundle_results_subscription = searcher_client
+            .subscribe_bundle_results(SubscribeBundleResultsRequest {})
+            .await
+            .expect("subscribe to bundle results")
+            .into_inner();
+
+        info!("Subscribed to bundle results");
+
+        let bundle = match send_bundle_with_confirmation(
+            &bundle_txn,
+            &rpc_client,
+            &mut searcher_client,
+            &mut bundle_results_subscription,
+        )
+        .await
+        {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("Distribution Error: {}", e);
+                panic!("Error: {}", e);
+            }
         };
 
-        let mut results = send_bundles(&mut searcher_client, &[bundle_txn]).await?;
-
-        if let Ok(response) = results.remove(0) {
-            let message = response.into_inner();
-            let uuid = &message.uuid;
-            info!("UUID: {}", uuid);
-        }
-
         info!("Fetching Bundle Result...");
-
-        // Receive bundle results
-        let mut logs = Vec::new();
-        let start_time = std::time::Instant::now();
-        while let Some(bundle_result) = bundle_results_receiver.recv().await {
-            info!(
-                "received bundle_result: [bundle_id={:?}, result={:?}]",
-                bundle_result.bundle_id, bundle_result.result
-            );
-
-            logs.push(bundle_result.clone());
-
-            // Check if logs stop coming
-            if bundle_result.result.is_none() {
-                break;
-            }
-
-            if start_time.elapsed().as_secs() >= 2 {
-                break;
-            }
-            if logs.len() >= 2 {
-                break;
-            }
-        }
     } else {
         info!("Sending Transaction");
         let config = RpcSendTransactionConfig {

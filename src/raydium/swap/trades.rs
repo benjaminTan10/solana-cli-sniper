@@ -1,12 +1,8 @@
-use std::{
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use log::{error, info};
 use solana_sdk::signature::Keypair;
-use tokio::sync::{
-    mpsc::{channel},
-};
+use tokio::sync::mpsc::channel;
 
 use crate::{
     env::load_settings,
@@ -19,7 +15,7 @@ use crate::{
         amounts::{bundle_priority_tip, priority_fee, sol_amount},
         tokens::token_env,
     },
-    utils::{read_single_key_impl},
+    utils::read_single_key_impl,
 };
 
 pub async fn track_trades() -> eyre::Result<()> {
@@ -34,14 +30,8 @@ pub async fn track_trades() -> eyre::Result<()> {
     let amount_in = sol_amount().await;
     let mut bundle_tip = 0;
     let mut priority_fee_value = 0;
-    let (bundle_results_sender, bundle_results_receiver) = channel(100);
 
     if args.use_bundles {
-        tokio::spawn(bundle_results_loop(
-            args.block_engine_url.clone(),
-            Arc::new(auth_keypair()),
-            bundle_results_sender,
-        ));
         priority_fee_value = priority_fee().await;
         bundle_tip = bundle_priority_tip().await;
     } else {
@@ -63,16 +53,7 @@ pub async fn track_trades() -> eyre::Result<()> {
     let pool_keys_clone = pool_keys.clone();
     let wallet_clone = wallet.clone();
     tokio::spawn(async move {
-        match read_single_key_impl(
-            &mut stop_tx,
-            pool_keys_clone,
-            args,
-            fees,
-            &wallet_clone,
-            bundle_results_receiver,
-        )
-        .await
-        {
+        match read_single_key_impl(&mut stop_tx, pool_keys_clone, args, fees, &wallet_clone).await {
             Ok(_) => {}
             Err(e) => {
                 error!("Error: {}", e);

@@ -1,4 +1,4 @@
-use log::{info};
+use log::info;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcSimulateTransactionConfig};
@@ -21,8 +21,8 @@ use solana_sdk::{
 };
 use spl_associated_token_account::get_associated_token_address;
 use spl_token::instruction::sync_native;
+use std::mem::size_of;
 use std::{convert::TryInto, sync::Arc};
-use std::{mem::size_of};
 
 use crate::{env::EngineSettings, raydium::subscribe::PoolKeysSniper};
 
@@ -143,7 +143,7 @@ pub async fn swap_base_in(
     })
     .pack()?;
 
-    let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(1000000);
+    let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(80000);
     let compute_price = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
 
     let source_token_account = get_associated_token_address(wallet_address, &SOLC_MINT);

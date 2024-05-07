@@ -2,7 +2,7 @@ use std::{error::Error, str::FromStr, sync::Arc};
 
 use demand::Input;
 use log::{error, info};
-use rand::Rng;
+use rand::{Rng, SeedableRng};
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
 use solana_sdk::{
     commitment_config::CommitmentLevel, native_token::sol_to_lamports, pubkey::Pubkey,
@@ -67,7 +67,7 @@ pub async fn generate_volume() -> Result<(), Box<dyn Error>> {
         let wallet = Keypair::from_bytes(&secret_key)?;
         let rpc_client = RpcClient::new(args.rpc_url.to_string());
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rngs::StdRng::from_entropy();
         let buy_amount: u64 = rng.gen_range(min_amount..=max_amount);
         let volume_settings = VolumeBotSettings {
             buy_amount,
