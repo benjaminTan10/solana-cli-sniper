@@ -247,16 +247,16 @@ pub async fn swap_base_out(
     })
     .pack()?;
 
-    let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(500000);
-    let compute_price = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
+    // let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(500000);
+    // let compute_price = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
 
     let source_token_account = get_associated_token_address(wallet_address, &SOLC_MINT);
     let destination_token_account = get_associated_token_address(wallet_address, base_mint);
 
     let mut instructions = Vec::new();
 
-    instructions.push(compute_price);
-    instructions.push(unit_limit);
+    // instructions.push(compute_price);
+    // instructions.push(unit_limit);
 
     let accounts = vec![
         // spl token
@@ -530,10 +530,16 @@ pub async fn wrap_sol(
     wallet: &Keypair,
     amount_in: u64,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(80000);
+    let compute_price = ComputeBudgetInstruction::set_compute_unit_price(sol_to_lamports(0.0001));
+
     let user_token_destination = get_associated_token_address(&wallet.pubkey(), &SOLC_MINT);
 
     info!("Wrapping Sol...");
     let mut instructions = Vec::new();
+
+    instructions.push(unit_limit);
+    instructions.push(compute_price);
 
     // Check if the account already exists and is owned by the SPL Token program
     if let Ok(account) = rpc_client.get_account(&user_token_destination).await {

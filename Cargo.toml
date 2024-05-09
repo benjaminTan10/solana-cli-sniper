@@ -63,6 +63,7 @@ yellowstone-grpc-proto = { path = "./clients/yellowstone-grpc-proto" }
 jito-protos = { path = "./clients/jito_protos" }
 jito-searcher-client = { path = "./clients/searcher_client" }
 
+
 anyhow = "1.0.79"
 backoff = { version = "0.4.0", features = ["tokio"] }
 
@@ -89,7 +90,6 @@ console = "0.15.8"
 num-traits = "0.2.18"
 num-derive = "0.4.2"
 mongodb = "2.0.0"
-
 self_update = "0.40.0"
 
 [workspace]
@@ -105,3 +105,12 @@ opt-level = 0
 
 [profile.release]
 opt-level = 3
+
+[workspace.dependencies]
+jito-geyser-protos = { path = "./clients/proto", version = "1.17.20" }
+
+prost = "0.12.1"
+prost-types = "0.12.1"
+
+protobuf-src = "1.1.0+21.5"
+tonic-build = "0.11.0"

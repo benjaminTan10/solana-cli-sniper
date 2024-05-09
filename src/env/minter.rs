@@ -23,6 +23,7 @@ pub struct PoolDataSettings {
     pub buyer_key: String,
     pub pool_id: String,
     pub lut_key: String,
+    pub volume_lut_key: String,
 }
 
 #[derive(Deserialize, Serialize, Clone, Default)]
@@ -33,6 +34,7 @@ struct HelperSettings {
     buyer_key: String,
     pool_id: String,
     lut_key: String,
+    volume_lut_key: String,
 }
 
 pub async fn load_minter_settings() -> eyre::Result<PoolDataSettings> {
@@ -48,6 +50,7 @@ pub async fn load_minter_settings() -> eyre::Result<PoolDataSettings> {
                 buyer_key: "".to_string(),
                 pool_id: "".to_string(),
                 lut_key: "".to_string(),
+                volume_lut_key: "".to_string(),
             };
             let default_settings_json = serde_json::to_string(&default_settings).unwrap();
             let mut file = File::create("mintor_settings.json").unwrap();
@@ -89,7 +92,8 @@ pub async fn load_minter_settings() -> eyre::Result<PoolDataSettings> {
         token_mint: helper_settings.token_mint,
         deployer_key: helper_settings.deployer_key,
         buyer_key: helper_settings.buyer_key,
-        pool_id: "".to_string(),
-        lut_key: "".to_string(),
+        pool_id: helper_settings.pool_id,
+        lut_key: helper_settings.lut_key,
+        volume_lut_key: helper_settings.volume_lut_key,
     })
 }

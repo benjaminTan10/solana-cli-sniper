@@ -71,20 +71,9 @@ pub async fn gen_wallet_save() -> eyre::Result<()> {
 }
 
 pub async fn load_wallets() -> Result<Vec<Keypair>, Box<dyn Error>> {
-    let mut wallets: Vec<Keypair> = vec![];
+    let (_, keypairs) = list_folders().await?;
 
-    let (folder_name, _) = list_folders().await?;
-
-    let paths = fs::read_dir(folder_name)?;
-
-    for path in paths {
-        let path = path?.path();
-        let data = fs::read_to_string(path)?;
-        let wallet = Keypair::from_base58_string(&data);
-        wallets.push(wallet);
-    }
-
-    Ok(wallets)
+    Ok(keypairs)
 }
 
 pub async fn new_deployment() -> Result<bool, Box<dyn Error>> {

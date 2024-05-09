@@ -3,9 +3,7 @@ use std::str::FromStr;
 use crate::{
     app::theme,
     env::minter::PoolDataSettings,
-    instruction::instruction::{
-        get_amm_pda_keys, initialize_amm_pool, AmmKeys, SOL_MINT,
-    },
+    instruction::instruction::{get_amm_pda_keys, initialize_amm_pool, AmmKeys, SOL_MINT},
     rpc::HTTP_CLIENT,
 };
 use demand::Input;
@@ -16,7 +14,6 @@ use solana_sdk::{
     pubkey,
 };
 use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer};
-
 
 pub const AMM_PROGRAM: Pubkey = pubkey!("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8");
 

@@ -6,19 +6,19 @@ use solana_sdk::{
     compute_budget::ComputeBudgetInstruction,
     instruction::{AccountMeta, Instruction},
     program_error::ProgramError,
-    pubkey::{Pubkey},
+    pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
     system_instruction::transfer,
     transaction::VersionedTransaction,
 };
-use spl_associated_token_account::get_associated_token_address;
+use spl_associated_token_account::{
+    get_associated_token_address, instruction::create_associated_token_account_idempotent,
+};
 
 use crate::raydium::{
     subscribe::PoolKeysSniper,
-    swap::instructions::{
-        swap_base_out, AmmInstruction, SwapInstructionBaseIn, SOLC_MINT,
-    },
+    swap::instructions::{swap_base_out, AmmInstruction, SwapInstructionBaseIn, SOLC_MINT},
 };
 
 use super::mev_trades::MEVBotSettings;
@@ -139,7 +139,7 @@ pub async fn volume_swap_base_in(
     .pack()?;
 
     let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(1000000);
-    // let compute_price = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
+    let compute_price = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
 
     let source_token_account = get_associated_token_address(wallet_address, &SOLC_MINT);
     let destination_token_account = get_associated_token_address(wallet_address, base_mint);
@@ -147,35 +147,16 @@ pub async fn volume_swap_base_in(
     let mut instructions = Vec::new();
 
     instructions.push(unit_limit);
-    // instructions.push(compute_price);
+    instructions.push(compute_price);
 
-    let token_account = match rpc_client
-        .get_token_accounts_by_owner(&user_source_owner, TokenAccountsFilter::Mint(*base_mint))
-        .await
-    {
-        Ok(x) => x,
-        Err(_) => {
-            error!("Error: {:?}", "No Token Account");
-            return Ok(instructions);
-        }
-    };
-
-    if token_account.is_empty() {
-        instructions.push(
-            spl_associated_token_account::instruction::create_associated_token_account(
-                &wallet_address,
-                &wallet_address,
-                base_mint,
-                &spl_token::id(),
-            ),
-        );
-    }
+    instructions.push(create_associated_token_account_idempotent(
+        wallet_address,
+        wallet_address,
+        base_mint,
+        &spl_token::id(),
+    ));
 
     let accounts = vec![
-        AccountMeta::new(
-            Pubkey::from_str("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8").unwrap(),
-            false,
-        ),
         // spl token
         AccountMeta::new_readonly(spl_token::id(), false),
         // amm

@@ -1,11 +1,11 @@
+use std::{fs::File, io::Write};
+
 use solana_address_lookup_table_program::instruction::create_lookup_table;
-use solana_sdk::{
-    instruction::Instruction, pubkey::Pubkey, signature::Keypair, signer::Signer,
-};
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signature::Keypair, signer::Signer};
 
 use crate::{env::minter::PoolDataSettings, rpc::HTTP_CLIENT};
 
-pub async fn create_lut(pool_data: PoolDataSettings) -> eyre::Result<(Instruction, Pubkey)> {
+pub async fn create_lut(mut pool_data: PoolDataSettings) -> eyre::Result<(Instruction, Pubkey)> {
     println!("Creating LUT");
     let buyer_key = Keypair::from_base58_string(&pool_data.buyer_key);
 
@@ -30,6 +30,10 @@ pub async fn create_lut(pool_data: PoolDataSettings) -> eyre::Result<(Instructio
     };
 
     let (lut, lut_key) = create_lookup_table(buyer_key.pubkey(), buyer_key.pubkey(), recent_slot);
+
+    pool_data.lut_key = lut_key.to_string();
+    let mut file = File::create("mintor_settings.json")?;
+    file.write_all(serde_json::to_string(&pool_data)?.as_bytes())?;
     // let transaction = Transaction::new_signed_with_payer(
     //     &[lut],
     //     Some(&buyer_key.pubkey()),

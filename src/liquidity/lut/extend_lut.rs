@@ -3,23 +3,27 @@ use std::{str::FromStr, sync::Arc};
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
 use solana_address_lookup_table_program::instruction::extend_lookup_table;
+use solana_client::rpc_request::TokenAccountsFilter;
 use solana_sdk::{
     instruction::Instruction,
     message::{v0::Message, VersionedMessage},
-    native_token::sol_to_lamports,
+    native_token::{lamports_to_sol, sol_to_lamports},
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
     transaction::VersionedTransaction,
 };
-use spl_associated_token_account::{
-    get_associated_token_address,
-};
+use spl_associated_token_account::get_associated_token_address;
 
 use crate::{
-    env::minter::PoolDataSettings,
-    instruction::instruction::{AmmKeys, MarketPubkeys, SOL_MINT},
-    liquidity::utils::{tip_account, tip_txn},
+    env::minter::{load_minter_settings, PoolDataSettings},
+    instruction::instruction::{get_amm_pda_keys, AmmKeys, MarketPubkeys, SOL_MINT},
+    liquidity::{
+        option::wallet_gen::load_wallets,
+        pool_ixs::{liq_amount, pool_ixs, token_percentage},
+        swap_ixs::load_pool_keys,
+        utils::{tip_account, tip_txn},
+    },
     raydium::swap::swapper::auth_keypair,
     rpc::HTTP_CLIENT,
 };
@@ -121,7 +125,7 @@ pub async fn accountatas_lut(
     Ok(add_accounts)
 }
 
-pub async fn lut_main(
+pub async fn lut_caller(
     server_data: PoolDataSettings,
     amm_keys: AmmKeys,
     market_keys: MarketPubkeys,
@@ -164,17 +168,19 @@ pub async fn lut_main(
         versioned_txns.push(transaction);
     }
 
-    for ix in &extendlut_ixs[2..] {
-        let versioned_msg = VersionedMessage::V0(Message::try_compile(
-            &buyer_wallet.pubkey(),
-            &[ix.clone()],
-            &[],
-            recent_blockhash,
-        )?);
+    if extendlut_ixs.len() > 2 {
+        for ix in &extendlut_ixs[2..] {
+            let versioned_msg = VersionedMessage::V0(Message::try_compile(
+                &buyer_wallet.pubkey(),
+                &[ix.clone()],
+                &[],
+                recent_blockhash,
+            )?);
 
-        let transaction = VersionedTransaction::try_new(versioned_msg, &[&buyer_wallet])?;
+            let transaction = VersionedTransaction::try_new(versioned_msg, &[&buyer_wallet])?;
 
-        versioned_txns.push(transaction);
+            versioned_txns.push(transaction);
+        }
     }
 
     let mut sum = 0;
@@ -192,6 +198,7 @@ pub async fn lut_main(
     println!("txn_size: {:?}", txn_size);
 
     println!("{}", versioned_txns.len());
+
     if versioned_txns.len() > 5 {
         println!("{}", versioned_txns.len());
         return Err(eyre::eyre!("Too many transactions"));
@@ -226,4 +233,54 @@ pub async fn lut_main(
     };
 
     Ok(lut_account)
+}
+
+pub async fn lut_main() -> eyre::Result<()> {
+    let pool_data = load_minter_settings().await?;
+
+    let amm_program = Pubkey::from_str("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8")?;
+    let market_program = Pubkey::from_str("srmqPvymJeFKQ4zGQed1GFppgkRHL9kaELCbyksJtPX")?;
+    let market = Pubkey::from_str(&pool_data.market_id)?;
+    let amm_coin_mint = Pubkey::from_str(&pool_data.token_mint)?;
+    let amm_pc_mint = SOL_MINT;
+    // maintnet: 7YttLkHDoNj9wyDur5pM1ejNaAvT9X4eqaYcHQqtj2G5
+    // devnet: 3XMrhbv989VxAMi3DErLV9eJht1pHppW5LbKxe9fkEFR
+
+    // generate amm keys
+    let amm_keys = get_amm_pda_keys(
+        &amm_program,
+        &market_program,
+        &market,
+        &amm_coin_mint,
+        &amm_pc_mint,
+    );
+
+    log::info!("AMM Pool: {:?}", amm_keys.amm_pool);
+
+    let market_keys = load_pool_keys(amm_keys.amm_pool, amm_keys).await?;
+
+    let wallets: Vec<Keypair> = match load_wallets().await {
+        Ok(wallets) => wallets,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            panic!("Error: {}", e);
+        }
+    };
+
+    let lut = match lut_caller(
+        pool_data,
+        amm_keys,
+        market_keys,
+        wallets.iter().map(|x| x.pubkey()).collect::<Vec<Pubkey>>(),
+    )
+    .await
+    {
+        Ok(lut) => lut,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            panic!("Error: {}", e);
+        }
+    };
+
+    Ok(())
 }

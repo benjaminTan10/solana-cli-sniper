@@ -1,8 +1,17 @@
-use std::{str::FromStr, sync::Arc};
+use std::{
+    fs::File,
+    io::{Read, Write},
+    str::FromStr,
+    sync::Arc,
+};
 
 use crate::{
     app::theme,
-    env::{env_loader::tip_account, load_settings, minter::load_minter_settings},
+    env::{
+        env_loader::tip_account,
+        load_settings,
+        minter::{load_minter_settings, PoolDataSettings},
+    },
     instruction::instruction::load_amm_keys,
     liquidity::{
         lut::{create_lut::create_lut, extend_lut::poolkeys_lut},
@@ -12,6 +21,8 @@ use crate::{
         utils::tip_txn,
     },
     raydium::{
+        pool_searcher::amm_keys::pool_keys_fetcher,
+        subscribe::PoolKeysSniper,
         swap::{instructions::TAX_ACCOUNT, swapper::auth_keypair},
         volume_pinger::volume::generate_volume,
     },
@@ -23,8 +34,9 @@ use demand::{DemandOption, Select};
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
 use log::info;
+use solana_address_lookup_table_program::instruction::extend_lookup_table;
 use solana_sdk::{
-    instruction::AccountMeta,
+    instruction::{AccountMeta, Instruction},
     message::{v0::Message, VersionedMessage},
     native_token::sol_to_lamports,
     pubkey::Pubkey,
@@ -71,7 +83,7 @@ pub async fn volume_lut() -> eyre::Result<()> {
         http_client.get("http_client").unwrap().clone()
     };
 
-    let data = load_minter_settings().await?;
+    let mut data = load_minter_settings().await?;
     let engine = load_settings().await?;
 
     let pool_id = token_env("Pool ID:").await;
@@ -83,10 +95,12 @@ pub async fn volume_lut() -> eyre::Result<()> {
     let (ix, lut_key) = create_lut(data.clone()).await?;
     lut_ix.push(ix);
 
-    let amm_keys = load_amm_keys(&connection, &AMM_PROGRAM, &pool_id).await?;
-    let market_keys = load_pool_keys(pool_id, amm_keys).await?;
+    // let amm_keys = load_amm_keys(&connection, &AMM_PROGRAM, &pool_id).await?;
+    // let market_keys = load_pool_keys(pool_id, amm_keys).await?;
 
-    let mut pool_ex_lut = poolkeys_lut(amm_keys, market_keys, lut_key, data.clone()).await?;
+    let pool_keys = pool_keys_fetcher(pool_id).await?;
+
+    let mut pool_ex_lut = poolkeys_lut_2(pool_keys, lut_key, data.clone())?;
 
     let (_, mint_ata, sol_ata) = atas_creation(
         vec![buyer_key.pubkey()],
@@ -105,8 +119,8 @@ pub async fn volume_lut() -> eyre::Result<()> {
     let tax = tip_txn(buyer_key.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.1));
     let tip = tip_txn(buyer_key.pubkey(), tip_account(), sol_to_lamports(0.001));
 
-    lut_ix.push(tip);
     lut_ix.push(tax);
+    lut_ix.push(tip);
 
     info!("Building transaction...");
 
@@ -144,7 +158,11 @@ pub async fn volume_lut() -> eyre::Result<()> {
     )
     .await
     {
-        Ok(_) => {}
+        Ok(_) => {
+            data.volume_lut_key = lut_key.to_string();
+            let mut file = File::create("mintor_settings.json")?;
+            file.write_all(serde_json::to_string(&data)?.as_bytes())?;
+        }
         Err(e) => {
             eprintln!("Distribution Error: {}", e);
             panic!("Error: {}", e);
@@ -152,4 +170,45 @@ pub async fn volume_lut() -> eyre::Result<()> {
     };
 
     Ok(())
+}
+
+pub fn poolkeys_lut_2(
+    pool_keys: PoolKeysSniper,
+    lut: Pubkey,
+    server_data: PoolDataSettings,
+) -> eyre::Result<Instruction> {
+    let buyer_wallet = Keypair::from_base58_string(&server_data.buyer_key);
+
+    let mut keys = vec![
+        pool_keys.id,
+        pool_keys.base_mint,
+        pool_keys.quote_mint,
+        pool_keys.lp_mint,
+        pool_keys.program_id,
+        pool_keys.authority,
+        pool_keys.open_orders,
+        pool_keys.target_orders,
+        pool_keys.base_vault,
+        pool_keys.quote_vault,
+        pool_keys.withdraw_queue,
+        pool_keys.lp_vault,
+        pool_keys.market_program_id,
+        pool_keys.market_id,
+        pool_keys.market_authority,
+        pool_keys.market_base_vault,
+        pool_keys.market_quote_vault,
+        pool_keys.market_bids,
+        pool_keys.market_asks,
+        pool_keys.market_event_queue,
+        pool_keys.lookup_table_account,
+    ];
+
+    let add_accounts = extend_lookup_table(
+        lut,
+        buyer_wallet.pubkey(),
+        Some(buyer_wallet.pubkey()),
+        keys,
+    );
+
+    Ok(add_accounts)
 }

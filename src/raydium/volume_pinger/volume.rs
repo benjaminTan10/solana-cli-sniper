@@ -3,15 +3,17 @@ use std::{error::Error, str::FromStr, sync::Arc};
 use demand::Input;
 use log::{error, info};
 use rand::{Rng, SeedableRng};
+use solana_address_lookup_table_program::state::AddressLookupTable;
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
 use solana_sdk::{
+    address_lookup_table::AddressLookupTableAccount, address_lookup_table_account,
     commitment_config::CommitmentLevel, native_token::sol_to_lamports, pubkey::Pubkey,
     signature::Keypair, signer::Signer, transaction::VersionedTransaction,
 };
 
 use crate::{
     app::theme,
-    env::load_settings,
+    env::{load_settings, minter::load_minter_settings},
     raydium::{
         bundles::swap_instructions::volume_swap_base_in,
         pool_searcher::amm_keys::pool_keys_fetcher,
@@ -45,10 +47,40 @@ pub async fn generate_volume() -> Result<(), Box<dyn Error>> {
     let args = match load_settings().await {
         Ok(args) => args,
         Err(e) => {
-            error!("Error: {:?}", e);
+            error!("Error 1: {:?}", e);
             return Ok(());
         }
     };
+
+    let rpc_client = RpcClient::new(args.rpc_url.to_string());
+    let data = load_minter_settings().await?;
+
+    let lut_key = match Pubkey::from_str(&data.volume_lut_key) {
+        Ok(x) => x,
+        Err(e) => {
+            error!("Error 2: {:?}", e);
+            return Ok(());
+        }
+    };
+
+    let mut raw_account = None;
+
+    while raw_account.is_none() {
+        match rpc_client.get_account(&lut_key).await {
+            Ok(account) => raw_account = Some(account),
+            Err(e) => {
+                eprintln!("Error getting LUT account: {}, retrying...", e);
+            }
+        }
+    }
+
+    let raw_account = raw_account.unwrap();
+    let address_lookup_table = AddressLookupTable::deserialize(&raw_account.data)?;
+    let address_lookup_table_account = AddressLookupTableAccount {
+        key: lut_key,
+        addresses: address_lookup_table.addresses.to_vec(),
+    };
+
     let min_amount = buy_amount("Min Amount").await?;
     let max_amount = buy_amount("Max Amount").await?;
 
@@ -59,10 +91,10 @@ pub async fn generate_volume() -> Result<(), Box<dyn Error>> {
 
     let pool_keys = pool_keys_fetcher(pool_address).await?;
 
-    info!(
-        "Pool Keys: {}",
-        serde_json::to_string_pretty(&pool_keys).unwrap()
-    );
+    // info!(
+    //     "Pool Keys: {}",
+    //     serde_json::to_string_pretty(&pool_keys).unwrap()
+    // );
     for _ in 0..15 {
         let wallet = Keypair::from_bytes(&secret_key)?;
         let rpc_client = RpcClient::new(args.rpc_url.to_string());
@@ -75,7 +107,14 @@ pub async fn generate_volume() -> Result<(), Box<dyn Error>> {
             wallet,
         };
 
-        let _ = match volume_round(Arc::new(rpc_client), pool_keys.clone(), volume_settings).await {
+        let _ = match volume_round(
+            Arc::new(rpc_client),
+            pool_keys.clone(),
+            volume_settings,
+            address_lookup_table_account.clone(),
+        )
+        .await
+        {
             Ok(x) => x,
             Err(e) => {
                 error!("Error: {:?}", e);
@@ -90,7 +129,9 @@ pub async fn volume_round(
     rpc_client: Arc<RpcClient>,
     pool_keys: PoolKeysSniper,
     volume_bot: VolumeBotSettings,
+    address_lookup_table_account: AddressLookupTableAccount,
 ) -> Result<(), Box<dyn Error>> {
+    info!("Volume Round ..");
     let wallet = Arc::new(volume_bot.wallet);
     let user_source_owner = wallet.pubkey();
 
@@ -99,21 +140,28 @@ pub async fn volume_round(
     } else {
         pool_keys.clone().base_mint
     };
-    let tokens_amount = token_price_data(
+    let tokens_amount = match token_price_data(
         rpc_client.clone(),
         pool_keys.clone(),
         wallet.clone(),
         volume_bot.buy_amount,
         crate::raydium::swap::instructions::SwapDirection::Coin2PC,
     )
-    .await?;
+    .await
+    {
+        Ok(x) => x,
+        Err(e) => {
+            error!("Error: {:?}", e);
+            return Ok(());
+        }
+    };
 
     let tokens_amount = tokens_amount * 999 / 1000;
 
     info!("Swap amount out: {}", tokens_amount);
 
-    let transaction_main_instructions = volume_swap_base_in(
-        &Pubkey::from_str("Fq6aKMBQcNpL41JqSgkx2zoiyL3yFaTTtYfLbZLvM6pV").unwrap(),
+    let mut transaction_main_instructions = volume_swap_base_in(
+        &Pubkey::from_str("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8").unwrap(),
         &pool_keys.id,
         &pool_keys.authority,
         &pool_keys.open_orders,
@@ -138,94 +186,58 @@ pub async fn volume_round(
     )
     .await?;
 
-    // transaction_main_instructions.extend(swap_out_instructions);
+    // // transaction_main_instructions.extend(swap_out_instructions);
 
-    let config = CommitmentLevel::Confirmed;
-    let (latest_blockhash, _) = rpc_client
-        .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
-            commitment: config,
-        })
-        .await?;
+    // let config = CommitmentLevel::Confirmed;
+    // let (latest_blockhash, _) = rpc_client
+    //     .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
+    //         commitment: config,
+    //     })
+    //     .await?;
 
-    let message = match solana_program::message::v0::Message::try_compile(
-        &user_source_owner,
-        &transaction_main_instructions,
-        &[],
-        latest_blockhash,
-    ) {
-        Ok(x) => x,
-        Err(e) => {
-            println!("Error: {:?}", e);
-            return Ok(());
-        }
-    };
-
-    let frontrun_tx = match VersionedTransaction::try_new(
-        solana_program::message::VersionedMessage::V0(message),
-        &[&wallet],
-    ) {
-        Ok(x) => x,
-        Err(e) => {
-            println!("Error: {:?}", e);
-            return Ok(());
-        }
-    };
-
-    let config = RpcSendTransactionConfig {
-        skip_preflight: true,
-        ..Default::default()
-    };
-    let txn = rpc_client
-        .send_transaction_with_config(&frontrun_tx, config)
-        .await;
-
-    match txn {
-        Ok(x) => {
-            info!("Swap in Transaction: {:?}", x);
-        }
-        Err(e) => {
-            error!("Error: {:?}", e);
-        }
-    }
-
-    // let mut token_balance = 0;
-    // let start = Instant::now();
-    // while start.elapsed() < Duration::from_secs(60) {
-    //     let token_accounts = rpc_client
-    //         .get_token_accounts_by_owner(
-    //             &wallet.pubkey(),
-    //             TokenAccountsFilter::Mint(Pubkey::from_str(&pool_keys.base_mint).unwrap()),
-    //         )
-    //         .await?;
-
-    //     for rpc_keyed_account in &token_accounts {
-    //         let pubkey = &rpc_keyed_account.pubkey;
-    //         //convert to pubkey
-    //         let pubkey = Pubkey::from_str(&pubkey)?;
-
-    //         let balance = rpc_client.get_token_account_balance(&pubkey).await?;
-    //         let lamports = match balance.amount.parse::<u64>() {
-    //             Ok(lamports) => lamports,
-    //             Err(e) => {
-    //                 eprintln!("Failed to parse balance: {}", e);
-    //                 break;
-    //             }
-    //         };
-
-    //         token_balance = lamports;
-
-    //         if lamports != 0 {
-    //             break;
-    //         }
+    // let message = match solana_program::message::v0::Message::try_compile(
+    //     &user_source_owner,
+    //     &transaction_main_instructions,
+    //     &[],
+    //     latest_blockhash,
+    // ) {
+    //     Ok(x) => x,
+    //     Err(e) => {
+    //         println!("Error: {:?}", e);
+    //         return Ok(());
     //     }
+    // };
 
-    //     if token_balance != 0 {
-    //         info!("Token Balance: {:?}", token_balance);
-    //         break;
+    // let frontrun_tx = match VersionedTransaction::try_new(
+    //     solana_program::message::VersionedMessage::V0(message),
+    //     &[&wallet],
+    // ) {
+    //     Ok(x) => x,
+    //     Err(e) => {
+    //         println!("Error: {:?}", e);
+    //         return Ok(());
+    //     }
+    // };
+
+    // let config = RpcSendTransactionConfig {
+    //     skip_preflight: true,
+    //     ..Default::default()
+    // };
+    // let txn = rpc_client
+    //     .send_transaction_with_config(&frontrun_tx, config)
+    //     .await;
+
+    // match txn {
+    //     Ok(x) => {
+    //         info!("Swap in Transaction: {:?}", x);
+    //     }
+    //     Err(e) => {
+    //         error!("Error: {:?}", e);
     //     }
     // }
+
     let swap_out_instructions = swap_base_out(
-        &Pubkey::from_str("Fq6aKMBQcNpL41JqSgkx2zoiyL3yFaTTtYfLbZLvM6pV").unwrap(),
+        &Pubkey::from_str("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8").unwrap(),
         &pool_keys.id,
         &pool_keys.authority,
         &pool_keys.open_orders,
@@ -249,6 +261,10 @@ pub async fn volume_round(
     )
     .await?;
 
+    info!("Sending Transaction...!");
+
+    transaction_main_instructions.extend(swap_out_instructions);
+
     let config = CommitmentLevel::Confirmed;
     let (latest_blockhash, _) = rpc_client
         .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
@@ -258,8 +274,8 @@ pub async fn volume_round(
 
     let message = match solana_program::message::v0::Message::try_compile(
         &user_source_owner,
-        &swap_out_instructions,
-        &[],
+        &transaction_main_instructions,
+        &[address_lookup_table_account],
         latest_blockhash,
     ) {
         Ok(x) => x,

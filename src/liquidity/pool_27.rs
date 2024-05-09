@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
@@ -98,19 +98,26 @@ pub async fn pool_main() -> eyre::Result<()> {
     let market_keys = load_pool_keys(amm_pool, amm_keys).await?;
 
     // -------------------LUT Creation & Extending---------------------------------------
-    let lut_creation = //Pubkey::from_str("5T6TfZ7g8xEgoY47AS2bQDfZ6vJmAZFsBibVRiKRjj8V").unwrap();
-    match lut_main(
-        data.clone(),
-        amm_keys,
-        market_keys.clone(),
-        wallets.iter().map(|x| x.pubkey()).collect::<Vec<_>>(),
-    )
-    .await
-    {
+    // let lut_creation = //Pubkey::from_str("5T6TfZ7g8xEgoY47AS2bQDfZ6vJmAZFsBibVRiKRjj8V").unwrap();
+    // match lut_(
+    //     data.clone(),
+    //     amm_keys,
+    //     market_keys.clone(),
+    //     wallets.iter().map(|x| x.pubkey()).collect::<Vec<_>>(),
+    // )
+    // .await
+    // {
+    //     Ok(lut) => lut,
+    //     Err(e) => {
+    //         eprintln!("Error creating LUT: {}", e);
+    //         return Err(e);
+    //     }
+    // };
+
+    let lut_creation = match Pubkey::from_str(&data.lut_key) {
         Ok(lut) => lut,
         Err(e) => {
-            eprintln!("Error creating LUT: {}", e);
-            return Err(e);
+            panic!("LUT key not Found in Settings: {}", e);
         }
     };
 
