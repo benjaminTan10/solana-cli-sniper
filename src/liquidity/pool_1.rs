@@ -11,7 +11,7 @@ use solana_sdk::{
 };
 
 use crate::{
-    env::minter::load_minter_settings,
+    env::{load_settings, minter::load_minter_settings},
     raydium::swap::{instructions::TAX_ACCOUNT, swapper::auth_keypair},
     rpc::{rpc_key, HTTP_CLIENT},
     user_inputs::amounts::{bundle_priority_tip, sol_amount},
@@ -32,6 +32,7 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
     let bundle_tip = bundle_priority_tip().await;
 
     let server_data = load_minter_settings().await?;
+    let engine = load_settings().await?;
     let deployer_key = Keypair::from_base58_string(&server_data.deployer_key);
     let buyer_key = Keypair::from_base58_string(&server_data.buyer_key);
     let buy_amount = sol_amount().await;
@@ -124,11 +125,8 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
 
     bundle_txn.push(tip_tx);
 
-    let mut client = get_searcher_client(
-        &"https://ny.mainnet.block-engine.jito.wtf",
-        &Arc::new(auth_keypair()),
-    )
-    .await?;
+    let mut client =
+        get_searcher_client(&engine.block_engine_url, &Arc::new(auth_keypair())).await?;
 
     let mut bundle_results_subscription = client
         .subscribe_bundle_results(SubscribeBundleResultsRequest {})

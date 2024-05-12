@@ -9,9 +9,12 @@ use solana_sdk::{pubkey::Pubkey, signature::Keypair};
 use crate::{
     app::MevApe,
     env::load_settings,
-    raydium::swap::{
-        grpc_new_pairs::grpc_pair_sub, instructions::wrap_sol, metadata::decode_metadata,
-        swap_in::PriorityTip,
+    raydium::{
+        subscribe::auto_sniper_stream,
+        swap::{
+            grpc_new_pairs::grpc_pair_sub, instructions::wrap_sol, metadata::decode_metadata,
+            swap_in::PriorityTip,
+        },
     },
 };
 
@@ -50,6 +53,11 @@ pub async fn automatic_snipe(manual_snipe: bool) -> eyre::Result<()> {
             return Err(e.into());
         }
     };
+
+    if args.grpc_url.is_empty() {
+        let _ = auto_sniper_stream(manual_snipe).await?;
+        return Ok(());
+    }
     let sol_amount = sol_amount().await;
 
     let mut token = Pubkey::default();

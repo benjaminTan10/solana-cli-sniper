@@ -11,6 +11,7 @@ use solana_client::rpc_config::{RpcTransactionLogsConfig, RpcTransactionLogsFilt
 
 use solana_program::pubkey::Pubkey;
 use solana_sdk::commitment_config::CommitmentConfig;
+use solana_sdk::signer::Signer;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -111,9 +112,10 @@ pub struct MarketData {
     pub serum_signer: String,
 }
 
-pub async fn auto_sniper_stream(user_data: UserData) -> eyre::Result<()> {
-    let rpc_client_url = wss_key();
-    let pubsub_client = PubsubClient::new(&rpc_client_url.clone()).await?;
+pub async fn auto_sniper_stream(manual_snipe: bool) -> eyre::Result<()> {
+    let rpc_client_url =
+        "wss://mainnet.helius-rpc.com/?api-key=d9e80c44-bc75-4139-8cc7-084cefe506c7";
+    let pubsub_client = PubsubClient::new(&rpc_client_url).await?;
     let rpc_client = {
         let http_client = HTTP_CLIENT.lock().unwrap();
         http_client.get("http_client").unwrap().clone()
@@ -134,12 +136,13 @@ pub async fn auto_sniper_stream(user_data: UserData) -> eyre::Result<()> {
     pin_mut!(subscription);
 
     while let Some(logs_response) = subscription.next().await {
-        info!("Signature {:?}", logs_response.value.signature);
-        let user_data = user_data.clone();
+        info!("Signature {:?}", logs_response);
 
         let rpc_client = Arc::clone(&rpc_client);
         tokio::spawn(async move {
             let signature = &logs_response.value.signature;
+            let pubkey = &logs_response.value.logs;
+            info!("{}", serde_json::to_string_pretty(pubkey).unwrap());
             let parsed_sigs = parse_signatures(&signature).await;
 
             if let Some((transaction_meta, transaction)) = parsed_sigs {
@@ -343,19 +346,18 @@ pub async fn auto_sniper_stream(user_data: UserData) -> eyre::Result<()> {
                                     }
                                 }
 
-                                info!(
-                                    "Pool Infos: {}",
-                                    serde_json::to_string_pretty(&pool_infos).unwrap()
-                                );
+                                // info!(
+                                //     "Pool Infos: {}",
+                                //     serde_json::to_string_pretty(&pool_infos).unwrap()
+                                // );
 
-                                let data =
-                                    sniper_txn_in(pool_infos, rpc_client, open_time, user_data);
-                                match data.await {
-                                    Ok(_) => {}
-                                    Err(e) => {
-                                        error!("Error: {:?}", e);
-                                    }
-                                }
+                                // let data = sniper_txn_in(pool_infos, rpc_client, open_time);
+                                // match data.await {
+                                //     Ok(_) => {}
+                                //     Err(e) => {
+                                //         error!("Error: {:?}", e);
+                                //     }
+                                // }
                             }
                         }
                     }

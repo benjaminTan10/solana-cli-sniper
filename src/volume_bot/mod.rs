@@ -15,7 +15,7 @@ use crate::{
     instruction::instruction::load_amm_keys,
     liquidity::{
         lut::{create_lut::create_lut, extend_lut::poolkeys_lut},
-        option::sol_distribution::atas_creation,
+        option::{sol_distribution::atas_creation, wallet_gen::gen_wallet_save},
         pool_ixs::AMM_PROGRAM,
         swap_ixs::load_pool_keys,
         utils::tip_txn,
@@ -52,13 +52,21 @@ pub async fn volume_menu() -> eyre::Result<()> {
         .description("Select the Volume Bot")
         .theme(&theme)
         .filterable(true)
-        .option(DemandOption::new("LookupTable").label("[1] Create LUT"))
-        .option(DemandOption::new("Volume").label("[2] Generate Volume"))
+        .option(DemandOption::new("Walletgen").label("[1] Generate Wallets"))
+        .option(DemandOption::new("LookupTable").label("[2] Create LUT"))
+        .option(DemandOption::new("Volume").label("[3] Volume (Instant Seller)"))
+        .option(DemandOption::new("Volume").label("[4] Volume Buy"))
+        .option(DemandOption::new("Volume").label("[5] Volume Seller"))
         .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
 
     let selected_option = ms.run().expect("error running select");
 
     match selected_option {
+        "Walletgen" => {
+            let _ = gen_wallet_save().await;
+            println!("-------------------Returning to Main Menu-------------------");
+            volume_menu().await?;
+        }
         "LookupTable" => {
             let _ = volume_lut().await;
             println!("-------------------Returning to Main Menu-------------------");

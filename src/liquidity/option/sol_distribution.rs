@@ -7,7 +7,6 @@ use log::info;
 use solana_address_lookup_table_program::state::AddressLookupTable;
 use solana_sdk::{
     address_lookup_table::AddressLookupTableAccount,
-    compute_budget::ComputeBudgetInstruction,
     instruction::Instruction,
     message::{v0::Message, VersionedMessage},
     native_token::{lamports_to_sol, sol_to_lamports},
@@ -40,7 +39,6 @@ use crate::{
 
 pub async fn sol_distribution(
     server_data: PoolDataSettings,
-    buy_amount: u64,
 ) -> eyre::Result<(
     Vec<u64>,
     Vec<VersionedTransaction>,
@@ -60,6 +58,10 @@ pub async fn sol_distribution(
             panic!("Error: {}", e);
         }
     };
+
+    let buy_amount = sol_amount().await;
+    let bundle_tip = bundle_priority_tip().await;
+
     let rand_amount = distribute_randomly(buy_amount, wallets.len());
 
     let lut_creation = match Pubkey::from_str(&server_data.lut_key) {
@@ -90,102 +92,23 @@ pub async fn sol_distribution(
 
     let mut distribution_ix: Vec<Instruction> = vec![];
 
-    //------------------------------------Wrapped-SOL Distribution------------------------------------
-    // let user_token_destination = get_associated_token_address(&buyer_wallet.pubkey(), &SOLC_MINT);
-    // distribution_ix.push(
-    //     spl_associated_token_account::instruction::create_associated_token_account(
-    //         &buyer_wallet.pubkey(),
-    //         &buyer_wallet.pubkey(),
-    //         &SOLC_MINT,
-    //         &spl_token::id(),
-    //     ),
-    // );
-
-    // distribution_ix.push(system_instruction::transfer(
-    //     &buyer_wallet.pubkey(),
-    //     &user_token_destination,
-    //     buy_amount,
-    // ));
-
-    // let sync_native = sync_native(&spl_token::id(), &user_token_destination)?;
-    // distribution_ix.push(sync_native);
-
-    // let wrap = match wrap_sol(connection.clone(), &buyer_wallet, buy_amount).await {
-    //     Ok(wrap) => wrap,
-    //     Err(e) => {
-    //         eprintln!("Error: {}", e);
-    //         panic!("Error: {}", e);
-    //     }
-    // };
-
     //-----------------------------------------------------------------------------------------------
 
-    let source_ata = get_associated_token_address(&buyer_wallet.pubkey(), &SOLC_MINT);
-
     for (index, wallet) in wallets.iter().enumerate() {
-        let tax_destination = get_associated_token_address(&wallet.pubkey(), &SOLC_MINT);
-        // let transfer_instruction = spl_token::instruction::transfer(
-        //     &spl_token::id(),
-        //     &source_ata,
-        //     &tax_destination,
-        //     &buyer_wallet.pubkey(),
-        //     &[&buyer_wallet.pubkey()],
-        //     rand_amount[index],
-        // )?;
         let transfer_instruction = system_instruction::transfer(
             &buyer_wallet.pubkey(),
-            &tax_destination,
+            &wallet.pubkey(),
             rand_amount[index],
         );
 
         distribution_ix.push(transfer_instruction);
     }
-    let bundle_tip = bundle_priority_tip().await;
 
     let tip_ix = tip_txn(buyer_wallet.pubkey(), tip_account(), bundle_tip);
-    let (atas_creation, _, _) = atas_creation(
-        wallets.iter().map(|x| x.pubkey()).collect::<Vec<_>>(),
-        buyer_wallet.clone(),
-        Pubkey::from_str(&server_data.token_mint).unwrap(),
-    )
-    .await
-    .unwrap();
 
-    // distribution_ix.push(tip_ix);
-    let mut atas_ix: Vec<Instruction> = vec![];
-    atas_ix.extend(atas_creation);
-    atas_ix.push(tip_ix);
-
-    // Split atas_ix into two vectors at index 8
-    let mut rest_atas_ix = atas_ix.split_off(10);
-
-    // Push the first chunk of atas_ix to distribution_ix
-    distribution_ix.extend(atas_ix);
+    distribution_ix.push(tip_ix);
 
     let distribution_ix_chunks: Vec<_> = distribution_ix.chunks(21).collect();
-
-    // Push the rest of atas_ix to atas_ix_chunks
-    let atas_ix_chunks: Vec<_> = rest_atas_ix.chunks(16).collect();
-
-    let all_chunks = atas_ix_chunks
-        .into_iter()
-        .chain(distribution_ix_chunks.into_iter())
-        .collect::<Vec<_>>();
-
-    let wrap = match wsol(
-        server_data,
-        Arc::new(wallets),
-        rand_amount.clone(),
-        address_lookup_table_account.clone(),
-    )
-    .await
-    {
-        Ok(wrap) => wrap,
-        Err(e) => {
-            eprintln!("Error: {}", e);
-            panic!("Error: {}", e);
-        }
-    };
 
     //----------------------------------------------------------------------------------
 
@@ -193,7 +116,7 @@ pub async fn sol_distribution(
 
     let mut transactions: Vec<VersionedTransaction> = vec![];
 
-    for chunk in all_chunks {
+    for (i, chunk) in distribution_ix_chunks.iter().enumerate() {
         let versioned_msg = VersionedMessage::V0(
             match solana_sdk::message::v0::Message::try_compile(
                 &buyer_wallet.pubkey(),
@@ -210,6 +133,8 @@ pub async fn sol_distribution(
         );
 
         let transaction = VersionedTransaction::try_new(versioned_msg, &[&buyer_wallet])?;
+
+        println!("Chunk {}: {} instructions", i, chunk.len());
 
         transactions.push(transaction);
     }
@@ -230,7 +155,141 @@ pub async fn sol_distribution(
 
     println!("Generated transactions: {}", transactions.len());
 
+    let wrap = match wsol(
+        server_data,
+        Arc::new(wallets),
+        address_lookup_table_account.clone(),
+    )
+    .await
+    {
+        Ok(wrap) => wrap,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            panic!("Error: {}", e);
+        }
+    };
+
     Ok((rand_amount, transactions, wrap))
+}
+
+pub async fn wsol(
+    pool_data: PoolDataSettings,
+    wallets: Arc<Vec<Keypair>>,
+    address_lookup_table_account: AddressLookupTableAccount,
+) -> Result<Vec<VersionedTransaction>, Box<dyn std::error::Error + Send>> {
+    let connection = {
+        let http_client = HTTP_CLIENT.lock().unwrap();
+        http_client.get("http_client").unwrap().clone()
+    };
+    let buyer_wallet = Keypair::from_base58_string(&pool_data.buyer_key);
+
+    let mint = Pubkey::from_str(&pool_data.token_mint).unwrap();
+
+    let wallets = Arc::clone(&wallets);
+
+    let recent_blockhash = match connection.get_latest_blockhash().await {
+        Ok(recent_blockhash) => recent_blockhash,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            panic!("Error: {}", e);
+        }
+    };
+
+    let wallet_chunks: Vec<_> = wallets.chunks(6).collect();
+    let mut txns_chunk = Vec::new();
+
+    for (chunk_index, wallet_chunk) in wallet_chunks.iter().enumerate() {
+        let mut current_instructions = Vec::new();
+        let mut current_wallets = Vec::new();
+
+        for (i, wallet) in wallet_chunk.iter().enumerate() {
+            let user_token_source = get_associated_token_address(&wallet.pubkey(), &SOLC_MINT);
+
+            let balance = connection.get_balance(&wallet.pubkey()).await.unwrap();
+            println!("Balance: {}", balance);
+            current_instructions.push(
+                spl_associated_token_account::instruction::create_associated_token_account_idempotent(
+                    &wallet.pubkey(),
+                    &wallet.pubkey(),
+                    &SOLC_MINT,
+                    &spl_token::id(),
+                ),
+            );
+            current_instructions.push(
+                spl_associated_token_account::instruction::create_associated_token_account_idempotent(
+                    &wallet.pubkey(),
+                    &wallet.pubkey(),
+                    &mint,
+                    &spl_token::id(),
+                ),
+            );
+            current_instructions.push(system_instruction::transfer(
+                &wallet.pubkey(),
+                &user_token_source,
+                balance,
+            ));
+
+            let sync_native = match sync_native(&spl_token::id(), &user_token_source) {
+                Ok(sync_native) => sync_native,
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                    panic!("Error: {}", e);
+                }
+            };
+            current_instructions.push(sync_native);
+
+            current_wallets.push(wallet);
+        }
+
+        println!(
+            "Chunk {}: {} instructions",
+            chunk_index,
+            current_instructions.len()
+        );
+        println!("Chunk {}: {} wallets", chunk_index, current_wallets.len());
+
+        current_wallets.push(&buyer_wallet);
+
+        if current_instructions.len() < 13 {
+            let tip = tip_txn(buyer_wallet.pubkey(), tip_account(), sol_to_lamports(0.001));
+            current_instructions.push(tip);
+        }
+
+        let versioned_msg = VersionedMessage::V0(
+            Message::try_compile(
+                &buyer_wallet.pubkey(),
+                &current_instructions,
+                &[address_lookup_table_account.clone()],
+                recent_blockhash,
+            )
+            .unwrap(),
+        );
+
+        let versioned_tx = match VersionedTransaction::try_new(versioned_msg, &current_wallets) {
+            Ok(tx) => tx,
+            Err(e) => {
+                eprintln!("Error creating pool transaction: {}", e);
+                panic!("Error: {}", e);
+            }
+        };
+
+        txns_chunk.push(versioned_tx);
+        // Now you can use chunk_index, current_wallets, and current_instructions
+    }
+
+    println!("txn: {:?}", txns_chunk.len());
+
+    let txn_size: Vec<_> = txns_chunk
+        .iter()
+        .map(|x| {
+            let serialized_x = serialize(x).unwrap();
+            serialized_x.len()
+        })
+        .collect();
+
+    println!("txn_size: {:?}", txn_size);
+
+    Ok(txns_chunk)
 }
 
 //server_data.BlockEngineSelections
@@ -278,18 +337,8 @@ pub async fn distributor() -> eyre::Result<()> {
 
     let settings = load_settings().await?;
 
-    let token_address = match Pubkey::from_str(&data.token_mint) {
-        Ok(token) => token,
-        Err(e) => {
-            eprintln!("Error: {}", e);
-            panic!("Error: {}", e);
-        }
-    };
-
     let mut client =
         get_searcher_client(&settings.block_engine_url, &Arc::new(auth_keypair())).await?;
-
-    let total_amount = sol_amount().await;
 
     let mut bundle_results_subscription = client
         .subscribe_bundle_results(SubscribeBundleResultsRequest {})
@@ -297,8 +346,7 @@ pub async fn distributor() -> eyre::Result<()> {
         .expect("subscribe to bundle results")
         .into_inner();
 
-    let (amounts, transactions_1, transactions_2) = match sol_distribution(data, total_amount).await
-    {
+    let (amounts, transactions_1, transactions_2) = match sol_distribution(data).await {
         Ok((amounts, transactions_1, transactions_2)) => (amounts, transactions_1, transactions_2),
         Err(e) => {
             eprintln!("Error: {}", e);
@@ -311,11 +359,9 @@ pub async fn distributor() -> eyre::Result<()> {
         info!("{}", amount);
     }
 
-    // info!("Subscribed to bundle results");
+    info!("Sending Bundle 1 ");
 
-    // transactions.iter().for_each(|txn| {
-    //     info!("Transaction: {:?}", txn.signatures[0]);
-    // });
+    info!("Len: {}", transactions_2.len());
 
     let bundle = match send_bundle_with_confirmation(
         &transactions_1,
@@ -327,10 +373,12 @@ pub async fn distributor() -> eyre::Result<()> {
     {
         Ok(_) => {}
         Err(e) => {
-            eprintln!("Distribution Error: {}", e);
             panic!("Error: {}", e);
         }
     };
+
+    info!("Sending Bundle 2");
+
     let bundle = match send_bundle_with_confirmation(
         &transactions_2,
         &connection,
@@ -347,106 +395,4 @@ pub async fn distributor() -> eyre::Result<()> {
     };
 
     Ok(())
-}
-
-pub async fn wsol(
-    pool_data: PoolDataSettings,
-    wallets: Arc<Vec<Keypair>>,
-    amount_in: Vec<u64>,
-    address_lookup_table_account: AddressLookupTableAccount,
-) -> Result<Vec<VersionedTransaction>, Box<dyn std::error::Error + Send>> {
-    let connection = {
-        let http_client = HTTP_CLIENT.lock().unwrap();
-        http_client.get("http_client").unwrap().clone()
-    };
-    let buyer_wallet = Keypair::from_base58_string(&pool_data.buyer_key);
-
-    let wallets = Arc::clone(&wallets);
-    let mut txns_chunk = Vec::new();
-    let mut wallet_chunks = Vec::new();
-
-    let recent_blockhash = match connection.get_latest_blockhash().await {
-        Ok(recent_blockhash) => recent_blockhash,
-        Err(e) => {
-            eprintln!("Error: {}", e);
-            panic!("Error: {}", e);
-        }
-    };
-
-    wallets
-        .chunks(6)
-        .enumerate()
-        .for_each(|(index, wallet_chunk)| {
-            let mut current_wallets = Vec::new();
-            let mut current_instructions = Vec::new();
-
-            wallet_chunk.iter().enumerate().for_each(|(j, wallet)| {
-                let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(80000);
-                let compute_price = ComputeBudgetInstruction::set_compute_unit_price(sol_to_lamports(0.0001));
-                let user_token_destination = get_associated_token_address(&wallet.pubkey(), &SOLC_MINT);
-
-                current_instructions.push(unit_limit);
-                current_instructions.push(compute_price);
-                current_instructions.push(
-                    spl_associated_token_account::instruction::create_associated_token_account_idempotent(
-                        &wallet.pubkey(),
-                        &wallet.pubkey(),
-                        &SOLC_MINT,
-                        &spl_token::id(),
-                    ),
-                );
-                current_instructions.push(system_instruction::transfer(
-                    &wallet.pubkey(),
-                    &user_token_destination,
-                    amount_in[index * 6 + j], // Updated here
-                ));
-
-                let sync_native = match sync_native(&spl_token::id(), &user_token_destination) {
-                    Ok(sync_native) => sync_native,
-                    Err(e) => {
-                        eprintln!("Error: {}", e);
-                        panic!("Error: {}", e);
-                    }
-                };
-                current_instructions.push(sync_native);
-
-                current_wallets.push(wallet);
-            });
-
-            // If current chunk has less than 7 instructions, add jito_txn
-            if current_instructions.len() < 7 {
-                let jito_txn = tip_txn(buyer_wallet.pubkey(), tip_account(), sol_to_lamports(0.001));
-                current_instructions.push(jito_txn);
-                current_wallets.push(&buyer_wallet); // Assuming buyer_wallet is the corresponding wallet
-            }
-
-            let versioned_msg = VersionedMessage::V0(
-                Message::try_compile(
-                    &current_wallets[0].pubkey(),
-                    &current_instructions,
-                    &[address_lookup_table_account.clone()],
-                    recent_blockhash,
-                )
-                .unwrap(),
-            );
-
-            let versioned_txn = VersionedTransaction::try_new(versioned_msg, &current_wallets).unwrap();
-
-          
-
-            wallet_chunks.push(current_wallets);
-            txns_chunk.push(versioned_txn);
-        });
-    use bincode::serialize;
-
-    let txn_size: Vec<_> = txns_chunk
-        .iter()
-        .map(|x| {
-            let serialized_x = serialize(x).unwrap();
-            serialized_x.len()
-        })
-        .collect();
-
-    println!("txn_size: {:?}", txn_size);
-    Ok(txns_chunk)
 }

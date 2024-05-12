@@ -5,8 +5,9 @@ use demand::{DemandOption, Select};
 use crate::{
     app::theme,
     liquidity::{
-        lut::extend_lut::lut_main, option::sol_distribution::distributor, pool_27::pool_main,
-        remove_liq::remover::remove_liquidity, sell_mode::sell_percentage::sell_specific,
+        lut::extend_lut::lut_main, option::sol_distribution::distributor, pool_1::single_pool,
+        pool_27::pool_main, remove_liq::remover::remove_liquidity,
+        sell_mode::sell_percentage::sell_specific,
     },
 };
 
@@ -97,7 +98,7 @@ pub async fn pooler_mode() -> Result<(), Box<dyn Error>> {
 
     match selected_option {
         "Single Wallet" => {
-            let _ = raydium_creator().await;
+            let _ = single_pool().await;
             println!("-------------------Returning to Main Menu-------------------");
             pooler_mode().await?;
         }

@@ -43,33 +43,6 @@ pub fn swap_ixs(
         &Pubkey::from_str(&server_data.token_mint)?,
     );
 
-    // let swap_instructions = swap_base_in(
-    //     &pool_keys.program_id,
-    //     &pool_keys.id,
-    //     &pool_keys.authority,
-    //     &pool_keys.open_orders,
-    //     &pool_keys.target_orders,
-    //     &pool_keys.base_vault,
-    //     &pool_keys.quote_vault,
-    //     &pool_keys.market_program_id,
-    //     &pool_keys.market_id,
-    //     &pool_keys.market_bids,
-    //     &pool_keys.market_asks,
-    //     &pool_keys.market_event_queue,
-    //     &pool_keys.market_base_vault,
-    //     &pool_keys.market_quote_vault,
-    //     &pool_keys.market_authority,
-    //     &user_token_source,
-    //     &user_token_destination,
-    //     &buyer_wallet.pubkey(),
-    //     0.clone(),
-    //     0,
-    // )?;
-    // load amm keys
-    // let amm_keys = load_amm_keys(&connection, &AMM_PROGRAM, &amm_pool_id)?;
-    // // load market keys
-    // let market_keys = get_keys_for_market(&connection, &amm_keys.market_program, &amm_keys.market)?;
-
     // build swap instruction
     let build_swap_instruction = swap(
         &AMM_PROGRAM,

@@ -4,8 +4,9 @@ use demand::{Confirm, DemandOption, Input, Select};
 use log::info;
 use serde_json::Value;
 use solana_sdk::signature::Keypair;
+use spl_associated_token_account::get_associated_token_address;
 
-use crate::app::theme;
+use crate::{app::theme, raydium::swap::instructions::SOLC_MINT};
 
 pub fn generate_wallets(count: i32) -> Vec<String> {
     let mut wallet: Vec<Keypair> = vec![];
@@ -127,6 +128,9 @@ pub async fn list_folders() -> Result<(String, Vec<Keypair>), Box<dyn Error>> {
     let mut wallets = Vec::new();
     json_values.iter().for_each(|x| {
         let keypair = Keypair::from_base58_string(x.as_str().unwrap());
+        // println!("Wallet: {:?}", keypair.pubkey());
+        // let associated = get_associated_token_address(&keypair.pubkey(), &SOLC_MINT);
+        // println!("Associated: {:?}", associated);
         wallets.push(keypair);
     });
 

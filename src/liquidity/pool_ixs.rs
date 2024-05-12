@@ -46,12 +46,12 @@ pub async fn pool_ixs(pool_data: PoolDataSettings) -> eyre::Result<(Instruction,
         base_pc_amount = token_account.account.lamports;
     }
 
+    let input_coin_amount = liq_amount();
     let base_pc_amount_percentage = token_percentage();
 
     let input_pc_amount =
         sol_to_lamports(lamports_to_sol(base_pc_amount) * base_pc_amount_percentage);
 
-    let input_coin_amount = liq_amount();
     // generate amm keys
     let amm_keys = get_amm_pda_keys(
         &amm_program,
@@ -108,8 +108,8 @@ pub async fn pool_ixs(pool_data: PoolDataSettings) -> eyre::Result<(Instruction,
 
 pub fn token_percentage() -> f64 {
     let theme = theme();
-    let t = Input::new("Enter the percentage of token to be added")
-        .placeholder("90%...")
+    let t = Input::new("Enter the percentage of tokens:")
+        .placeholder("eg. 90%...")
         .theme(&theme)
         .prompt("Input: ");
 
@@ -119,8 +119,8 @@ pub fn token_percentage() -> f64 {
 }
 pub fn liq_amount() -> u64 {
     let theme = theme();
-    let t = Input::new("Enter the Liquidity Amount")
-        .placeholder("5...")
+    let t = Input::new("Enter the Liquidity Amount in SOL")
+        .placeholder("eg. 5 sol...")
         .theme(&theme)
         .prompt("Input: ");
 

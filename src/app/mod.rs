@@ -14,6 +14,7 @@ use termcolor::{Color, ColorSpec};
 use crate::env::load_settings;
 use crate::liquidity::minter_main::raydium_creator;
 use crate::raydium::bundles::mev_trades::mev_trades;
+use crate::raydium::subscribe::auto_sniper_stream;
 use crate::raydium::swap::swap_in::{swap_in, swap_out, PriorityTip};
 use crate::raydium::swap::trades::track_trades;
 use crate::rpc::rpc_key;
@@ -101,7 +102,7 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error>> {
             let _ = swap_mode().await;
         }
         "Snipe Pools" => {
-            let _ = sniper_mode().await;
+            let _ = auto_sniper_stream(true).await;
         }
         "Minter Mode" => {
             let _ = raydium_creator().await;
