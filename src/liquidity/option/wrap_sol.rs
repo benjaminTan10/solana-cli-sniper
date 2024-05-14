@@ -95,7 +95,7 @@ pub async fn wsol(
         }
     };
 
-    let wallet_chunks: Vec<_> = wallets.chunks(6).collect();
+    let wallet_chunks: Vec<_> = wallets.chunks(4).collect();
     let mut txns_chunk = Vec::new();
 
     for (chunk_index, wallet_chunk) in wallet_chunks.iter().enumerate() {
@@ -108,7 +108,7 @@ pub async fn wsol(
             let balance = connection.get_balance(&wallet.pubkey()).await.unwrap();
 
             //if the balance is less than 0.00203928 SOL, skip the wallet
-            if balance < balance - sol_to_lamports(0.006) {
+            if balance < sol_to_lamports(0.02) {
                 continue;
             }
 
@@ -143,6 +143,10 @@ pub async fn wsol(
                     panic!("Error: {}", e);
                 }
             };
+            if chunk_index == wallet_chunks.len() - 1 && i == wallet_chunk.len() - 1 {
+                let tip = tip_txn(buyer_wallet.pubkey(), tip_account(), sol_to_lamports(0.001));
+                current_instructions.push(tip);
+            }
             current_instructions.push(sync_native);
 
             current_wallets.push(wallet);
@@ -160,11 +164,6 @@ pub async fn wsol(
             continue;
         }
         current_wallets.push(&buyer_wallet);
-
-        if current_instructions.len() < 13 {
-            let tip = tip_txn(buyer_wallet.pubkey(), tip_account(), sol_to_lamports(0.001));
-            current_instructions.push(tip);
-        }
 
         let versioned_msg = VersionedMessage::V0(
             Message::try_compile(

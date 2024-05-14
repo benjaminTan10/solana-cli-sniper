@@ -16,7 +16,7 @@ use solana_sdk::{
     transaction::VersionedTransaction,
 };
 use spl_associated_token_account::get_associated_token_address;
-use spl_token_client::spl_token_2022::instruction::close_account;
+use spl_token::instruction::close_account;
 
 use crate::{
     env::{
@@ -185,21 +185,22 @@ pub async fn withdraw_wsol(
 
             println!("Balance: {} SOL", lamports_to_sol(balance));
 
+            // current_instructions.push(system_instruction::transfer(
+            //     &user_token_source,
+            //     &buyer_wallet.pubkey(),
+            //     balance,
+            // ));
+
             current_instructions.push(
                 close_account(
                     &spl_token::id(),
                     &user_token_source,
-                    &destination_wallet,
+                    &buyer_wallet.pubkey(),
                     &wallet.pubkey(),
-                    &[&buyer_wallet.pubkey()],
+                    &[&wallet.pubkey()],
                 )
                 .unwrap(),
             );
-            current_instructions.push(system_instruction::transfer(
-                &user_token_source,
-                &buyer_wallet.pubkey(),
-                balance,
-            ));
 
             current_wallets.push(wallet);
         }
@@ -215,6 +216,7 @@ pub async fn withdraw_wsol(
         if current_instructions.len() == 0 {
             continue;
         }
+
         current_wallets.push(&buyer_wallet);
 
         if current_instructions.len() < 13 {

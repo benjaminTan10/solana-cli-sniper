@@ -58,7 +58,12 @@ pub async fn sol_distribution(
     let buy_amount = sol_amount().await;
     let bundle_tip = bundle_priority_tip().await;
 
-    let rand_amount = distribute_randomly(buy_amount, wallets.len());
+    let rand_amount = distribute_randomly(
+        buy_amount,
+        wallets.len(),
+        sol_to_lamports(0.06),
+        sol_to_lamports(0.2),
+    );
 
     let lut_creation = match Pubkey::from_str(&server_data.lut_key) {
         Ok(lut) => lut,

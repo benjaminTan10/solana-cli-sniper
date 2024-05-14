@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use demand::Confirm;
 use solana_client::rpc_request::TokenAccountsFilter;
 use solana_sdk::{
@@ -15,12 +17,12 @@ use crate::{
         get_keys_for_market, load_amm_keys, withdraw, AmmKeys, MarketPubkeys,
     },
     liquidity::pool_ixs::AMM_PROGRAM,
+    raydium::pool_searcher::amm_keys::pool_keys_fetcher,
     rpc::HTTP_CLIENT,
     user_inputs::tokens::token_env,
 };
 
 pub async fn remove_liquidity() -> eyre::Result<()> {
-    let pool_id = token_env("Pool ID: ").await;
     let data = load_minter_settings().await?;
     let msg = match rem_liq().await {
         Ok(msg) => msg,
@@ -29,6 +31,12 @@ pub async fn remove_liquidity() -> eyre::Result<()> {
             return Ok(());
         }
     };
+    let mut pool_id = Pubkey::from_str(&data.pool_id)?;
+    if data.pool_id.is_empty() {
+        pool_id = token_env("Pool ID: ").await;
+
+        return Ok(());
+    }
     if msg {
         return Ok(());
     }
@@ -52,18 +60,18 @@ pub async fn remove_liquidity() -> eyre::Result<()> {
             return Ok(());
         }
     };
+    let lpmint_associate = &spl_associated_token_account::get_associated_token_address(
+        &wallet.pubkey(),
+        &amm_keys.amm_lp_mint,
+    );
     // load market keys
-    let token_accounts = client
-        .get_token_accounts_by_owner(
-            &wallet.pubkey(),
-            TokenAccountsFilter::Mint(amm_keys.amm_lp_mint),
-        )
-        .await?;
+    let withdraw_lp_amount = client.get_token_account_balance(&lpmint_associate).await?;
 
-    let mut withdraw_lp_amount = 0;
-    for account in token_accounts {
-        withdraw_lp_amount = account.account.lamports;
-    }
+    println!("Token Amount: {}", withdraw_lp_amount.amount);
+
+    // for account in token_accounts {
+    //     withdraw_lp_amount = account.account.lamports;
+    // }
 
     let market_keys =
         get_keys_for_market(&client, &amm_keys.market_program, &amm_keys.market).await?;
@@ -86,7 +94,7 @@ pub async fn remove_liquidity() -> eyre::Result<()> {
             &wallet.pubkey(),
             &amm_keys.amm_lp_mint,
         ),
-        withdraw_lp_amount,
+        withdraw_lp_amount.amount.parse::<u64>().unwrap(),
     )?;
 
     // send transaction

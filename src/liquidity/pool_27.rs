@@ -1,4 +1,4 @@
-use std::{str::FromStr, sync::Arc};
+use std::{io::Write, str::FromStr, sync::Arc};
 
 use bincode::serialize;
 use jito_protos::searcher::SubscribeBundleResultsRequest;
@@ -52,7 +52,7 @@ pub async fn pool_main() -> eyre::Result<()> {
         }
     };
 
-    let data = load_minter_settings().await?;
+    let mut data = load_minter_settings().await?;
     let engine = load_settings().await?;
 
     let connection = {
@@ -66,7 +66,7 @@ pub async fn pool_main() -> eyre::Result<()> {
     // -------------------Pool Creation Instructions--------------------------
     println!("Creating Pool Transaction");
 
-    let (create_pool_ixs, amm_pool, amm_keys) = match pool_ixs(data.clone()).await {
+    let (create_pool_ixs, amm_pool, amm_keys, new_account) = match pool_ixs(data.clone()).await {
         Ok(ixs) => ixs,
         Err(e) => {
             eprintln!("Error creating pool IXs: {}", e);
@@ -74,8 +74,12 @@ pub async fn pool_main() -> eyre::Result<()> {
         }
     };
 
+    data.pool_id = amm_pool.to_string();
+    let mut file = std::fs::File::create("mintor_settings.json").unwrap();
+    file.write_all(serde_json::to_string(&data)?.as_bytes())?;
+
     let market_keys = load_pool_keys(amm_pool, amm_keys).await?;
-    let tax_txn = tip_txn(buyer_key.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.3));
+    let tax_txn = tip_txn(buyer_key.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.2));
 
     let bundle_tip = bundle_priority_tip().await;
 

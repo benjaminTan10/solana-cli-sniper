@@ -20,6 +20,13 @@ use solana_sdk::{
 use std::convert::TryInto;
 use std::mem::size_of;
 
+use crate::raydium::{
+    swap::instructions::SOLC_MINT,
+    utils::utils::{
+        program_address, LIQUIDITY_STATE_LAYOUT_V4, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT,
+    },
+};
+
 use super::error::AmmError;
 
 #[repr(C)]
@@ -1688,23 +1695,46 @@ pub async fn load_amm_keys(
     amm_program: &Pubkey,
     amm_pool: &Pubkey,
 ) -> eyre::Result<AmmKeys> {
-    let amm = match get_account::<AmmInfo>(client, &amm_pool).await? {
-        Some(amm) => amm,
-        None => return Err(format_err!("Amm account not found")),
+    let mut retries = 0;
+    let max_retries = 1000;
+    let mut account = None;
+
+    while account.is_none() && retries < max_retries {
+        match client.get_account(&amm_pool).await {
+            Ok(acc) => account = Some(acc),
+            Err(_) => {
+                retries += 1;
+                continue;
+            }
+        }
+    }
+
+    let account = match account {
+        Some(acc) => acc,
+        None => return Err(eyre::eyre!("Account not found after maximum retries")),
     };
+
+    let data = account.clone().data;
+    let mut info = LIQUIDITY_STATE_LAYOUT_V4::decode(&mut &data[..])?;
+
+    if info.baseMint == SOLC_MINT {
+        info.baseMint = info.quoteMint;
+        info.quoteMint = SOLC_MINT;
+    }
+
     Ok(AmmKeys {
         amm_pool: *amm_pool,
-        amm_target: amm.target_orders,
-        amm_coin_vault: amm.coin_vault,
-        amm_pc_vault: amm.pc_vault,
-        amm_lp_mint: amm.lp_mint,
-        amm_open_order: amm.open_orders,
-        amm_coin_mint: amm.coin_vault_mint,
-        amm_pc_mint: amm.pc_vault_mint,
-        amm_authority: authority_id(amm_program, AUTHORITY_AMM, amm.nonce as u8)?,
-        market: amm.market,
-        market_program: amm.market_program,
-        nonce: amm.nonce as u8,
+        amm_target: info.targetOrders,
+        amm_coin_vault: info.baseVault,
+        amm_pc_vault: info.quoteVault,
+        amm_lp_mint: info.lpMint,
+        amm_open_order: info.openOrders,
+        amm_coin_mint: info.baseMint,
+        amm_pc_mint: info.quoteMint,
+        amm_authority: program_address(&account.owner).await?,
+        market: info.marketId,
+        market_program: info.marketProgramId,
+        nonce: info.nonce as u8,
     })
 }
 

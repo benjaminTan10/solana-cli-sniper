@@ -40,13 +40,14 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
     let mut bundle_txn = vec![];
 
     // -------------------Pool Creation Instructions--------------------------
-    let (create_pool_ixs, amm_pool, amm_keys) = match pool_ixs(server_data.clone()).await {
-        Ok(ixs) => ixs,
-        Err(e) => {
-            eprintln!("Error creating pool IXs: {}", e);
-            return Err(e);
-        }
-    };
+    let (create_pool_ixs, amm_pool, amm_keys, new_account) =
+        match pool_ixs(server_data.clone()).await {
+            Ok(ixs) => ixs,
+            Err(e) => {
+                eprintln!("Error creating pool IXs: {}", e);
+                return Err(e);
+            }
+        };
 
     let versioned_msg = VersionedMessage::V0(
         Message::try_compile(
@@ -58,13 +59,14 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
         .unwrap(),
     );
 
-    let pool_create_tx = match VersionedTransaction::try_new(versioned_msg, &[&deployer_key]) {
-        Ok(tx) => tx,
-        Err(e) => {
-            eprintln!("Error creating pool transaction: {}", e);
-            return Err(e.into());
-        }
-    };
+    let pool_create_tx =
+        match VersionedTransaction::try_new(versioned_msg, &[&deployer_key, &new_account]) {
+            Ok(tx) => tx,
+            Err(e) => {
+                eprintln!("Error creating pool transaction: {}", e);
+                return Err(e.into());
+            }
+        };
 
     bundle_txn.push(pool_create_tx);
 
@@ -103,7 +105,7 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
 
     let jito_txn = tip_txn(buyer_key.pubkey(), tip_account(), bundle_tip);
 
-    let tax_txn = tip_txn(deployer_key.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.3));
+    let tax_txn = tip_txn(deployer_key.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.2));
 
     let versioned_msg = VersionedMessage::V0(
         Message::try_compile(
