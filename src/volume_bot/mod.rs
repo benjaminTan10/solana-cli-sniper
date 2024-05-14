@@ -12,12 +12,13 @@ use crate::{
         load_settings,
         minter::{load_minter_settings, PoolDataSettings},
     },
-    instruction::instruction::load_amm_keys,
     liquidity::{
-        lut::{create_lut::create_lut, extend_lut::poolkeys_lut},
-        option::{sol_distribution::atas_creation, wallet_gen::gen_wallet_save},
-        pool_ixs::AMM_PROGRAM,
-        swap_ixs::load_pool_keys,
+        lut::create_lut::create_lut,
+        option::{
+            sol_distribution::{atas_creation, distributor},
+            wallet_gen::gen_wallet_save,
+            wrap_sol::sol_wrap,
+        },
         utils::tip_txn,
     },
     raydium::{
@@ -53,10 +54,12 @@ pub async fn volume_menu() -> eyre::Result<()> {
         .theme(&theme)
         .filterable(true)
         .option(DemandOption::new("Walletgen").label("[1] Generate Wallets"))
-        .option(DemandOption::new("LookupTable").label("[2] Create LUT"))
-        .option(DemandOption::new("Volume").label("[3] Volume (Instant Seller)"))
-        .option(DemandOption::new("Volume").label("[4] Volume Buy"))
-        .option(DemandOption::new("Volume").label("[5] Volume Seller"))
+        // .option(DemandOption::new("LookupTable").label("[2] Create LUT"))
+        .option(DemandOption::new("distributesol").label("[2] Distribute SOL"))
+        .option(DemandOption::new("Wrap SOL & ATAs").label("[3] Wrap SOL & ATAs"))
+        .option(DemandOption::new("Volume").label("[4] Volume (Instant Seller) - 1 Wallet"))
+        .option(DemandOption::new("VolumeBuyer").label("[5] Volume Buyer - Multi Wallet"))
+        .option(DemandOption::new("VolumeSeller").label("[6] Volume Seller - Multi Wallet"))
         .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
 
     let selected_option = ms.run().expect("error running select");
@@ -72,10 +75,23 @@ pub async fn volume_menu() -> eyre::Result<()> {
             println!("-------------------Returning to Main Menu-------------------");
             volume_menu().await?;
         }
+        "Distribute SOL" => {
+            let _ = distributor().await;
+            println!("-------------------Returning to Main Menu-------------------");
+            volume_menu().await?;
+        }
+        "Wrap SOL & ATAs" => {
+            let _ = sol_wrap().await;
+            println!("-------------------Returning to Main Menu-------------------");
+            volume_menu().await?;
+        }
         "Volume" => {
             let _ = generate_volume().await;
             println!("-------------------Returning to Main Menu-------------------");
             volume_menu().await?;
+        }
+        "Main Menu" => {
+            let _ = crate::app::app(false).await;
         }
         _ => {
             // Handle unexpected option here

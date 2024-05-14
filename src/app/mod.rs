@@ -1,5 +1,6 @@
 pub mod embeds;
 pub mod wallets;
+use async_recursion::async_recursion;
 use colored::*;
 use futures::Future;
 use solana_sdk::signature::Keypair;
@@ -90,7 +91,7 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error>> {
         .option(DemandOption::new("Minter Mode").label("[4] Minter Mode"))
         .option(DemandOption::new("Generate Volume").label("[5] Volume Mode"))
         // .option(DemandOption::new("MEV Trades").label("[4] Sandwich Mode (Depricated)"))
-        .option(DemandOption::new("Wallet Details").label("[•] Wallet Details"));
+        .option(DemandOption::new("Wallet Details").label("🍄 Wallet Details"));
 
     let selected_option = ms.run().expect("error running select");
 
@@ -124,41 +125,40 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub fn swap_mode() -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>> {
-    Box::pin(async {
-        let theme = theme();
-        let ms = Select::new("Swap Mode")
-            .description("Select the Mode")
-            .theme(&theme)
-            .filterable(true)
-            .option(DemandOption::new("Buy Tokens").label("[1] Buy Tokens"))
-            .option(DemandOption::new("Sell Tokens").label("[2] Sell Tokens"))
-            .option(DemandOption::new("Track Trade").label("[3] Track Trade"))
-            .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
+#[async_recursion]
+pub async fn swap_mode() -> Result<(), Box<dyn Error + Send>> {
+    let theme = theme();
+    let ms = Select::new("Swap Mode")
+        .description("Select the Mode")
+        .theme(&theme)
+        .filterable(true)
+        .option(DemandOption::new("Buy Tokens").label("[1] Buy Tokens"))
+        .option(DemandOption::new("Sell Tokens").label("[2] Sell Tokens"))
+        .option(DemandOption::new("Track Trade").label("[3] Track Trade"))
+        .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
 
-        let selected_option = ms.run().expect("error running select");
+    let selected_option = ms.run().expect("error running select");
 
-        match selected_option {
-            "Buy Tokens" => {
-                let _ = swap_in().await;
-            }
-            "Sell Tokens" => {
-                let _ = swap_out().await;
-            }
-            "Track Trade" => {
-                let _ = track_trades().await;
-            }
-            "Main Menu" => {
-                let _ = app(false).await;
-            }
-
-            _ => {
-                // Handle unexpected option here
-            }
+    match selected_option {
+        "Buy Tokens" => {
+            let _ = swap_in().await;
+        }
+        "Sell Tokens" => {
+            let _ = swap_out().await;
+        }
+        "Track Trade" => {
+            let _ = track_trades().await;
+        }
+        "Main Menu" => {
+            let _ = app(false).await;
         }
 
-        Ok(())
-    })
+        _ => {
+            // Handle unexpected option here
+        }
+    }
+
+    Ok(())
 }
 
 pub async fn private_key_env(key: &str) -> Result<String, Box<dyn Error>> {

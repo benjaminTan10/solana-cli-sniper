@@ -7,13 +7,16 @@ use solana_address_lookup_table_program::state::AddressLookupTable;
 use solana_sdk::{
     address_lookup_table::AddressLookupTableAccount,
     message::{v0::Message, VersionedMessage},
-    native_token::sol_to_lamports,
+    native_token::{lamports_to_sol, sol_to_lamports},
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
+    system_instruction,
     transaction::VersionedTransaction,
 };
-use spl_associated_token_account::get_associated_token_address;
+use spl_associated_token_account::{
+    get_associated_token_address, instruction::create_associated_token_account,
+};
 
 use crate::{
     env::{load_settings, minter::load_minter_settings},
@@ -112,7 +115,7 @@ pub async fn pool_main() -> eyre::Result<()> {
     let versioned_msg = VersionedMessage::V0(
         Message::try_compile(
             &deployer_key.pubkey(),
-            &[create_pool_ixs /* , tax_txn*/],
+            &create_pool_ixs, /* , tax_txn*/
             &[address_lookup_table_account.clone()],
             recent_blockhash,
         )
@@ -149,9 +152,11 @@ pub async fn pool_main() -> eyre::Result<()> {
                 Ok(balance) => balance.amount.parse::<u64>().unwrap(),
                 Err(e) => {
                     eprintln!("Error getting token account balance: {}", e);
-                    return Err(e.into());
+                    continue;
                 }
             };
+
+            println!("Balance: {} SOL", lamports_to_sol(balance));
 
             let swap_ixs = swap_ixs(
                 server_data.clone(),
@@ -198,6 +203,10 @@ pub async fn pool_main() -> eyre::Result<()> {
         txns_chunk.push(versioned_tx);
         // Now you can use chunk_index, current_wallets, and current_instructions
     }
+
+    txns_chunk.iter().for_each(|tx| {
+        println!("Txn: {:?}", tx.signatures);
+    });
 
     let txn_size: Vec<_> = txns_chunk
         .iter()

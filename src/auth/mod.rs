@@ -1,6 +1,7 @@
+use std::thread::sleep;
 
 use colored::Colorize;
-use log::{error};
+use log::error;
 use mongodb::{Client, Collection};
 use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer};
 
@@ -67,6 +68,7 @@ pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
 
     if !is_user {
         error!("{}: {}", "Unauthorized User".bold().red(), wallet);
+        sleep(std::time::Duration::from_secs(20));
         std::process::exit(1); // Stop the bot and exit the process
     }
 

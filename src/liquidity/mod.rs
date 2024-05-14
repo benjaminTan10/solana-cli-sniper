@@ -1,3 +1,4 @@
+pub mod freeze_authority;
 pub mod lut;
 pub mod minter_main;
 pub mod option;

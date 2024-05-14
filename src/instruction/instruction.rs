@@ -656,6 +656,7 @@ pub fn initialize_amm_pool(
     pc_amount: u64,   // transfer pc asset to the pool pc vault as pool init vault
     coin_amount: u64, // transfer coin asset to the pool coin vault as pool init vault
 ) -> eyre::Result<Instruction> {
+    println!("Coin: {}\nPC: {}\nLP: {}", user_coin, user_pc, user_lp);
     let amm_pool_init_instruction = initialize2(
         &amm_program,
         &amm_keys.amm_pool,
@@ -715,6 +716,34 @@ pub fn initialize2(
         init_coin_amount,
     });
     let data = init_data.pack()?;
+
+    println!("spl_token::id: {}", spl_token::id());
+    println!(
+        "spl_associated_token_account::id: {}",
+        spl_associated_token_account::id()
+    );
+    println!(
+        "solana_program::system_program::id: {}",
+        solana_program::system_program::id()
+    );
+    println!("sysvar::rent::id: {}", sysvar::rent::id());
+    println!("amm_pool: {}", amm_pool);
+    println!("amm_authority: {}", amm_authority);
+    println!("amm_open_orders: {}", amm_open_orders);
+    println!("amm_lp_mint: {}", amm_lp_mint);
+    println!("amm_coin_mint: {}", amm_coin_mint);
+    println!("amm_pc_mint: {}", amm_pc_mint);
+    println!("amm_coin_vault: {}", amm_coin_vault);
+    println!("amm_pc_vault: {}", amm_pc_vault);
+    println!("amm_target_orders: {}", amm_target_orders);
+    println!("amm_config: {}", amm_config);
+    println!("create_fee_destination: {}", create_fee_destination);
+    println!("market_program: {}", market_program);
+    println!("market: {}", market);
+    println!("user_wallet: {}", user_wallet);
+    println!("user_token_coin: {}", user_token_coin);
+    println!("user_token_pc: {}", user_token_pc);
+    println!("user_token_lp: {}", user_token_lp);
 
     let accounts = vec![
         // spl & sys

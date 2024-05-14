@@ -8,6 +8,8 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
 
+use crate::app::private_key_env;
+
 pub mod env_loader;
 pub mod minter;
 
@@ -98,73 +100,67 @@ struct HelperSettings {
 }
 
 pub async fn load_settings() -> eyre::Result<EngineSettings> {
-    let args = match fs::read_to_string("settings.json") {
-        Ok(args) => args,
-        Err(_) => {
-            info!("Settings file not found, creating a new one");
-            info!("Please fill in the settings.json file with your settings and restart the bot.");
-            // Create a new settings.json file with default settings
-            let default_settings = HelperSettings {
-                block_engine_url: "https://ny.mainnet.block-engine.jito.wtf".to_string(),
-                buy_wallet: "".to_string(),
-                grpc_url: "http://205.209.109.10:10000/".to_string(),
-                pubsub_url:
-                    "wss://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
-                        .to_string(),
-                rpc_url:
-                    "https://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
-                        .to_string(),
-                message: "Jito Tip Message".to_string(),
-                bot_auth: "".to_string(),
-                // tip_program_id: "".to_string(),
-                regions: vec!["ny".to_string()],
-                subscribe_bundle_results: false,
-                // auth_keypair: vec![],
-                use_bundles: true,
-                spam: false,
-                spam_count: 15,
-            };
-            let default_settings_json = serde_json::to_string(&default_settings).unwrap();
-            let mut file = File::create("settings.json").unwrap();
-            file.write_all(default_settings_json.as_bytes()).unwrap();
+    let args = fs::read_to_string("settings.json").unwrap_or_else(|_| {
+        info!("Settings file not found, creating a new one");
+        // Create a new settings.json file with default settings
+        let default_settings = HelperSettings {
+            block_engine_url: "https://ny.mainnet.block-engine.jito.wtf".to_string(),
+            buy_wallet: "".to_string(),
+            grpc_url: "".to_string(),
+            pubsub_url:
+                "wss://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
+                    .to_string(),
+            rpc_url: "https://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
+                .to_string(),
+            message: "Jito Tip Message".to_string(),
+            bot_auth: "".to_string(),
+            // tip_program_id: "".to_string(),
+            regions: vec!["ny".to_string()],
+            subscribe_bundle_results: false,
+            // auth_keypair: vec![],
+            use_bundles: true,
+            spam: false,
+            spam_count: 15,
+        };
+        let default_settings_json = serde_json::to_string(&default_settings).unwrap();
+        let mut file = File::create("settings.json").unwrap();
+        file.write_all(default_settings_json.as_bytes()).unwrap();
 
-            exit(1);
-        }
-    };
+        return default_settings_json;
+    });
 
-    let helper_settings: HelperSettings = match serde_json::from_str(&args) {
-        Ok(settings) => settings,
-        Err(_) => {
-            info!("Settings file not found, creating a new one");
-            info!("Please fill in the settings.json file with your settings and restart the bot.");
-            // Create a new settings.json file with default settings
-            let default_settings = HelperSettings {
-                block_engine_url: "https://ny.mainnet.block-engine.jito.wtf".to_string(),
-                buy_wallet: "".to_string(),
-                grpc_url: "http://205.209.109.10:10000/".to_string(),
-                pubsub_url:
-                    "wss://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
-                        .to_string(),
-                rpc_url:
-                    "https://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
-                        .to_string(),
-                message: "Jito Tip Message".to_string(),
-                bot_auth: "".to_string(),
-                // tip_program_id: "".to_string(),
-                regions: vec!["ny".to_string()],
-                subscribe_bundle_results: false,
-                // auth_keypair: vec![],
-                use_bundles: true,
-                spam: false,
-                spam_count: 15,
-            };
-            let default_settings_json = serde_json::to_string(&default_settings).unwrap();
-            let mut file = File::create("settings.json").unwrap();
-            file.write_all(default_settings_json.as_bytes()).unwrap();
+    let mut helper_settings: HelperSettings = serde_json::from_str(&args).unwrap_or_else(|_| {
+        info!("Settings file not found, creating a new one");
+        // Create a new settings.json file with default settings
+        let default_settings = HelperSettings {
+            block_engine_url: "https://ny.mainnet.block-engine.jito.wtf".to_string(),
+            buy_wallet: "".to_string(),
+            grpc_url: "".to_string(),
+            pubsub_url:
+                "wss://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
+                    .to_string(),
+            rpc_url: "https://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
+                .to_string(),
+            message: "Jito Tip Message".to_string(),
+            bot_auth: "".to_string(),
+            // tip_program_id: "".to_string(),
+            regions: vec!["ny".to_string()],
+            subscribe_bundle_results: false,
+            // auth_keypair: vec![],
+            use_bundles: true,
+            spam: false,
+            spam_count: 15,
+        };
+        let default_settings_json = serde_json::to_string(&default_settings).unwrap();
+        let mut file = File::create("settings.json").unwrap();
+        file.write_all(default_settings_json.as_bytes()).unwrap();
 
-            exit(1);
-        }
-    };
+        return default_settings;
+    });
+
+    if helper_settings.bot_auth.is_empty() {
+        helper_settings.bot_auth = private_key_env("Whitelisted Private Key").await.unwrap();
+    }
 
     let settings = EngineSettings {
         block_engine_url: helper_settings.block_engine_url,

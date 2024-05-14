@@ -51,7 +51,7 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
     let versioned_msg = VersionedMessage::V0(
         Message::try_compile(
             &deployer_key.pubkey(),
-            &[create_pool_ixs],
+            &create_pool_ixs,
             &[],
             connection.get_latest_blockhash().await?,
         )
