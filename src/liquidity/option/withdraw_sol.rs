@@ -285,14 +285,22 @@ pub async fn deployer_details() -> Result<(), Box<dyn Error + Send>> {
         .await
         .unwrap();
 
-    info!("Deployer Wallet: {} SOL", lamports_to_sol(balance));
+    println!(
+        "Deployer Wallet: {}\n{} SOL",
+        deployer_wallet.pubkey(),
+        lamports_to_sol(balance)
+    );
 
     let balance = connection
         .get_balance(&buyer_wallet.pubkey())
         .await
         .unwrap();
 
-    info!("Buyer Wallet: {} SOL", lamports_to_sol(balance));
+    println!(
+        "Buyer Wallet: {}\n{} SOL",
+        buyer_wallet.pubkey(),
+        lamports_to_sol(balance)
+    );
 
     let w_sol_buyer = get_associated_token_address(&buyer_wallet.pubkey(), &SOLC_MINT);
     let w_sol_deployer = get_associated_token_address(&deployer_wallet.pubkey(), &SOLC_MINT);

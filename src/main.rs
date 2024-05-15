@@ -6,6 +6,8 @@ use std::io::Write;
 use Mevarik::{
     app::{app, embeds::embed},
     auth::auth_verification,
+    env::minter::load_minter_settings,
+    liquidity::pool_ixs::pool_ixs,
 };
 #[tokio::main]
 async fn main() {

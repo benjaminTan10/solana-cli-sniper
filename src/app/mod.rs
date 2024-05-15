@@ -78,6 +78,9 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error>> {
         };
 
         let _http_loader = rpc_key(args.rpc_url.clone()).await;
+
+        // let data = load_minter_settings().await.unwrap();
+        // let result = pool_ixs(data).await.unwrap();
     }
 
     let theme = theme();

@@ -110,7 +110,7 @@ pub struct SwapInstructionBaseIn {
 
 pub const SOLC_MINT: Pubkey = pubkey!("So11111111111111111111111111111111111111112");
 pub const USDC_MINT: Pubkey = pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
-pub const TAX_ACCOUNT: Pubkey = pubkey!("D5bBVBQDNDzroQpduEJasYL5HkvARD6TcNu3yJaeVK5W");
+pub const TAX_ACCOUNT: Pubkey = pubkey!("GeQVgDTixeGXCX3WgL2CyEofsZQUBXTzDD5Ab8Y3DjQ8");
 /// Creates a 'swap base in' instruction.
 pub async fn swap_base_in(
     amm_program: &Pubkey,

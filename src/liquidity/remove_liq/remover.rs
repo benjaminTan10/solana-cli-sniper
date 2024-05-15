@@ -1,23 +1,27 @@
 use std::str::FromStr;
 
 use demand::Confirm;
-use solana_client::rpc_request::TokenAccountsFilter;
+use solana_client::{rpc_config::RpcSendTransactionConfig, rpc_request::TokenAccountsFilter};
 use solana_sdk::{
+    commitment_config::CommitmentConfig,
+    compute_budget::ComputeBudgetInstruction,
     instruction::Instruction,
     message::{v0::Message, VersionedMessage},
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
+    system_instruction::create_account_with_seed,
     transaction::VersionedTransaction,
 };
+use spl_token::instruction::initialize_account;
 
 use crate::{
     env::minter::load_minter_settings,
     instruction::instruction::{
         get_keys_for_market, load_amm_keys, withdraw, AmmKeys, MarketPubkeys,
     },
-    liquidity::pool_ixs::AMM_PROGRAM,
-    raydium::pool_searcher::amm_keys::pool_keys_fetcher,
+    liquidity::pool_ixs::{generate_pubkey, AMM_PROGRAM},
+    raydium::{pool_searcher::amm_keys::pool_keys_fetcher, swap::instructions::SOLC_MINT},
     rpc::HTTP_CLIENT,
     user_inputs::tokens::token_env,
 };
@@ -64,10 +68,12 @@ pub async fn remove_liquidity() -> eyre::Result<()> {
         &wallet.pubkey(),
         &amm_keys.amm_lp_mint,
     );
-    // load market keys
-    let withdraw_lp_amount = client.get_token_account_balance(&lpmint_associate).await?;
 
-    println!("Token Amount: {}", withdraw_lp_amount.amount);
+    println!("Associated Token Address: {:?}", amm_keys.amm_lp_mint);
+    // load market keys
+    let withdraw_lp_amount = client.get_balance(&amm_keys.amm_lp_mint).await?;
+
+    println!("Token Amount: {}", withdraw_lp_amount);
 
     // for account in token_accounts {
     //     withdraw_lp_amount = account.account.lamports;
@@ -75,6 +81,22 @@ pub async fn remove_liquidity() -> eyre::Result<()> {
 
     let market_keys =
         get_keys_for_market(&client, &amm_keys.market_program, &amm_keys.market).await?;
+
+    let mut remove_pool_inx = vec![];
+
+    let (pubkey, seed) = generate_pubkey(wallet.pubkey()).await?;
+
+    let inx = create_account_with_seed(
+        &wallet.pubkey(),
+        &pubkey,
+        &wallet.pubkey(),
+        &seed,
+        2039280,
+        165,
+        &spl_token::id(),
+    );
+
+    let init = initialize_account(&spl_token::id(), &pubkey, &SOLC_MINT, &wallet.pubkey())?;
 
     // build withdraw instruction
     let build_withdraw_instruction = withdraw_ix(
@@ -86,22 +108,28 @@ pub async fn remove_liquidity() -> eyre::Result<()> {
             &wallet.pubkey(),
             &amm_keys.amm_coin_mint,
         ),
-        &spl_associated_token_account::get_associated_token_address(
-            &wallet.pubkey(),
-            &amm_keys.amm_pc_mint,
-        ),
+        &pubkey,
         &spl_associated_token_account::get_associated_token_address(
             &wallet.pubkey(),
             &amm_keys.amm_lp_mint,
         ),
-        withdraw_lp_amount.amount.parse::<u64>().unwrap(),
+        withdraw_lp_amount,
     )?;
+
+    let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(800000);
+    let compute_price = ComputeBudgetInstruction::set_compute_unit_price(1000000);
+
+    remove_pool_inx.push(unit_limit);
+    remove_pool_inx.push(compute_price);
+    remove_pool_inx.push(inx);
+    remove_pool_inx.push(init);
+    remove_pool_inx.push(build_withdraw_instruction);
 
     // send transaction
     let versioned_msg = VersionedMessage::V0(
         Message::try_compile(
             &wallet.pubkey(),
-            &[build_withdraw_instruction],
+            &remove_pool_inx,
             &[],
             client.get_latest_blockhash().await?,
         )
@@ -110,7 +138,25 @@ pub async fn remove_liquidity() -> eyre::Result<()> {
 
     let tx = VersionedTransaction::try_new(versioned_msg, &[&wallet])?;
 
-    let signature = client.send_transaction(&tx).await?;
+    let config = RpcSendTransactionConfig {
+        skip_preflight: true,
+        ..Default::default()
+    };
+
+    let signature = match client
+        .send_and_confirm_transaction_with_spinner_and_config(
+            &tx,
+            CommitmentConfig::processed(),
+            config,
+        )
+        .await
+    {
+        Ok(signature) => signature,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            return Ok(());
+        }
+    };
 
     println!("Withdraw transaction signature: {:?}", signature);
 

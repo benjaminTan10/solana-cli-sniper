@@ -41,19 +41,16 @@ pub async fn pool_ixs(
         http_client.get("http_client").unwrap().clone()
     };
 
-    let token_accounts = client
-        .get_token_accounts_by_owner(
-            &wallet.pubkey(),
-            TokenAccountsFilter::Mint(Pubkey::from_str(&pool_data.token_mint)?),
-        )
-        .await?;
+    let associated_token = spl_associated_token_account::get_associated_token_address(
+        &wallet.pubkey(),
+        &Pubkey::from_str(&pool_data.token_mint)?,
+    );
 
-    let mut base_pc_amount = 0;
-    for token_account in token_accounts {
-        base_pc_amount = token_account.account.lamports;
+    let token_accounts = client.get_token_account_balance(&associated_token).await?;
 
-        info!("Tokens Balance: {}", base_pc_amount);
-    }
+    let base_pc_amount = token_accounts.amount.parse::<u64>()?;
+
+    println!("Base PC Amount: {}", base_pc_amount);
 
     let sol_amount = liq_amount();
     let percentage = token_percentage();
@@ -93,11 +90,6 @@ pub async fn pool_ixs(
         165,
         &spl_token::id(),
     );
-
-    let connection = {
-        let http_client = HTTP_CLIENT.lock().unwrap();
-        http_client.get("http_client").unwrap().clone()
-    };
 
     let init = initialize_account(&spl_token::id(), &pubkey, &SOLC_MINT, &wallet.pubkey())?;
     // let user_token_source = get_associated_token_address(&wallet.pubkey(), &SOLC_MINT);
