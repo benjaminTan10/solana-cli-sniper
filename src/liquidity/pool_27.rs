@@ -11,12 +11,9 @@ use solana_sdk::{
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
-    system_instruction,
     transaction::VersionedTransaction,
 };
-use spl_associated_token_account::{
-    get_associated_token_address, instruction::create_associated_token_account,
-};
+use spl_associated_token_account::get_associated_token_address;
 
 use crate::{
     env::{load_settings, minter::load_minter_settings},
@@ -66,7 +63,7 @@ pub async fn pool_main() -> eyre::Result<()> {
     // -------------------Pool Creation Instructions--------------------------
     println!("Creating Pool Transaction");
 
-    let (create_pool_ixs, amm_pool, amm_keys, new_account) = match pool_ixs(data.clone()).await {
+    let (create_pool_ixs, amm_pool, amm_keys) = match pool_ixs(data.clone()).await {
         Ok(ixs) => ixs,
         Err(e) => {
             eprintln!("Error creating pool IXs: {}", e);

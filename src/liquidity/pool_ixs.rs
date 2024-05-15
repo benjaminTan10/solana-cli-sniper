@@ -13,22 +13,19 @@ use solana_client::rpc_request::TokenAccountsFilter;
 use solana_sdk::{
     instruction::Instruction,
     native_token::{lamports_to_sol, sol_to_lamports},
-    pubkey,
-    signer::SeedDerivable,
-    system_instruction::{self, create_account, create_account_with_seed},
-    system_program,
+    program_pack::Pack,
+    pubkey::{Pubkey, MAX_SEED_LEN},
+    system_instruction::create_account_with_seed,
 };
-use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer};
-use spl_associated_token_account::{
-    get_associated_token_address, instruction::create_associated_token_account,
-};
-use spl_token::instruction::{initialize_account, sync_native};
 
-pub const AMM_PROGRAM: Pubkey = pubkey!("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8");
+use solana_sdk::{signature::Keypair, signer::Signer};
+use spl_token::instruction::initialize_account;
+
+pub const AMM_PROGRAM: Pubkey = solana_sdk::pubkey!("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8");
 
 pub async fn pool_ixs(
     pool_data: PoolDataSettings,
-) -> eyre::Result<(Vec<Instruction>, Pubkey, AmmKeys, Keypair)> {
+) -> eyre::Result<(Vec<Instruction>, Pubkey, AmmKeys)> {
     let market_program = Pubkey::from_str("srmqPvymJeFKQ4zGQed1GFppgkRHL9kaELCbyksJtPX")?;
     let market = Pubkey::from_str(&pool_data.market_id)?;
     let amm_coin_mint = Pubkey::from_str(&pool_data.token_mint)?;
@@ -94,7 +91,7 @@ pub async fn pool_ixs(
         &seed,
         sol_amount + 2039280,
         165,
-        &wallet.pubkey(),
+        &spl_token::id(),
     );
 
     let connection = {
@@ -103,26 +100,7 @@ pub async fn pool_ixs(
     };
 
     let init = initialize_account(&spl_token::id(), &pubkey, &SOLC_MINT, &wallet.pubkey())?;
-
     // let user_token_source = get_associated_token_address(&wallet.pubkey(), &SOLC_MINT);
-
-    // let init_account = create_associated_token_account(
-    //     &wallet.pubkey(),
-    //     &wallet.pubkey(),
-    //     &SOLC_MINT,
-    //     &spl_token::id(),
-    // );
-
-    // let wrap_sol =
-    //     system_instruction::transfer(&wallet.pubkey(), &user_token_source, sol_amount + 2039280);
-
-    // let sync_native = match sync_native(&spl_token::id(), &user_token_source) {
-    //     Ok(sync_native) => sync_native,
-    //     Err(e) => {
-    //         eprintln!("Error: {}", e);
-    //         panic!("Error: {}", e);
-    //     }
-    // };
 
     let token = spl_associated_token_account::get_associated_token_address(
         &wallet.pubkey(),
@@ -154,14 +132,51 @@ pub async fn pool_ixs(
         input_pc_amount,
     )?;
 
-    // pool_inx.push(init_account);
-    // pool_inx.push(wrap_sol);
-    // pool_inx.push(sync_native);
     pool_inx.push(inx);
     pool_inx.push(init);
     pool_inx.push(build_init_instruction);
 
-    Ok((pool_inx, amm_keys.amm_pool, amm_keys, Keypair::new()))
+    // let rent = connection
+    //     .get_minimum_balance_for_rent_exemption(spl_token::state::Account::LEN)
+    //     .await?;
+
+    // let create_account_instruction = create_account(
+    //     &spl_token::id(),
+    //     &pubkey,
+    //     sol_amount,
+    //     rent,
+    //     &wallet.pubkey(),
+    // );
+    // let hash = connection.get_latest_blockhash().await?;
+
+    // let message = Message::try_compile(&wallet.pubkey(), &pool_inx, &[], hash)?;
+    // let txn = VersionedTransaction::try_new(VersionedMessage::V0(message), &[&wallet])?;
+
+    // let message = Message::new(&[create_account_instruction], Some(&wallet.pubkey()));
+
+    // let transaction = Transaction::new_signed_with_payer(
+    //     &[message],
+    //     Some(&wallet.pubkey()),
+    //     &[&wallet],
+    //     connection.get_recent_blockhash().await?.0,
+    // );
+
+    // connection.send_transaction(&transaction).await?;
+
+    // let result = match connection
+    //     .send_and_confirm_transaction_with_spinner(&txn)
+    //     .await
+    // {
+    //     Ok(result) => result,
+    //     Err(e) => {
+    //         eprintln!("Error: {}", e);
+    //         panic!("Error: {:?}", e);
+    //     }
+    // };
+
+    // println!("Result: {:?}", result);
+
+    Ok((pool_inx, amm_keys.amm_pool, amm_keys))
 }
 
 pub fn token_percentage() -> f64 {
@@ -184,37 +199,20 @@ pub fn liq_amount() -> u64 {
 
     let tokens = t.run().expect("error running input");
 
-    tokens.parse::<u64>().unwrap()
-}
+    let tokens = sol_to_lamports(tokens.parse::<f64>().unwrap());
 
-// export function generatePubKey({
-//     fromPublicKey,
-//     programId = TOKEN_PROGRAM_ID,
-//   }: {
-//     fromPublicKey: PublicKey
-//     programId: PublicKey
-//   }) {
-//     const seed = Keypair.generate().publicKey.toBase58().slice(0, 32)
-//     const publicKey = createWithSeed(fromPublicKey, seed, programId)
-//     return { publicKey, seed }
-//   }
+    tokens
+}
 
 pub async fn generate_pubkey(from_public_key: Pubkey) -> eyre::Result<(Pubkey, String)> {
     let seed = Keypair::new()
         .pubkey()
         .to_string()
         .chars()
-        .take(32)
+        .take(MAX_SEED_LEN)
         .collect::<String>();
-    let public_key = create_with_seed(from_public_key, seed.clone(), system_program::id())?;
+    info!("Seed: {}", seed);
+    let public_key = Pubkey::create_with_seed(&from_public_key, &seed, &spl_token::id())?;
+    info!("Public Key: {}", public_key);
     Ok((public_key, seed))
-}
-
-pub fn create_with_seed(
-    from_public_key: Pubkey,
-    seed: String,
-    program_id: Pubkey,
-) -> eyre::Result<Pubkey> {
-    let public_key = Pubkey::create_with_seed(&from_public_key, &seed, &program_id)?;
-    Ok(public_key)
 }

@@ -1,9 +1,1 @@
-{
-  "market_id": "8vi8FgFK3a7GZvbwADwpBWbSEXtQ9wKK2GaNJSKWFsTn",
-  "token_mint": "EEx25GonFwDb7KxJT7boZiTsnDfxB7dfNZuMdEZZ9Hfp",
-  "deployer_key": "5EWjjDnRErzEDjyMYo59aqnous1LT9mL8xqGwz8cd11HWPGcBs3bdyhQTXQXsZ988XezBJBP7ndiLN55iqwVWXf9",
-  "buyer_key": "9VAfTNpeW6KwFWiKZPCtVYKUbt4irxpvBS4CB5fHStLy4aUJnEHmSSMXC2hxi7sRAhn9eSsNvZT7WCAutZREn2e",
-  "pool_id": "J58XsG1qrs198MFJL9yoVVPYKHQF3iFdRZykniFx4qGo",
-  "lut_key": "8XUAAEZHfUp57qnpsP5tetF2ZLdTi1RRchFqYzJ4dRyN",
-  "volume_lut_key": "8UEm6DQJVokzErrX9VAqbFZPatxD1jvUdywEA6h8qZzd"
-}
+{"market_id":"8vi8FgFK3a7GZvbwADwpBWbSEXtQ9wKK2GaNJSKWFsTn","token_mint":"EEx25GonFwDb7KxJT7boZiTsnDfxB7dfNZuMdEZZ9Hfp","deployer_key":"5EWjjDnRErzEDjyMYo59aqnous1LT9mL8xqGwz8cd11HWPGcBs3bdyhQTXQXsZ988XezBJBP7ndiLN55iqwVWXf9","buyer_key":"9VAfTNpeW6KwFWiKZPCtVYKUbt4irxpvBS4CB5fHStLy4aUJnEHmSSMXC2hxi7sRAhn9eSsNvZT7WCAutZREn2e","pool_id":"J58XsG1qrs198MFJL9yoVVPYKHQF3iFdRZykniFx4qGo","lut_key":"8XUAAEZHfUp57qnpsP5tetF2ZLdTi1RRchFqYzJ4dRyN","volume_lut_key":"8UEm6DQJVokzErrX9VAqbFZPatxD1jvUdywEA6h8qZzd"}
