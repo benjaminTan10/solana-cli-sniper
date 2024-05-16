@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use demand::Confirm;
 use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer};
 use spl_token::instruction::freeze_account;
 
@@ -30,4 +31,18 @@ pub async fn freeze_sells() {
             return;
         }
     };
+}
+
+pub async fn freeze_authority() -> Result<bool, Box<dyn std::error::Error>> {
+    let confirm = Confirm::new("Freeze Accounts")
+        .description(
+            "All the incoming txns account will be Frozen. Are you sure you want to proceed?",
+        )
+        .affirmative("No")
+        .negative("Yes")
+        .selected(false)
+        .run()
+        .unwrap();
+
+    Ok(confirm)
 }

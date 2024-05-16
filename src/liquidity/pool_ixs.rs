@@ -7,7 +7,7 @@ use crate::{
     raydium::swap::instructions::SOLC_MINT,
     rpc::HTTP_CLIENT,
 };
-use demand::Input;
+use demand::{Confirm, Input};
 use log::info;
 use solana_client::rpc_request::TokenAccountsFilter;
 use solana_sdk::{

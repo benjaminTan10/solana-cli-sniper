@@ -64,7 +64,7 @@ pub fn theme() -> Theme {
     }
 }
 
-pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>> {
     if mainmenu {
         let args = match load_settings().await {
             Ok(args) => {
@@ -106,7 +106,7 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error>> {
             let _ = swap_mode().await;
         }
         "Snipe Pools" => {
-            let _ = auto_sniper_stream(true).await;
+            let _ = sniper_mode().await;
         }
         "Minter Mode" => {
             let _ = raydium_creator().await;
@@ -195,36 +195,34 @@ fn is_valid_private_key(private_key: &str) -> bool {
     Keypair::from_bytes(&decoded).is_ok()
 }
 
-pub fn sniper_mode() -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>>>> {
-    Box::pin(async {
-        let theme = theme();
-        let ms = Select::new("Sniper Mode")
-            .description("Select the Mode")
-            .theme(&theme)
-            .filterable(true)
-            .option(DemandOption::new("Manual Sniper").label("[1] Set Manual Snipe"))
-            .option(DemandOption::new("Automatic Sniper").label("[2] Set Automatic Snipe"))
-            .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
+pub async fn sniper_mode() -> Result<(), Box<dyn Error + Send>> {
+    let theme = theme();
+    let ms = Select::new("Sniper Mode")
+        .description("Select the Mode")
+        .theme(&theme)
+        .filterable(true)
+        .option(DemandOption::new("Manual Sniper").label("[1] Set Manual Snipe"))
+        .option(DemandOption::new("Automatic Sniper").label("[2] Set Automatic Snipe"))
+        .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
 
-        let selected_option = ms.run().expect("error running select");
+    let selected_option = ms.run().expect("error running select");
 
-        match selected_option {
-            "Manual Sniper" => {
-                let _ = automatic_snipe(true).await;
-            }
-            "Automatic Sniper" => {
-                let _ = automatic_snipe(false).await;
-            }
-            "Main Menu" => {
-                let _ = app(false).await;
-            }
-            _ => {
-                // Handle unexpected option here
-            }
+    match selected_option {
+        "Manual Sniper" => {
+            let _ = automatic_snipe(true).await;
         }
+        "Automatic Sniper" => {
+            let _ = automatic_snipe(false).await;
+        }
+        "Main Menu" => {
+            let _ = Box::pin(app(false)).await;
+        }
+        _ => {
+            // Handle unexpected option here
+        }
+    }
 
-        Ok(())
-    })
+    Ok(())
 }
 
 #[derive(Debug)]

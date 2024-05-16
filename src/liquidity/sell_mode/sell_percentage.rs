@@ -69,7 +69,7 @@ pub async fn sell_specific(percentage: bool) -> eyre::Result<()> {
     let buyer_wallet = Keypair::from_base58_string(&data.buyer_key);
     let lut_key = Pubkey::from_str(&data.lut_key)?;
 
-    let mut pool_id = Pubkey::default();
+    let mut pool_id = Pubkey::from_str(&data.pool_id).unwrap();
     if data.pool_id.is_empty() {
         pool_id = token_env("Pool ID: ").await;
     }
@@ -83,14 +83,19 @@ pub async fn sell_specific(percentage: bool) -> eyre::Result<()> {
         }
     };
 
-    let market_keys =
-        match get_keys_for_market(&rpc_client.clone(), &AMM_PROGRAM, &amm_keys.market).await {
-            Ok(market_keys) => market_keys,
-            Err(e) => {
-                eprintln!("Error: {}", e);
-                return Ok(());
-            }
-        };
+    let market_keys = match get_keys_for_market(
+        &rpc_client.clone(),
+        &amm_keys.market_program,
+        &amm_keys.market,
+    )
+    .await
+    {
+        Ok(market_keys) => market_keys,
+        Err(e) => {
+            eprintln!("Market Error: {}", e);
+            return Ok(());
+        }
+    };
 
     let balance_amounts = Arc::new(Mutex::new(vec![]));
 
