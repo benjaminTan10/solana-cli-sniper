@@ -305,21 +305,21 @@ pub async fn deployer_details() -> Result<(), Box<dyn Error + Send>> {
     let w_sol_buyer = get_associated_token_address(&buyer_wallet.pubkey(), &SOLC_MINT);
     let w_sol_deployer = get_associated_token_address(&deployer_wallet.pubkey(), &SOLC_MINT);
 
-    for wallet in vec![w_sol_buyer, w_sol_deployer] {
-        let balance = match connection.get_token_account_balance(&wallet).await {
-            Ok(balance) => balance,
-            Err(e) => {
-                error!("No Token Account Found on Wallet: {}", wallet);
+    // for wallet in vec![w_sol_buyer, w_sol_deployer] {
+    //     let balance = match connection.get_token_account_balance(&wallet).await {
+    //         Ok(balance) => balance,
+    //         Err(e) => {
+    //             error!("No Token Account Found on Wallet: {}", wallet);
 
-                continue;
-            }
-        };
+    //             continue;
+    //         }
+    //     };
 
-        info!(
-            "Balance: {} SOL",
-            lamports_to_sol(balance.amount.parse::<u64>().unwrap())
-        );
-    }
+    //     info!(
+    //         "Balance: {} SOL",
+    //         lamports_to_sol(balance.amount.parse::<u64>().unwrap())
+    //     );
+    // }
 
     Ok(())
 }

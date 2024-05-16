@@ -6,8 +6,6 @@ use std::io::Write;
 use Mevarik::{
     app::{app, embeds::embed},
     auth::auth_verification,
-    env::minter::load_minter_settings,
-    liquidity::{freeze_authority::freeze_sells, pool_ixs::pool_ixs},
 };
 #[tokio::main]
 async fn main() {
@@ -50,11 +48,10 @@ async fn main() {
         }
     };
     info!("{}", "Authentication successful!".bold().green());
-    freeze_sells().await;
     let _ = app(true).await;
 }
 
-use self_update::cargo_crate_version;
+// use self_update::cargo_crate_version;
 
 // pub async fn self_update() -> Result<(), Box<dyn std::error::Error>> {
 //     let status = self_update::backends::s3::Update::configure()

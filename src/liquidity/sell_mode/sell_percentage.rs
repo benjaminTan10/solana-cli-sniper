@@ -151,6 +151,7 @@ pub async fn sell_specific(percentage: bool) -> eyre::Result<()> {
                 &wallet,
                 balance,
                 true,
+                token_account,
             )
             .unwrap();
 
@@ -195,7 +196,7 @@ pub async fn sell_specific(percentage: bool) -> eyre::Result<()> {
         ) {
             Ok(tx) => tx,
             Err(e) => {
-                eprintln!("Error creating pool transaction: {}", e);
+                eprintln!("Error creating Swap transaction: {}", e);
                 return Err(e.into());
             }
         };

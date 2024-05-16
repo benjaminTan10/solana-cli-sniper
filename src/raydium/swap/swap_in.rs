@@ -26,7 +26,7 @@ pub async fn swap_in() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let sol_amount = sol_amount().await;
+    let sol_amount = sol_amount("Swap Amount:").await;
 
     let mut bundle_tip = 0;
     let mut priority_fee_value = 0;

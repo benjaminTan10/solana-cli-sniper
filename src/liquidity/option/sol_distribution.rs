@@ -39,6 +39,11 @@ use crate::{
 
 pub async fn sol_distribution(
     server_data: PoolDataSettings,
+    wallets: &&[Keypair],
+    total_amount: u64,
+    min_amount: u64,
+    max_amount: u64,
+    bundle_tip: u64,
 ) -> eyre::Result<(Vec<u64>, Vec<VersionedTransaction>)> {
     let connection = {
         let http_client = HTTP_CLIENT.lock().unwrap();
@@ -47,82 +52,37 @@ pub async fn sol_distribution(
 
     let buyer_wallet = Arc::new(Keypair::from_base58_string(&server_data.buyer_key));
 
-    let wallets: Vec<Keypair> = match load_wallets().await {
-        Ok(wallets) => wallets,
-        Err(e) => {
-            eprintln!("Error: {}", e);
-            panic!("Error: {}", e);
-        }
-    };
+    let rand_amount = distribute_randomly(total_amount, wallets.len(), min_amount, max_amount);
 
-    let buy_amount = sol_amount().await;
-    let bundle_tip = bundle_priority_tip().await;
-
-    let rand_amount = distribute_randomly(
-        buy_amount,
-        wallets.len(),
-        sol_to_lamports(0.06),
-        sol_to_lamports(0.2),
-    );
-
-    let lut_creation = match Pubkey::from_str(&server_data.lut_key) {
-        Ok(lut) => lut,
-        Err(e) => {
-            panic!("LUT key not Found in Settings: {}", e);
-        }
-    };
-
-    let mut raw_account = None;
-
-    while raw_account.is_none() {
-        match connection.get_account(&lut_creation).await {
-            Ok(account) => raw_account = Some(account),
-            Err(e) => {
-                eprintln!("Error getting LUT account: {}, retrying...", e);
-            }
-        }
-    }
-
-    let raw_account = raw_account.unwrap();
-
-    let address_lookup_table = AddressLookupTable::deserialize(&raw_account.data)?;
-    let address_lookup_table_account = AddressLookupTableAccount {
-        key: lut_creation,
-        addresses: address_lookup_table.addresses.to_vec(),
-    };
-
-    let mut distribution_ix: Vec<Instruction> = vec![];
-
-    //-----------------------------------------------------------------------------------------------
-
-    for (index, wallet) in wallets.iter().enumerate() {
-        let transfer_instruction = system_instruction::transfer(
-            &buyer_wallet.pubkey(),
-            &wallet.pubkey(),
-            rand_amount[index],
-        );
-
-        distribution_ix.push(transfer_instruction);
-    }
-
-    let tip_ix = tip_txn(buyer_wallet.pubkey(), tip_account(), bundle_tip);
-
-    distribution_ix.push(tip_ix);
-
-    let distribution_ix_chunks: Vec<_> = distribution_ix.chunks(21).collect();
-
-    //----------------------------------------------------------------------------------
+    let wallet_chunks: Vec<_> = wallets.chunks(21).collect();
+    let mut bundle_txns = vec![];
 
     let recent_blockhash = connection.get_latest_blockhash().await?;
 
-    let mut transactions: Vec<VersionedTransaction> = vec![];
+    for (index, wallet_chunk) in wallet_chunks.iter().enumerate() {
+        let mut current_instructions = Vec::new();
 
-    for (i, chunk) in distribution_ix_chunks.iter().enumerate() {
+        for (i, wallet) in wallet_chunk.iter().enumerate() {
+            let transfer_instruction = system_instruction::transfer(
+                &buyer_wallet.pubkey(),
+                &wallet.pubkey(),
+                rand_amount[index],
+            );
+
+            current_instructions.push(transfer_instruction);
+
+            if index == wallet_chunks.len() - 1 && i == wallet_chunk.len() - 1 {
+                info!("Adding tip to last transaction");
+                let tip = tip_txn(buyer_wallet.pubkey(), tip_account(), bundle_tip);
+                current_instructions.push(tip);
+            }
+        }
+
         let versioned_msg = VersionedMessage::V0(
             match solana_sdk::message::v0::Message::try_compile(
                 &buyer_wallet.pubkey(),
-                chunk,
-                &[address_lookup_table_account.clone()],
+                &current_instructions,
+                &[],
                 recent_blockhash,
             ) {
                 Ok(message) => message,
@@ -135,13 +95,11 @@ pub async fn sol_distribution(
 
         let transaction = VersionedTransaction::try_new(versioned_msg, &[&buyer_wallet])?;
 
-        println!("Chunk {}: {} instructions", i, chunk.len());
-
-        transactions.push(transaction);
+        bundle_txns.push(transaction);
     }
 
     let mut sum = 0;
-    let txn_size: Vec<_> = transactions
+    let txn_size: Vec<_> = bundle_txns
         .iter()
         .map(|x| {
             let serialized_x = serialize(x).unwrap();
@@ -154,9 +112,9 @@ pub async fn sol_distribution(
     println!("Sum: {:?}", sum);
     println!("txn_size: {:?}", txn_size);
 
-    println!("Generated transactions: {}", transactions.len());
+    println!("Generated transactions: {}", bundle_txns.len());
 
-    Ok((rand_amount, transactions))
+    Ok((rand_amount, bundle_txns))
 }
 
 //server_data.BlockEngineSelections
@@ -213,34 +171,56 @@ pub async fn distributor() -> eyre::Result<()> {
         .expect("subscribe to bundle results")
         .into_inner();
 
-    let (amounts, transactions_1) = match sol_distribution(data).await {
-        Ok((amounts, transactions_1)) => (amounts, transactions_1),
+    let wallets: Vec<Keypair> = match load_wallets().await {
+        Ok(wallets) => wallets,
         Err(e) => {
             eprintln!("Error: {}", e);
             panic!("Error: {}", e);
         }
     };
+    let total_amount = sol_amount("Total Amount:").await;
+    let max_amount = sol_amount("Max Distribution Amount:").await;
 
-    for amount in amounts {
-        let amount = format!("{}", lamports_to_sol(amount));
-        info!("{}", amount);
+    let min_amount = sol_amount("Min Distribution Amount:").await;
+    let bundle_tip = bundle_priority_tip().await;
+
+    let wallet_chunks = wallets.chunks(104).collect::<Vec<_>>();
+
+    for (index, wallet_chunk) in wallet_chunks.iter().enumerate() {
+        let (amounts, transactions_1) = match sol_distribution(
+            data.clone(),
+            wallet_chunk,
+            total_amount,
+            min_amount,
+            max_amount,
+            bundle_tip,
+        )
+        .await
+        {
+            Ok((amounts, transactions_1)) => (amounts, transactions_1),
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                panic!("Error: {}", e);
+            }
+        };
+
+        info!("Sending Bundle");
+
+        let bundle = match send_bundle_with_confirmation(
+            &transactions_1,
+            &connection,
+            &mut client,
+            &mut bundle_results_subscription,
+        )
+        .await
+        {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("Distribution Error: {}", e);
+                return Ok(());
+            }
+        };
     }
-
-    info!("Sending Bundle");
-
-    let bundle = match send_bundle_with_confirmation(
-        &transactions_1,
-        &connection,
-        &mut client,
-        &mut bundle_results_subscription,
-    )
-    .await
-    {
-        Ok(_) => {}
-        Err(e) => {
-            return Ok(());
-        }
-    };
 
     Ok(())
 }

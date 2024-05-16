@@ -2,26 +2,33 @@ use std::sync::Arc;
 
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
+use log::info;
 use solana_sdk::{
     message::{v0::Message, VersionedMessage},
-    native_token::sol_to_lamports,
     signature::Keypair,
     signer::Signer,
+    system_instruction,
     transaction::VersionedTransaction,
 };
+use spl_associated_token_account::{
+    get_associated_token_address,
+    instruction::{create_associated_token_account, create_associated_token_account_idempotent},
+};
+use spl_token::instruction::sync_native;
 
 use crate::{
     env::{load_settings, minter::load_minter_settings},
-    raydium::swap::{instructions::TAX_ACCOUNT, swapper::auth_keypair},
-    rpc::{rpc_key, HTTP_CLIENT},
+    raydium::swap::{instructions::SOLC_MINT, swapper::auth_keypair},
+    rpc::HTTP_CLIENT,
     user_inputs::amounts::{bundle_priority_tip, sol_amount},
 };
 
 use super::{
+    freeze_authority::freeze_sells,
     pool_27::PoolDeployResponse,
     pool_ixs::pool_ixs,
     swap_ixs::{load_pool_keys, swap_ixs},
-    utils::{tip_account, tip_txn, JitoPoolData},
+    utils::{tip_account, tip_txn},
 };
 
 pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
@@ -35,7 +42,7 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
     let engine = load_settings().await?;
     let deployer_key = Keypair::from_base58_string(&server_data.deployer_key);
     let buyer_key = Keypair::from_base58_string(&server_data.buyer_key);
-    let buy_amount = sol_amount().await;
+    let buy_amount = sol_amount("Wallet Buy Amount:").await;
 
     let mut bundle_txn = vec![];
 
@@ -71,6 +78,32 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
     // -------------------Pool Keys------------------------------------------
     let market_keys = load_pool_keys(amm_pool, amm_keys).await?;
 
+    let user_token_source = get_associated_token_address(&buyer_key.pubkey(), &SOLC_MINT);
+
+    let create_source = create_associated_token_account_idempotent(
+        &buyer_key.pubkey(),
+        &buyer_key.pubkey(),
+        &SOLC_MINT,
+        &spl_token::id(),
+    );
+
+    let transfer =
+        system_instruction::transfer(&buyer_key.pubkey(), &user_token_source, buy_amount);
+
+    let sync_native = match sync_native(&spl_token::id(), &user_token_source) {
+        Ok(sync_native) => sync_native,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            panic!("Error: {}", e);
+        }
+    };
+    let create_destination = create_associated_token_account(
+        &buyer_key.pubkey(),
+        &buyer_key.pubkey(),
+        &amm_keys.amm_coin_mint,
+        &spl_token::id(),
+    );
+
     let swap_ixs = swap_ixs(
         server_data.clone(),
         amm_keys,
@@ -78,20 +111,27 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
         &buyer_key,
         buy_amount,
         false,
+        user_token_source,
     )
     .unwrap();
 
     let versioned_msg = VersionedMessage::V0(
         Message::try_compile(
-            &deployer_key.pubkey(),
-            &[swap_ixs],
+            &buyer_key.pubkey(),
+            &[
+                create_source,
+                transfer,
+                sync_native,
+                create_destination,
+                swap_ixs,
+            ],
             &[],
             connection.get_latest_blockhash().await?,
         )
         .unwrap(),
     );
 
-    let swap_tx = match VersionedTransaction::try_new(versioned_msg, &[&deployer_key]) {
+    let swap_tx = match VersionedTransaction::try_new(versioned_msg, &[&buyer_key]) {
         Ok(tx) => tx,
         Err(e) => {
             eprintln!("Error creating pool transaction: {}", e);
@@ -101,14 +141,14 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
 
     bundle_txn.push(swap_tx);
 
-    let jito_txn = tip_txn(buyer_key.pubkey(), tip_account(), bundle_tip);
+    let jito_txn = tip_txn(deployer_key.pubkey(), tip_account(), bundle_tip);
 
-    let tax_txn = tip_txn(deployer_key.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.2));
+    // let tax_txn = tip_txn(deployer_key.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.2));
 
     let versioned_msg = VersionedMessage::V0(
         Message::try_compile(
             &deployer_key.pubkey(),
-            &[jito_txn, tax_txn],
+            &[jito_txn],
             &[],
             connection.get_latest_blockhash().await?,
         )
@@ -118,7 +158,7 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
     let tip_tx = match VersionedTransaction::try_new(versioned_msg, &[&deployer_key]) {
         Ok(tx) => tx,
         Err(e) => {
-            eprintln!("Error creating pool transaction: {}", e);
+            eprintln!("Error creating tip transaction: {}", e);
             return Err(e.into());
         }
     };
@@ -134,7 +174,7 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
         .expect("subscribe to bundle results")
         .into_inner();
 
-    let bundle_results = match send_bundle_with_confirmation(
+    let _ = match send_bundle_with_confirmation(
         &bundle_txn,
         &connection,
         &mut client,
@@ -147,6 +187,11 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
             eprintln!("Error sending bundle: {}", e);
         }
     };
+
+    tokio::spawn(async move {
+        info!("Account Freeze Thread Activated!");
+        let _ = freeze_sells(client).await;
+    });
 
     Ok(PoolDeployResponse {
         wallets: vec![],

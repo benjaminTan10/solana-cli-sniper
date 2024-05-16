@@ -2,18 +2,23 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use demand::Confirm;
 use futures::{SinkExt, StreamExt};
+use jito_protos::searcher::searcher_service_client::SearcherServiceClient;
+use jito_searcher_client::{send_bundle_no_wait, token_authenticator::ClientInterceptor};
 use log::info;
 use maplit::hashmap;
 use serde::{Deserialize, Serialize};
-use solana_account_decoder::UiAccountEncoding;
-use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcAccountInfoConfig};
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
-    commitment_config::CommitmentConfig, compute_budget::ComputeBudgetInstruction,
-    native_token::sol_to_lamports, pubkey::Pubkey, signature::Keypair, signer::Signer,
-    transaction::Transaction,
+    message::{v0::Message, VersionedMessage},
+    native_token::sol_to_lamports,
+    pubkey::Pubkey,
+    signature::Keypair,
+    signer::Signer,
+    transaction::VersionedTransaction,
 };
 use spl_associated_token_account::get_associated_token_address;
 use spl_token::instruction::freeze_account;
+use tonic::{service::interceptor::InterceptedService, transport::Channel};
 use yellowstone_grpc_proto::{
     geyser::{
         subscribe_update::UpdateOneof, SubscribeRequest, SubscribeRequestFilterBlocksMeta,
@@ -31,18 +36,20 @@ use crate::{
     plugins::yellowstone_plugin::lib::GeyserGrpcClient,
 };
 
-pub async fn freeze_sells() -> Result<(), Box<dyn std::error::Error>> {
-    let settings = load_minter_settings().await.unwrap();
-    let engine = load_settings().await.unwrap();
+use super::utils::{tip_account, tip_txn};
 
-    let rpc_client = Arc::new(RpcClient::new(engine.rpc_url.clone()));
+pub async fn freeze_sells(
+    search_client: SearcherServiceClient<InterceptedService<Channel, ClientInterceptor>>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let settings = Arc::new(load_minter_settings().await.unwrap());
+    let engine = Arc::new(load_settings().await.unwrap());
 
     let endpoint = engine.grpc_url.clone();
     let x_token = Some("00000000-0000-0000-0000-000000000000");
     let mut client = GeyserGrpcClient::connect(endpoint, x_token, None)?;
     let (mut subscribe_tx, mut stream) = client.subscribe().await?;
 
-    info!("Successfully Subscribed to the stream...!");
+    info!("Successfully connected to geyser!");
 
     let token_mint = Pubkey::from_str(&settings.token_mint).unwrap();
 
@@ -55,7 +62,7 @@ pub async fn freeze_sells() -> Result<(), Box<dyn std::error::Error>> {
                 vote: Default::default(),
                 failed: Some(false),
                 signature: Default::default(),
-                account_include: [settings.token_mint].into(),
+                account_include: [settings.token_mint.clone()].into(),
                 account_exclude: Default::default(),
                 account_required: Default::default(),
             } },
@@ -69,7 +76,9 @@ pub async fn freeze_sells() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     while let Some(message) = stream.next().await {
-        let rpc_client = rpc_client.clone();
+        let settings = settings.clone();
+        let engine = engine.clone();
+        let client = search_client.clone();
         tokio::spawn(async move {
             match message {
                 Ok(msg) => match msg.update_oneof {
@@ -152,42 +161,7 @@ pub async fn freeze_sells() -> Result<(), Box<dyn std::error::Error>> {
 
                         let signer_mint = get_associated_token_address(&signer, &token_mint);
 
-                        let config = RpcAccountInfoConfig {
-                            commitment: Some(CommitmentConfig::processed()),
-                            encoding: Some(UiAccountEncoding::Base64),
-                            ..Default::default()
-                        };
-
-                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                        let account_data = match rpc_client
-                            .get_account_with_config(&signer_mint, config)
-                            .await
-                        {
-                            Ok(response) => match response.value {
-                                Some(account) => account,
-                                None => {
-                                    info!("No account data found");
-                                    return;
-                                }
-                            },
-                            Err(e) => {
-                                info!("Error getting account: {:?}", e);
-                                return;
-                            }
-                        };
-
-                        println!("Account Data: {:?}", (account_data.data));
-
-                        let account_data: Result<AccountData, _> =
-                            bincode::deserialize(&account_data.data);
-
-                        match account_data {
-                            Ok(data) => println!("Account Data: {:?}", data),
-                            Err(e) => {
-                                info!("Error deserializing account data: {:?}", e);
-                                return;
-                            }
-                        }
+                        let _ = freeze_incoming(settings, engine, signer_mint, client).await;
                     }
                     _ => {}
                 },
@@ -217,9 +191,10 @@ pub async fn freeze_authority() -> Result<bool, Box<dyn std::error::Error>> {
 }
 
 pub async fn freeze_incoming(
-    settings: PoolDataSettings,
-    engine: EngineSettings,
+    settings: Arc<PoolDataSettings>,
+    engine: Arc<EngineSettings>,
     signer: Pubkey,
+    mut search_client: SearcherServiceClient<InterceptedService<Channel, ClientInterceptor>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let rpc_client = Arc::new(RpcClient::new(engine.rpc_url.clone()));
     let deployer_key = Keypair::from_base58_string(&settings.deployer_key);
@@ -231,15 +206,21 @@ pub async fn freeze_incoming(
         }
     };
 
-    let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(80000);
-    let compute_price = ComputeBudgetInstruction::set_compute_unit_price(sol_to_lamports(0.00001));
+    // let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(80000);
+    // let compute_price = ComputeBudgetInstruction::set_compute_unit_price(sol_to_lamports(0.00001));
+
+    let tip_txn = tip_txn(
+        deployer_key.pubkey(),
+        tip_account(),
+        sol_to_lamports(0.0001),
+    );
 
     let authority = match freeze_account(
         &spl_token::id(),
-        &deployer_key.pubkey(),
+        &signer,
         &mint,
         &deployer_key.pubkey(),
-        &[&deployer_key.pubkey()],
+        &[],
     ) {
         Ok(tx) => tx,
         Err(e) => {
@@ -250,29 +231,27 @@ pub async fn freeze_incoming(
 
     let recent_blockhash = rpc_client.get_latest_blockhash().await?;
 
-    let txn = Transaction::new_signed_with_payer(
-        &[unit_limit, compute_price, authority],
-        Some(&deployer_key.pubkey()),
-        &[&deployer_key],
+    let versioned_msg = VersionedMessage::V0(Message::try_compile(
+        &deployer_key.pubkey(),
+        &[authority, tip_txn],
+        &[],
         recent_blockhash,
-    );
+    )?);
 
-    loop {
-        match rpc_client
-            .send_and_confirm_transaction_with_spinner(&txn)
-            .await
-        {
-            Ok(txn) => {
-                println!("Transaction successful: {:?}", txn);
-                break;
-            }
-            Err(e) => {
-                eprintln!("Error: {}", e);
-                // continue;
-            }
-        };
+    let txn = VersionedTransaction::try_new(versioned_msg, &[&deployer_key])?;
+
+    let bundle = send_bundle_no_wait(&[txn], &mut search_client).await;
+
+    match bundle {
+        Ok(response) => {
+            let bundle = response.into_inner();
+            // Assuming `bundle` now has a `result` field of type `bool` where `true` indicates success.
+            println!("{}", bundle.uuid);
+        }
+        Err(e) => {
+            info!("Error freezing account: {:?}", e);
+        }
     }
-
     Ok(())
 }
 

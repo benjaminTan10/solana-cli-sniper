@@ -1,12 +1,15 @@
-use std::str::FromStr;
+use std::{str::FromStr, sync::Arc};
 
 use demand::Confirm;
+use jito_protos::searcher::SubscribeBundleResultsRequest;
+use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
 use solana_client::{rpc_config::RpcSendTransactionConfig, rpc_request::TokenAccountsFilter};
 use solana_sdk::{
     commitment_config::CommitmentConfig,
     compute_budget::ComputeBudgetInstruction,
     instruction::Instruction,
     message::{v0::Message, VersionedMessage},
+    native_token::sol_to_lamports,
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
@@ -16,12 +19,18 @@ use solana_sdk::{
 use spl_token::instruction::initialize_account;
 
 use crate::{
-    env::minter::load_minter_settings,
+    env::{env_loader::tip_account, load_settings, minter::load_minter_settings},
     instruction::instruction::{
         get_keys_for_market, load_amm_keys, withdraw, AmmKeys, MarketPubkeys,
     },
-    liquidity::pool_ixs::{generate_pubkey, AMM_PROGRAM},
-    raydium::{pool_searcher::amm_keys::pool_keys_fetcher, swap::instructions::SOLC_MINT},
+    liquidity::{
+        pool_ixs::{generate_pubkey, AMM_PROGRAM},
+        utils::tip_txn,
+    },
+    raydium::{
+        pool_searcher::amm_keys::pool_keys_fetcher,
+        swap::{instructions::SOLC_MINT, swapper::auth_keypair},
+    },
     rpc::HTTP_CLIENT,
     user_inputs::tokens::token_env,
 };
@@ -35,6 +44,7 @@ pub async fn remove_liquidity() -> eyre::Result<()> {
             return Ok(());
         }
     };
+    let engine = load_settings().await?;
     let mut pool_id = Pubkey::from_str(&data.pool_id)?;
     if data.pool_id.is_empty() {
         pool_id = token_env("Pool ID: ").await;
@@ -116,14 +126,17 @@ pub async fn remove_liquidity() -> eyre::Result<()> {
         withdraw_lp_amount,
     )?;
 
-    let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(800000);
-    let compute_price = ComputeBudgetInstruction::set_compute_unit_price(1000000);
+    // let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(800000);
+    // let compute_price = ComputeBudgetInstruction::set_compute_unit_price(1000000);
 
-    remove_pool_inx.push(unit_limit);
-    remove_pool_inx.push(compute_price);
+    let tip_txn = tip_txn(wallet.pubkey(), tip_account(), sol_to_lamports(0.001));
+
+    // remove_pool_inx.push(unit_limit);
+    // remove_pool_inx.push(compute_price);
     remove_pool_inx.push(inx);
     remove_pool_inx.push(init);
     remove_pool_inx.push(build_withdraw_instruction);
+    remove_pool_inx.push(tip_txn);
 
     // send transaction
     let versioned_msg = VersionedMessage::V0(
@@ -143,22 +156,45 @@ pub async fn remove_liquidity() -> eyre::Result<()> {
         ..Default::default()
     };
 
-    let signature = match client
-        .send_and_confirm_transaction_with_spinner_and_config(
-            &tx,
-            CommitmentConfig::processed(),
-            config,
-        )
+    // let signature = match client
+    //     .send_and_confirm_transaction_with_spinner_and_config(
+    //         &tx,
+    //         CommitmentConfig::processed(),
+    //         config,
+    //     )
+    //     .await
+    // {
+    //     Ok(signature) => signature,
+    //     Err(e) => {
+    //         eprintln!("Error: {}", e);
+    //         return Ok(());
+    //     }
+    // };
+
+    // println!("Withdraw transaction signature: {:?}", signature);
+
+    let mut searcher_client =
+        get_searcher_client(&engine.block_engine_url, &Arc::new(auth_keypair())).await?;
+
+    let mut bundle_results_subscription = searcher_client
+        .subscribe_bundle_results(SubscribeBundleResultsRequest {})
         .await
+        .expect("subscribe to bundle results")
+        .into_inner();
+
+    let bundle_results = match send_bundle_with_confirmation(
+        &[tx],
+        &client,
+        &mut searcher_client,
+        &mut bundle_results_subscription,
+    )
+    .await
     {
-        Ok(signature) => signature,
+        Ok(bundle_results) => bundle_results,
         Err(e) => {
-            eprintln!("Error: {}", e);
-            return Ok(());
+            eprintln!("Error sending bundle: {}", e);
         }
     };
-
-    println!("Withdraw transaction signature: {:?}", signature);
 
     Ok(())
 }

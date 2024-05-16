@@ -75,7 +75,7 @@ pub async fn volume_menu() -> eyre::Result<()> {
             println!("-------------------Returning to Main Menu-------------------");
             volume_menu().await?;
         }
-        "Distribute SOL" => {
+        "distributesol" => {
             let _ = distributor().await;
             println!("-------------------Returning to Main Menu-------------------");
             volume_menu().await?;

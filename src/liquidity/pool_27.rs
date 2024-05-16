@@ -17,6 +17,7 @@ use spl_associated_token_account::get_associated_token_address;
 
 use crate::{
     env::{load_settings, minter::load_minter_settings},
+    instruction::instruction::SOL_MINT,
     liquidity::{
         option::wallet_gen::list_folders,
         utils::{tip_account, tip_txn},
@@ -159,6 +160,8 @@ pub async fn pool_main() -> eyre::Result<()> {
 
             println!("Balance: {} SOL", lamports_to_sol(balance));
 
+            let user_token_source = get_associated_token_address(&wallet.pubkey(), &SOL_MINT);
+
             let swap_ixs = swap_ixs(
                 server_data.clone(),
                 amm_keys.clone(),
@@ -166,6 +169,7 @@ pub async fn pool_main() -> eyre::Result<()> {
                 wallet,
                 balance,
                 false,
+                user_token_source,
             )
             .unwrap();
 

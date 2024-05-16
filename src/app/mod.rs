@@ -3,9 +3,11 @@ pub mod wallets;
 use async_recursion::async_recursion;
 use colored::*;
 use futures::Future;
+use jito_searcher_client::get_searcher_client;
 use solana_sdk::signature::Keypair;
 use std::error::Error;
 use std::pin::Pin;
+use std::sync::Arc;
 
 use demand::{DemandOption, Input, Select, Theme};
 use log::{error, info};
@@ -13,10 +15,12 @@ use serde::Deserialize;
 use termcolor::{Color, ColorSpec};
 
 use crate::env::load_settings;
+use crate::liquidity::freeze_authority::freeze_sells;
 use crate::liquidity::minter_main::raydium_creator;
 use crate::raydium::bundles::mev_trades::mev_trades;
 use crate::raydium::subscribe::auto_sniper_stream;
 use crate::raydium::swap::swap_in::{swap_in, swap_out, PriorityTip};
+use crate::raydium::swap::swapper::auth_keypair;
 use crate::raydium::swap::trades::track_trades;
 use crate::rpc::rpc_key;
 use crate::user_inputs::mode::{automatic_snipe, wrap_sol_call};
@@ -65,17 +69,15 @@ pub fn theme() -> Theme {
 }
 
 pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>> {
+    let args = match load_settings().await {
+        Ok(args) => args,
+        Err(e) => {
+            error!("Error: {:?}", e);
+            return Ok(());
+        }
+    };
     if mainmenu {
-        let args = match load_settings().await {
-            Ok(args) => {
-                info!("{}", "Settings Loaded".bold().bright_white());
-                args
-            }
-            Err(e) => {
-                error!("Error: {:?}", e);
-                return Ok(());
-            }
-        };
+        info!("Settings Successfully Loaded!");
 
         let _http_loader = rpc_key(args.rpc_url.clone()).await;
 
@@ -89,6 +91,7 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
         .theme(&theme)
         .filterable(true)
         .option(DemandOption::new("Wrap Sol Mode").label("📦 Wrap SOL"))
+        .option(DemandOption::new("Freeze Authority").label("🔒 Freeze Authority"))
         .option(DemandOption::new("Swap Tokens").label("[1] Swap Mode"))
         .option(DemandOption::new("Snipe Pools").label("[2] Snipe Mode"))
         .option(DemandOption::new("Minter Mode").label("[4] Minter Mode"))
@@ -101,6 +104,12 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
     match selected_option {
         "Wrap Sol Mode" => {
             let _ = wrap_sol_call().await;
+        }
+        "Freeze Authority" => {
+            let search = get_searcher_client(&args.block_engine_url, &Arc::new(auth_keypair()))
+                .await
+                .unwrap();
+            let _ = freeze_sells(search).await;
         }
         "Swap Tokens" => {
             let _ = swap_mode().await;

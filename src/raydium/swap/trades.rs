@@ -27,7 +27,7 @@ pub async fn track_trades() -> eyre::Result<()> {
         }
     };
 
-    let amount_in = sol_amount().await;
+    let amount_in = sol_amount("Track Trade Amount: ").await;
     let mut bundle_tip = 0;
     let mut priority_fee_value = 0;
 

@@ -78,12 +78,12 @@ pub async fn priority_fee() -> u64 {
     amount
 }
 
-pub async fn sol_amount() -> u64 {
+pub async fn sol_amount(identifier: &str) -> u64 {
     let theme = theme();
     let amount: u64;
 
     loop {
-        let t = Input::new("Sol Amount:")
+        let t = Input::new(identifier)
             .placeholder("0.01")
             .theme(&theme)
             .prompt("Input: ");

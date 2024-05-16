@@ -24,7 +24,7 @@ use super::{
 };
 
 pub async fn wrap_sol_call() -> Result<(), Box<dyn Error>> {
-    let sol_amount = sol_amount().await;
+    let sol_amount = sol_amount("Wrap Amount: ").await;
     // let wallet = private_key_env().await?;
 
     let args = match load_settings().await {
@@ -58,7 +58,7 @@ pub async fn automatic_snipe(manual_snipe: bool) -> eyre::Result<()> {
         let _ = auto_sniper_stream(manual_snipe).await?;
         return Ok(());
     }
-    let sol_amount = sol_amount().await;
+    let sol_amount = sol_amount("Snipe Amount:").await;
 
     let mut token = Pubkey::default();
 
