@@ -1,6 +1,6 @@
 {
-    "pubsub_url": "ws://185.209.179.159:8900/",
-    "rpc_url": "https://mainnet.helius-rpc.com/?api-key=d9e80c44-bc75-4139-8cc7-084cefe506c7",
+    "pubsub_url": "wss://mainnet.helius-rpc.com/?api-key=d9e80c44-bc75-4139-8cc7-084cefe506c7",
+    "rpc_url": "http://186.233.186.151:8899",
     "block_engine_url": "https://ny.mainnet.block-engine.jito.wtf",
     "message": "Jito Tip Message",
     "grpc_url": "http://186.233.186.151:10000/",
