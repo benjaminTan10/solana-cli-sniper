@@ -30,17 +30,17 @@ pub async fn raydium_creator() -> Result<(), Box<dyn Error>> {
         .description("Select the Mode")
         .theme(&theme)
         .filterable(true)
-        .option(DemandOption::new("Generate Wallets").label("[1] Generate New Wallets"))
-        .option(DemandOption::new("CreateLUT").label("[2] Create LUT"))
-        .option(DemandOption::new("Distribute SOL").label("[3] Distribute SOL"))
-        .option(DemandOption::new("Wrap SOL & ATAs").label("[4] Wrap SOL & ATAs"))
-        .option(DemandOption::new("Add Liquidity").label("[5] Add Liquidity"))
-        .option(DemandOption::new("Remove Liquidity").label("[6] Remove Liquidity"))
-        .option(DemandOption::new("Sell%").label("[7] Percentage Sell"))
-        .option(DemandOption::new("SellAll").label("[8] All Sell"))
-        .option(DemandOption::new("WithdrawSol").label("[9] Withdraw SOL"))
-        .option(DemandOption::new("WithdrawWSol&ATAS").label("[10] Withdraw WSOL & Close Accounts"))
-        .option(DemandOption::new("deployerdetails").label("🍄 Deployer Wallet Details"))
+        .option(DemandOption::new("Generate Wallets").label("▪ Generate New Wallets"))
+        .option(DemandOption::new("CreateLUT").label("▪ Create LUT"))
+        .option(DemandOption::new("Distribute SOL").label("▪ Distribute SOL"))
+        .option(DemandOption::new("Wrap SOL & ATAs").label("▪ Wrap SOL & ATAs"))
+        .option(DemandOption::new("1-Liquidity").label("💠 Add Liquidity - Single-Wallet"))
+        .option(DemandOption::new("multi-Liquidity").label("♾️  Add Liquidity - Multi-Wallet"))
+        .option(DemandOption::new("Remove Liquidity").label("▪ Remove Liquidity"))
+        .option(DemandOption::new("Sell%").label("▪ Percentage Sell"))
+        .option(DemandOption::new("SellAll").label("▪ All Sell"))
+        .option(DemandOption::new("WithdrawSol").label("▪ Withdraw SOL"))
+        .option(DemandOption::new("WithdrawWSol&ATAS").label("▪ Withdraw WSOL & Close Accounts"))
         .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
 
     let selected_option = ms.run().expect("error running select");
@@ -58,8 +58,11 @@ pub async fn raydium_creator() -> Result<(), Box<dyn Error>> {
         "Wrap SOL & ATAs" => {
             let _ = sol_wrap().await;
         }
-        "Add Liquidity" => {
-            let _ = pooler_mode().await;
+        "1-Liquidity" => {
+            let _ = single_pool().await;
+        }
+        "multi-Liquidity" => {
+            let _ = pool_main().await;
         }
         "Remove Liquidity" => {
             let _ = match remove_liquidity().await {
@@ -70,19 +73,26 @@ pub async fn raydium_creator() -> Result<(), Box<dyn Error>> {
             };
         }
         "Sell%" => {
-            let _ = sell_specific(true).await;
+            let _ = match sell_specific(true).await {
+                Ok(_) => {}
+                Err(e) => {
+                    println!("Error: {:?}", e);
+                }
+            };
         }
         "SellAll" => {
-            let _ = sell_specific(false).await;
+            let _ = match sell_specific(false).await {
+                Ok(_) => {}
+                Err(e) => {
+                    println!("Error: {:?}", e);
+                }
+            };
         }
         "WithdrawSol" => {
             let _ = withdraw_sol().await;
         }
         "WithdrawWSol&ATAS" => {
             let _ = withdraw_wrapped_sol().await;
-        }
-        "deployerdetails" => {
-            let _ = deployer_details().await;
         }
         "Main Menu" => {
             //clear terminal
@@ -95,7 +105,8 @@ pub async fn raydium_creator() -> Result<(), Box<dyn Error>> {
             // Handle unexpected option here
         }
     }
-    println!("{esc}[2J{esc}[1;1H", esc = 27 as char);
+
+    // println!("{esc}[2J{esc}[1;1H", esc = 27 as char);
     //clear the previous line
     println!("{}", embed());
     let _ = raydium_creator().await;
@@ -103,34 +114,34 @@ pub async fn raydium_creator() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-#[async_recursion]
-pub async fn pooler_mode() -> Result<(), Box<dyn Error>> {
-    let theme = theme();
-    let ms = Select::new("Pool Type")
-        .description("Select the Pool Type")
-        .theme(&theme)
-        .filterable(true)
-        .option(DemandOption::new("Single Wallet").label("[1] 1-Wallet (Only Buyer)"))
-        .option(DemandOption::new("Multiple Wallets").label("[2] Multiple Wallets"))
-        .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
+// #[async_recursion]
+// pub async fn pooler_mode() -> Result<(), Box<dyn Error>> {
+//     let theme = theme();
+//     let ms = Select::new("Pool Type")
+//         .description("Select the Pool Type")
+//         .theme(&theme)
+//         .filterable(true)
+//         .option(DemandOption::new("Single Wallet").label("[1] 1-Wallet (Only Buyer)"))
+//         .option(DemandOption::new("Multiple Wallets").label("[2] Multiple Wallets"))
+//         .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
 
-    let selected_option = ms.run().expect("error running select");
+//     let selected_option = ms.run().expect("error running select");
 
-    match selected_option {
-        "Single Wallet" => {
-            let _ = single_pool().await;
-            println!("-------------------Returning to Main Menu-------------------");
-            pooler_mode().await?;
-        }
-        "Multiple Wallets" => {
-            let _ = pool_main().await;
-            println!("-------------------Returning to Main Menu-------------------");
-            pooler_mode().await?;
-        }
-        _ => {
-            // Handle unexpected option here
-        }
-    }
+//     match selected_option {
+//         "Single Wallet" => {
+//             let _ = single_pool().await;
+//             println!("-------------------Returning to Main Menu-------------------");
+//             pooler_mode().await?;
+//         }
+//         "Multiple Wallets" => {
+//             let _ = pool_main().await;
+//             println!("-------------------Returning to Main Menu-------------------");
+//             pooler_mode().await?;
+//         }
+//         _ => {
+//             // Handle unexpected option here
+//         }
+//     }
 
-    Ok(())
-}
+//     Ok(())
+// }

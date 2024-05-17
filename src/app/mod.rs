@@ -1,21 +1,16 @@
 pub mod embeds;
 pub mod wallets;
 use async_recursion::async_recursion;
-use colored::*;
-use crossterm::cursor::SetCursorStyle;
-use futures::io::Cursor;
-use futures::Future;
 use jito_searcher_client::get_searcher_client;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
 use std::error::Error;
-use std::pin::Pin;
 use std::sync::Arc;
 use tokio::time::sleep;
 
 use demand::{DemandOption, Input, Select, Theme};
-use log::{error, info};
+use log::error;
 use serde::Deserialize;
 use termcolor::{Color, ColorSpec};
 
@@ -26,12 +21,11 @@ use crate::liquidity::minter_main::raydium_creator;
 use crate::liquidity::option::wallet_gen::list_folders;
 use crate::liquidity::option::withdraw_sol::{deployer_details, folder_deployer_details};
 use crate::raydium::bundles::mev_trades::mev_trades;
-use crate::raydium::subscribe::auto_sniper_stream;
 use crate::raydium::swap::swap_in::{swap_in, swap_out, PriorityTip};
 use crate::raydium::swap::swapper::auth_keypair;
 use crate::raydium::swap::trades::track_trades;
 use crate::rpc::rpc_key;
-use crate::user_inputs::mode::{automatic_snipe, wrap_sol_call};
+use crate::user_inputs::mode::{automatic_snipe, unwrap_sol_call, wrap_sol_call};
 use crate::volume_bot::volume_menu;
 
 use self::wallets::wallet_logger;
@@ -95,9 +89,6 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
 
     if mainmenu {
         let _http_loader = rpc_key(args.rpc_url.clone()).await;
-
-        // let data = load_minter_settings().await.unwrap();
-        // let result = pool_ixs(data).await.unwrap();
     }
 
     let theme = theme();
@@ -110,6 +101,7 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
         .option(DemandOption::new("Minter Mode").label("▪ Minter Mode"))
         .option(DemandOption::new("Generate Volume").label("▪ Volume Mode"))
         .option(DemandOption::new("Wrap Sol Mode").label("📦 Wrap SOL"))
+        .option(DemandOption::new("Unwrap Sol Mode").label("🪤  Unwrap SOL"))
         .option(DemandOption::new("Freeze Authority").label("❄️  Freeze Authority"))
         .option(DemandOption::new("Wallet Details").label("🍄 Wallet Details"))
         .option(DemandOption::new("deployerdetails").label("🧨 Deployer Wallet Details"))
@@ -121,6 +113,10 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
         "Wrap Sol Mode" => {
             let _ = wrap_sol_call().await;
         }
+        "Unwrap Sol Mode" => {
+            let _ = unwrap_sol_call().await;
+        }
+
         "Freeze Authority" => {
             let search = get_searcher_client(&args.block_engine_url, &Arc::new(auth_keypair()))
                 .await

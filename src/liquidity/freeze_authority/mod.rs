@@ -1,4 +1,9 @@
-use std::{collections::HashMap, str::FromStr, sync::Arc};
+use std::{
+    collections::HashMap,
+    io::{self, Write},
+    str::FromStr,
+    sync::Arc,
+};
 
 use demand::Confirm;
 use futures::{SinkExt, StreamExt};
@@ -255,7 +260,8 @@ pub async fn freeze_incoming(
         Ok(response) => {
             let bundle = response.into_inner();
             // Assuming `bundle` now has a `result` field of type `bool` where `true` indicates success.
-            println!("{}", bundle.uuid);
+            print!("\r{: <80}", bundle.uuid);
+            io::stdout().flush().unwrap();
         }
         Err(e) => {
             let bundle = send_bundle_no_wait(&[txn], &mut search_client).await;

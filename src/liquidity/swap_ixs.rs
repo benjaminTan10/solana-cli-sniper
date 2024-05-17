@@ -32,10 +32,10 @@ pub fn swap_ixs(
     user_token_source: Pubkey,
 ) -> eyre::Result<Instruction> {
     let buyer_keypair = Keypair::from_base58_string(&server_data.buyer_key);
-    let mut buyer_wallet = wallet;
-    if out {
-        buyer_wallet = &buyer_keypair;
-    }
+    let buyer_wallet = wallet;
+    // if out {
+    //     buyer_wallet = &buyer_keypair;
+    // }
 
     let user_token_destination = get_associated_token_address(
         &buyer_wallet.pubkey(),
@@ -51,7 +51,7 @@ pub fn swap_ixs(
         &user_token_source,
         &user_token_destination,
         amount_in,
-        0,
+        1,
         out,
     )?;
 

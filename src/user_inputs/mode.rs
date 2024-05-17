@@ -2,17 +2,20 @@ use std::{error::Error, sync::Arc};
 
 use colorize::AnsiColor;
 use crossterm::style::Stylize;
+use demand::{DemandOption, Select};
 use log::{error, info};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{pubkey::Pubkey, signature::Keypair};
 
 use crate::{
-    app::MevApe,
+    app::{theme, MevApe},
     env::load_settings,
     raydium::{
         subscribe::auto_sniper_stream,
         swap::{
-            grpc_new_pairs::grpc_pair_sub, instructions::wrap_sol, metadata::decode_metadata,
+            grpc_new_pairs::grpc_pair_sub,
+            instructions::{unwrap_sol, wrap_sol},
+            metadata::decode_metadata,
             swap_in::PriorityTip,
         },
     },
@@ -41,6 +44,30 @@ pub async fn wrap_sol_call() -> Result<(), Box<dyn Error>> {
         Ok(_) => info!("Transaction Sent"),
         Err(e) => error!("{}", e),
     };
+
+    Ok(())
+}
+
+pub async fn unwrap_sol_call() -> Result<(), Box<dyn Error>> {
+    let theme = theme();
+    let ms = Select::new("Unwrap Wallet")
+        .description("Select the Wallet to Unwrap")
+        .theme(&theme)
+        .filterable(true)
+        .option(DemandOption::new("deployerwallets").label("🧨 Deployer Wallets"))
+        .option(DemandOption::new("folder_deployerwallets").label("🗃️  Sniper Wallet"));
+
+    let selected_option = ms.run().expect("error running select");
+
+    match selected_option {
+        "deployerwallets" => {
+            let _ = unwrap_sol(true).await;
+        }
+        "folder_deployerwallets" => {
+            let _ = unwrap_sol(false).await;
+        }
+        _ => {}
+    }
 
     Ok(())
 }

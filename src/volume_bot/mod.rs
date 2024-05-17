@@ -57,13 +57,17 @@ pub async fn volume_menu() -> eyre::Result<()> {
         .description("Select the Volume Bot")
         .theme(&theme)
         .filterable(true)
-        .option(DemandOption::new("Walletgen").label("[1] Generate Wallets"))
+        .option(DemandOption::new("Walletgen").label("▪ Generate Wallets"))
         // .option(DemandOption::new("LookupTable").label("[2] Create LUT"))
-        .option(DemandOption::new("distributesol").label("[2] Distribute SOL"))
+        .option(DemandOption::new("distributesol").label("▪ Distribute SOL"))
         // .option(DemandOption::new("Wrap SOL & ATAs").label("[3] Wrap SOL & ATAs"))
-        .option(DemandOption::new("Volume").label("[3] Volume (Instant Seller) - 1 Wallet"))
-        .option(DemandOption::new("VolumeBuyer").label("[4] Volume Buyer - Multi Wallet"))
-        .option(DemandOption::new("VolumeSeller").label("[5] Volume Seller - Multi Wallet"))
+        .option(DemandOption::new("Volume").label("▪ Volume (Instant Seller) - 1 Wallet"))
+        .option(
+            DemandOption::new("VolumeBuyer")
+                .label("▪ Volume Buyer - Multi Wallet")
+                .selected(true),
+        )
+        .option(DemandOption::new("VolumeSeller").label("▪ Volume Seller - Multi Wallet"))
         .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
 
     let selected_option = ms.run().expect("error running select");

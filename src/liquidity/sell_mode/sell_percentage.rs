@@ -2,6 +2,7 @@ use demand::Input;
 use futures::stream::StreamExt;
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
+use log::info;
 use std::{
     str::FromStr,
     sync::{Arc, Mutex},
@@ -17,7 +18,9 @@ use solana_sdk::{
     signer::Signer,
     transaction::VersionedTransaction,
 };
-use spl_associated_token_account::get_associated_token_address;
+use spl_associated_token_account::{
+    get_associated_token_address, instruction::create_associated_token_account_idempotent,
+};
 
 use crate::{
     env::{env_loader::tip_account, load_settings, minter::load_minter_settings},
@@ -111,16 +114,24 @@ pub async fn sell_specific(percentage: bool) -> eyre::Result<()> {
     }
 
     let raw_account = raw_account.unwrap();
-    let address_lookup_table = AddressLookupTable::deserialize(&raw_account.data)?;
+    let address_lookup_table = match AddressLookupTable::deserialize(&raw_account.data) {
+        Ok(address_lookup_table) => address_lookup_table,
+        Err(e) => {
+            eprintln!("Error deserializing LUT account: {}", e);
+            return Err(e.into());
+        }
+    };
     let address_lookup_table_account = AddressLookupTableAccount {
         key: lut_key,
         addresses: address_lookup_table.addresses.to_vec(),
     };
 
-    let wallets_chunks = wallets.chunks(7).collect::<Vec<_>>();
+    let wallets_chunks = wallets.chunks(6).collect::<Vec<_>>();
     let mut bundle_txn = vec![];
 
     let recent_blockhash = rpc_client.get_latest_blockhash().await.unwrap();
+
+    let mut is_first_iteration = true;
 
     for (chunk_index, wallet_chunk) in wallets_chunks.iter().enumerate() {
         let mut current_instructions = Vec::new();
@@ -132,17 +143,29 @@ pub async fn sell_specific(percentage: bool) -> eyre::Result<()> {
                 &Pubkey::from_str(&data.token_mint).unwrap(),
             );
 
-            let balance = sol_to_lamports(
-                lamports_to_sol(
-                    rpc_client
-                        .get_token_account_balance(&token_account)
-                        .await
-                        .unwrap()
-                        .amount
-                        .parse::<u64>()
-                        .unwrap(),
-                ) * percentage_tokens,
+            let balance = rpc_client
+                .get_token_account_balance(&token_account)
+                .await
+                .unwrap()
+                .amount
+                .parse::<u64>()
+                .unwrap();
+
+            println!("Balance: {} SOL", balance);
+
+            let source_sol_ata = get_associated_token_address(&buyer_wallet.pubkey(), &SOLC_MINT);
+
+            let create_sol_ata = create_associated_token_account_idempotent(
+                &buyer_wallet.pubkey(),
+                &buyer_wallet.pubkey(),
+                &SOLC_MINT,
+                &spl_token::id(),
             );
+
+            if is_first_iteration {
+                current_instructions.push(create_sol_ata);
+                is_first_iteration = false;
+            }
 
             let swap_ixs = swap_ixs(
                 data.clone(),
@@ -151,7 +174,7 @@ pub async fn sell_specific(percentage: bool) -> eyre::Result<()> {
                 &wallet,
                 balance,
                 true,
-                token_account,
+                source_sol_ata,
             )
             .unwrap();
 
@@ -168,20 +191,28 @@ pub async fn sell_specific(percentage: bool) -> eyre::Result<()> {
                 let source_ata = get_associated_token_address(&buyer_wallet.pubkey(), &SOLC_MINT);
                 let tax_destination = get_associated_token_address(&TAX_ACCOUNT, &SOLC_MINT);
 
-                let tax = spl_token::instruction::transfer(
-                    &spl_token::id(),
-                    &source_ata,
-                    &tax_destination,
-                    &buyer_wallet.pubkey(),
-                    &[&buyer_wallet.pubkey()],
-                    total_amount,
-                )?;
-
-                tip.push(tax);
+                // let tax = match spl_token::instruction::transfer(
+                //     &spl_token::id(),
+                //     &source_ata,
+                //     &tax_destination,
+                //     &buyer_wallet.pubkey(),
+                //     &[&buyer_wallet.pubkey()],
+                //     total_amount,
+                // ) {
+                //     Ok(ix) => ix,
+                //     Err(e) => {
+                //         eprintln!("Error creating tax instruction: {}", e);
+                //         return Err(e.into());
+                //     }
+                // };
+                info!("Pushing tax instruction");
+                current_instructions.extend(tip);
             }
             current_wallets.push(wallet);
             current_instructions.push(swap_ixs);
         }
+        current_wallets.push(&buyer_wallet);
+
         let versioned_tx = match VersionedTransaction::try_new(
             VersionedMessage::V0(
                 Message::try_compile(
@@ -212,6 +243,10 @@ pub async fn sell_specific(percentage: bool) -> eyre::Result<()> {
         .await
         .expect("subscribe to bundle results")
         .into_inner();
+
+    bundle_txn.iter().for_each(|tx| {
+        println!("Transaction: {:?}", tx.signatures);
+    });
 
     let bundle_results = match send_bundle_with_confirmation(
         &bundle_txn,

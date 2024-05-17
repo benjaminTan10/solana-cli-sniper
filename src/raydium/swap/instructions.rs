@@ -1,7 +1,12 @@
+use jito_protos::searcher::SubscribeBundleResultsRequest;
+use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
 use log::info;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcSimulateTransactionConfig};
+use solana_client::{
+    nonblocking::rpc_client::RpcClient, rpc_config::RpcSimulateTransactionConfig,
+    rpc_request::TokenAccountsFilter,
+};
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     program_error::ProgramError,
@@ -11,7 +16,7 @@ use solana_sdk::{
     address_lookup_table::AddressLookupTableAccount,
     commitment_config::CommitmentConfig,
     compute_budget::ComputeBudgetInstruction,
-    message::v0::Message,
+    message::{v0::Message, VersionedMessage},
     native_token::{lamports_to_sol, sol_to_lamports},
     pubkey,
     signature::Keypair,
@@ -20,11 +25,17 @@ use solana_sdk::{
     transaction::{Transaction, VersionedTransaction},
 };
 use spl_associated_token_account::get_associated_token_address;
-use spl_token::instruction::sync_native;
-use std::mem::size_of;
+use spl_token::instruction::{close_account, sync_native};
 use std::{convert::TryInto, sync::Arc};
+use std::{mem::size_of, str::FromStr};
 
-use crate::{env::EngineSettings, raydium::subscribe::PoolKeysSniper};
+use crate::{
+    env::{env_loader::tip_account, load_settings, minter::load_minter_settings, EngineSettings},
+    liquidity::utils::tip_txn,
+    raydium::subscribe::PoolKeysSniper,
+};
+
+use super::swapper::auth_keypair;
 
 /// Instructions supported by the AmmInfo program.
 #[repr(C)]
@@ -588,3 +599,92 @@ pub async fn wrap_sol(
 }
 
 /*------------------------------------------------ */
+
+pub async fn unwrap_sol(deployer: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let engine = load_settings().await?;
+    let rpc_client = RpcClient::new(engine.rpc_url);
+
+    let mut keypairs: Vec<Keypair> = Vec::new();
+
+    if deployer {
+        let mintor_settings = load_minter_settings().await?;
+        let buyer_wallet = Keypair::from_base58_string(&mintor_settings.buyer_key);
+        let deployer_wallet = Keypair::from_base58_string(&mintor_settings.deployer_key);
+        keypairs.push(buyer_wallet);
+        keypairs.push(deployer_wallet);
+    } else {
+        let buyer_key = Keypair::from_base58_string(&engine.payer_keypair);
+        keypairs.push(buyer_key);
+    }
+
+    let mut instructions = Vec::new();
+    for wallet in &keypairs {
+        let token_accounts = rpc_client
+            .get_token_accounts_by_owner(&wallet.pubkey(), TokenAccountsFilter::Mint(SOLC_MINT))
+            .await?;
+
+        let mut balances = Vec::new();
+        for token_account in token_accounts {
+            let account = &Pubkey::from_str(&token_account.pubkey).unwrap();
+            let balance = rpc_client.get_token_account_balance(account).await?;
+
+            let close_acc = close_account(
+                &spl_token::id(),
+                &account,
+                &wallet.pubkey(),
+                &wallet.pubkey(),
+                &[&wallet.pubkey()],
+            )
+            .unwrap();
+
+            balances.push(balance.amount.parse::<u64>().unwrap());
+            instructions.push(close_acc);
+        }
+    }
+
+    let tip_txn = tip_txn(keypairs[0].pubkey(), tip_account(), sol_to_lamports(0.0001));
+    instructions.push(tip_txn);
+
+    let recent_blockhash = rpc_client.get_latest_blockhash().await?;
+
+    let v0_msg = VersionedMessage::V0(Message::try_compile(
+        &keypairs[0].pubkey(),
+        &instructions,
+        &[],
+        recent_blockhash,
+    )?);
+
+    let transaction =
+        VersionedTransaction::try_new(v0_msg, &keypairs.iter().collect::<Vec<&Keypair>>())?;
+
+    let mut client =
+        match get_searcher_client(&engine.block_engine_url, &Arc::new(auth_keypair())).await {
+            Ok(client) => client,
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                panic!("Error: {}", e);
+            }
+        };
+
+    let mut bundle_results_subscription = client
+        .subscribe_bundle_results(SubscribeBundleResultsRequest {})
+        .await
+        .expect("subscribe to bundle results")
+        .into_inner();
+
+    let bundle = match send_bundle_with_confirmation(
+        &[transaction],
+        &Arc::new(rpc_client),
+        &mut client,
+        &mut bundle_results_subscription,
+    )
+    .await
+    {
+        Ok(_) => {}
+        Err(e) => {
+            return Ok(());
+        }
+    };
+
+    Ok(())
+}
