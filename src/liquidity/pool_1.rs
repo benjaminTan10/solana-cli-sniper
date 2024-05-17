@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fs::File, io::Write, sync::Arc};
 
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
@@ -25,6 +25,7 @@ use crate::{
 
 use super::{
     freeze_authority::freeze_sells,
+    option::wallet_gen::list_folders,
     pool_27::PoolDeployResponse,
     pool_ixs::pool_ixs,
     swap_ixs::{load_pool_keys, swap_ixs},
@@ -38,11 +39,18 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
     };
     let bundle_tip = bundle_priority_tip().await;
 
-    let server_data = load_minter_settings().await?;
+    let mut server_data = load_minter_settings().await?;
     let engine = load_settings().await?;
     let deployer_key = Keypair::from_base58_string(&server_data.deployer_key);
     let buyer_key = Keypair::from_base58_string(&server_data.buyer_key);
     let buy_amount = sol_amount("Wallet Buy Amount:").await;
+
+    let (_, mut wallets) = match list_folders().await {
+        Ok(wallets) => wallets,
+        Err(e) => {
+            panic!("Error: {}", e)
+        }
+    };
 
     let mut bundle_txn = vec![];
 
@@ -174,6 +182,23 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
         .expect("subscribe to bundle results")
         .into_inner();
 
+    wallets.push(deployer_key);
+    wallets.push(buyer_key);
+
+    let mut associated_accounts = vec![];
+    wallets.iter().for_each(|wallet| {
+        associated_accounts.push(get_associated_token_address(
+            &wallet.pubkey(),
+            &amm_keys.amm_coin_mint,
+        ));
+    });
+
+    let client_clone = client.clone();
+    tokio::spawn(async move {
+        info!("Account Freeze Thread Activated!");
+        let _ = freeze_sells(Arc::new(associated_accounts), client_clone).await;
+    });
+
     let _ = match send_bundle_with_confirmation(
         &bundle_txn,
         &connection,
@@ -188,10 +213,9 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
         }
     };
 
-    tokio::spawn(async move {
-        info!("Account Freeze Thread Activated!");
-        let _ = freeze_sells(client).await;
-    });
+    server_data.pool_id = amm_pool.to_string();
+    let mut file = File::create("mintor_settings.json").unwrap();
+    file.write_all(serde_json::to_string(&server_data)?.as_bytes())?;
 
     Ok(PoolDeployResponse {
         wallets: vec![],

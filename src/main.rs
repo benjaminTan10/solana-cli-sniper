@@ -36,9 +36,8 @@ async fn main() {
             )
         })
         .init();
-
-    info!("{}", embed());
-
+    println!("{esc}[2J{esc}[1;1H", esc = 27 as char);
+    println!("{}", embed());
     info!("Authenticating...");
     let _auth = match auth_verification().await {
         Ok(_) => {}
@@ -47,7 +46,10 @@ async fn main() {
             return;
         }
     };
-    info!("{}", "Authentication successful!".bold().green());
+    //clear previous line
+    println!("{esc}[2J{esc}[1;1H", esc = 27 as char);
+    println!("{}", embed());
+    println!("{}", "Authentication successful!".bold().green());
     let _ = app(true).await;
 }
 

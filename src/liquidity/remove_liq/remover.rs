@@ -74,14 +74,24 @@ pub async fn remove_liquidity() -> eyre::Result<()> {
             return Ok(());
         }
     };
-    let lpmint_associate = &spl_associated_token_account::get_associated_token_address(
-        &wallet.pubkey(),
-        &amm_keys.amm_lp_mint,
-    );
 
     println!("Associated Token Address: {:?}", amm_keys.amm_lp_mint);
-    // load market keys
-    let withdraw_lp_amount = client.get_balance(&amm_keys.amm_lp_mint).await?;
+
+    let token_accounts = client
+        .get_token_accounts_by_owner(
+            &wallet.pubkey(),
+            TokenAccountsFilter::Mint(amm_keys.amm_lp_mint),
+        )
+        .await?;
+
+    let mut withdraw_lp_amount = 0;
+    for account in token_accounts {
+        let balance = client
+            .get_token_account_balance(&Pubkey::from_str(&account.pubkey).unwrap())
+            .await?;
+
+        withdraw_lp_amount = balance.amount.parse::<u64>().unwrap();
+    }
 
     println!("Token Amount: {}", withdraw_lp_amount);
 
@@ -126,9 +136,6 @@ pub async fn remove_liquidity() -> eyre::Result<()> {
         withdraw_lp_amount,
     )?;
 
-    // let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(800000);
-    // let compute_price = ComputeBudgetInstruction::set_compute_unit_price(1000000);
-
     let tip_txn = tip_txn(wallet.pubkey(), tip_account(), sol_to_lamports(0.001));
 
     // remove_pool_inx.push(unit_limit);
@@ -150,28 +157,6 @@ pub async fn remove_liquidity() -> eyre::Result<()> {
     );
 
     let tx = VersionedTransaction::try_new(versioned_msg, &[&wallet])?;
-
-    let config = RpcSendTransactionConfig {
-        skip_preflight: true,
-        ..Default::default()
-    };
-
-    // let signature = match client
-    //     .send_and_confirm_transaction_with_spinner_and_config(
-    //         &tx,
-    //         CommitmentConfig::processed(),
-    //         config,
-    //     )
-    //     .await
-    // {
-    //     Ok(signature) => signature,
-    //     Err(e) => {
-    //         eprintln!("Error: {}", e);
-    //         return Ok(());
-    //     }
-    // };
-
-    // println!("Withdraw transaction signature: {:?}", signature);
 
     let mut searcher_client =
         get_searcher_client(&engine.block_engine_url, &Arc::new(auth_keypair())).await?;

@@ -1,6 +1,7 @@
 use std::{error::Error, str::FromStr, sync::Arc};
 
 use bincode::serialize;
+use colored::Colorize;
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
 use log::{error, info};
@@ -24,7 +25,10 @@ use crate::{
         load_settings,
         minter::{load_minter_settings, PoolDataSettings},
     },
-    liquidity::{option::wallet_gen::load_wallets, utils::tip_txn},
+    liquidity::{
+        option::wallet_gen::{list_folders, load_wallets},
+        utils::tip_txn,
+    },
     raydium::swap::{instructions::SOLC_MINT, swapper::auth_keypair},
     rpc::HTTP_CLIENT,
     user_inputs::amounts::bundle_priority_tip,
@@ -112,79 +116,7 @@ pub async fn withdraw_sol_wallets(
 
     let bundle_tip = bundle_priority_tip().await;
 
-    let lut_creation = match Pubkey::from_str(&data.lut_key) {
-        Ok(lut) => lut,
-        Err(e) => {
-            panic!("LUT key not Found in Settings: {}", e);
-        }
-    };
-
-    let mut raw_account = None;
-
-    while raw_account.is_none() {
-        match connection.get_account(&lut_creation).await {
-            Ok(account) => raw_account = Some(account),
-            Err(e) => {
-                eprintln!("Error getting LUT account: {}, retrying...", e);
-            }
-        }
-    }
-
-    let raw_account = raw_account.unwrap();
-
-    let address_lookup_table = AddressLookupTable::deserialize(&raw_account.data)?;
-    let address_lookup_table_account = AddressLookupTableAccount {
-        key: lut_creation,
-        addresses: address_lookup_table.addresses.to_vec(),
-    };
-
-    let mut distribution_ix: Vec<Instruction> = vec![];
-
-    //-----------------------------------------------------------------------------------------------
-
-    // for (index, wallet) in wallets.iter().enumerate() {
-    //     let balance = connection.get_balance(&wallet.pubkey()).await.unwrap();
-    //     println!("Wallet {}: {} SOL", index, lamports_to_sol(balance));
-    //     let transfer_instruction =
-    //         system_instruction::transfer(&wallet.pubkey(), &buyer_wallet.pubkey(), balance);
-
-    //     distribution_ix.push(transfer_instruction);
-    // }
-
-    // let tip_ix = tip_txn(buyer_wallet.pubkey(), tip_account(), bundle_tip);
-
-    // distribution_ix.push(tip_ix);
-
-    // let distribution_ix_chunks: Vec<_> = distribution_ix.chunks(21).collect();
-
-    // //----------------------------------------------------------------------------------
-
     let recent_blockhash = connection.get_latest_blockhash().await?;
-
-    // let mut transactions: Vec<VersionedTransaction> = vec![];
-
-    // for (i, chunk) in distribution_ix_chunks.iter().enumerate() {
-    //     let versioned_msg = VersionedMessage::V0(
-    //         match solana_sdk::message::v0::Message::try_compile(
-    //             &buyer_wallet.pubkey(),
-    //             chunk,
-    //             &[address_lookup_table_account.clone()],
-    //             recent_blockhash,
-    //         ) {
-    //             Ok(message) => message,
-    //             Err(e) => {
-    //                 eprintln!("Error: {}", e);
-    //                 panic!("Error: {}", e);
-    //             }
-    //         },
-    //     );
-
-    //     let transaction = VersionedTransaction::try_new(versioned_msg, &[&buyer_wallet])?;
-
-    //     println!("Chunk {}: {} instructions", i, chunk.len());
-
-    //     transactions.push(transaction);
-    // }
 
     let wallet_chunks: Vec<_> = wallets.chunks(6).collect();
     let mut txns_chunk = Vec::new();
@@ -226,7 +158,7 @@ pub async fn withdraw_sol_wallets(
             Message::try_compile(
                 &buyer_wallet.pubkey(),
                 &current_instructions,
-                &[address_lookup_table_account.clone()],
+                &[],
                 recent_blockhash,
             )
             .unwrap(),
@@ -286,7 +218,8 @@ pub async fn deployer_details() -> Result<(), Box<dyn Error + Send>> {
         .unwrap();
 
     println!(
-        "Deployer Wallet: {}\n{} SOL",
+        "{}: {}\n{} SOL",
+        "Deployer Wallet".bold().green(),
         deployer_wallet.pubkey(),
         lamports_to_sol(balance)
     );
@@ -297,29 +230,37 @@ pub async fn deployer_details() -> Result<(), Box<dyn Error + Send>> {
         .unwrap();
 
     println!(
-        "Buyer Wallet: {}\n{} SOL",
+        "{}: {}\n{} SOL",
+        "Buyer Wallet".bold().cyan(),
         buyer_wallet.pubkey(),
         lamports_to_sol(balance)
     );
 
-    let w_sol_buyer = get_associated_token_address(&buyer_wallet.pubkey(), &SOLC_MINT);
-    let w_sol_deployer = get_associated_token_address(&deployer_wallet.pubkey(), &SOLC_MINT);
+    Ok(())
+}
+pub async fn folder_deployer_details() -> Result<(), Box<dyn Error + Send>> {
+    let connection = {
+        let http_client = HTTP_CLIENT.lock().unwrap();
+        http_client.get("http_client").unwrap().clone()
+    };
 
-    // for wallet in vec![w_sol_buyer, w_sol_deployer] {
-    //     let balance = match connection.get_token_account_balance(&wallet).await {
-    //         Ok(balance) => balance,
-    //         Err(e) => {
-    //             error!("No Token Account Found on Wallet: {}", wallet);
+    let (_, wallets) = match list_folders().await {
+        Ok(wallets) => wallets,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            panic!("Error: {}", e);
+        }
+    };
 
-    //             continue;
-    //         }
-    //     };
-
-    //     info!(
-    //         "Balance: {} SOL",
-    //         lamports_to_sol(balance.amount.parse::<u64>().unwrap())
-    //     );
-    // }
+    for (index, wallet) in wallets.iter().enumerate() {
+        let balance = connection.get_balance(&wallet.pubkey()).await.unwrap();
+        println!(
+            "Wallet [{}]: {}\n{} SOL",
+            index + 1,
+            wallet.pubkey(),
+            lamports_to_sol(balance)
+        );
+    }
 
     Ok(())
 }

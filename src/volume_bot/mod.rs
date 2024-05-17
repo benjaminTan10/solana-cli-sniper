@@ -5,6 +5,8 @@ use std::{
     sync::Arc,
 };
 
+mod volume_buyer;
+
 use crate::{
     app::theme,
     env::{
@@ -46,6 +48,8 @@ use solana_sdk::{
     transaction::VersionedTransaction,
 };
 
+use self::volume_buyer::volume_wallets_buyer;
+
 #[async_recursion]
 pub async fn volume_menu() -> eyre::Result<()> {
     let theme = theme();
@@ -56,10 +60,10 @@ pub async fn volume_menu() -> eyre::Result<()> {
         .option(DemandOption::new("Walletgen").label("[1] Generate Wallets"))
         // .option(DemandOption::new("LookupTable").label("[2] Create LUT"))
         .option(DemandOption::new("distributesol").label("[2] Distribute SOL"))
-        .option(DemandOption::new("Wrap SOL & ATAs").label("[3] Wrap SOL & ATAs"))
-        .option(DemandOption::new("Volume").label("[4] Volume (Instant Seller) - 1 Wallet"))
-        .option(DemandOption::new("VolumeBuyer").label("[5] Volume Buyer - Multi Wallet"))
-        .option(DemandOption::new("VolumeSeller").label("[6] Volume Seller - Multi Wallet"))
+        // .option(DemandOption::new("Wrap SOL & ATAs").label("[3] Wrap SOL & ATAs"))
+        .option(DemandOption::new("Volume").label("[3] Volume (Instant Seller) - 1 Wallet"))
+        .option(DemandOption::new("VolumeBuyer").label("[4] Volume Buyer - Multi Wallet"))
+        .option(DemandOption::new("VolumeSeller").label("[5] Volume Seller - Multi Wallet"))
         .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
 
     let selected_option = ms.run().expect("error running select");
@@ -70,25 +74,31 @@ pub async fn volume_menu() -> eyre::Result<()> {
             println!("-------------------Returning to Main Menu-------------------");
             volume_menu().await?;
         }
-        "LookupTable" => {
-            let _ = volume_lut().await;
-            println!("-------------------Returning to Main Menu-------------------");
-            volume_menu().await?;
-        }
+        // "LookupTable" => {
+        //     let _ = volume_lut().await;
+        //     println!("-------------------Returning to Main Menu-------------------");
+        //     volume_menu().await?;
+        // }
         "distributesol" => {
             let _ = distributor().await;
             println!("-------------------Returning to Main Menu-------------------");
             volume_menu().await?;
         }
-        "Wrap SOL & ATAs" => {
-            let _ = sol_wrap().await;
-            println!("-------------------Returning to Main Menu-------------------");
-            volume_menu().await?;
-        }
+        // "Wrap SOL & ATAs" => {
+        //     let _ = sol_wrap().await;
+        //     println!("-------------------Returning to Main Menu-------------------");
+        //     volume_menu().await?;
+        // }
         "Volume" => {
             let _ = generate_volume().await;
             println!("-------------------Returning to Main Menu-------------------");
             volume_menu().await?;
+        }
+        "VolumeBuyer" => {
+            let _ = volume_wallets_buyer(false).await;
+        }
+        "VolumeSeller" => {
+            let _ = volume_wallets_buyer(true).await;
         }
         "Main Menu" => {
             let _ = crate::app::app(false).await;

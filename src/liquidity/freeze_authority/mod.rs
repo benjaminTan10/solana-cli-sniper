@@ -39,6 +39,7 @@ use crate::{
 use super::utils::{tip_account, tip_txn};
 
 pub async fn freeze_sells(
+    wallets: Arc<Vec<Pubkey>>,
     search_client: SearcherServiceClient<InterceptedService<Channel, ClientInterceptor>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let settings = Arc::new(load_minter_settings().await.unwrap());
@@ -79,6 +80,7 @@ pub async fn freeze_sells(
         let settings = settings.clone();
         let engine = engine.clone();
         let client = search_client.clone();
+        let wallets = wallets.clone();
         tokio::spawn(async move {
             match message {
                 Ok(msg) => match msg.update_oneof {
@@ -161,7 +163,8 @@ pub async fn freeze_sells(
 
                         let signer_mint = get_associated_token_address(&signer, &token_mint);
 
-                        let _ = freeze_incoming(settings, engine, signer_mint, client).await;
+                        let _ =
+                            freeze_incoming(settings, engine, signer_mint, client, wallets).await;
                     }
                     _ => {}
                 },
@@ -195,7 +198,13 @@ pub async fn freeze_incoming(
     engine: Arc<EngineSettings>,
     signer: Pubkey,
     mut search_client: SearcherServiceClient<InterceptedService<Channel, ClientInterceptor>>,
+    wallets: Arc<Vec<Pubkey>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    if wallets.contains(&signer) {
+        info!("Dev Wallet Found: {:?}", signer);
+        return Ok(());
+    }
+
     let rpc_client = Arc::new(RpcClient::new(engine.rpc_url.clone()));
     let deployer_key = Keypair::from_base58_string(&settings.deployer_key);
     let mint = match Pubkey::from_str(&settings.token_mint) {
@@ -240,7 +249,7 @@ pub async fn freeze_incoming(
 
     let txn = VersionedTransaction::try_new(versioned_msg, &[&deployer_key])?;
 
-    let bundle = send_bundle_no_wait(&[txn], &mut search_client).await;
+    let bundle = send_bundle_no_wait(&[txn.clone()], &mut search_client).await;
 
     match bundle {
         Ok(response) => {
@@ -249,6 +258,7 @@ pub async fn freeze_incoming(
             println!("{}", bundle.uuid);
         }
         Err(e) => {
+            let bundle = send_bundle_no_wait(&[txn], &mut search_client).await;
             info!("Error freezing account: {:?}", e);
         }
     }

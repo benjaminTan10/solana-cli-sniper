@@ -1431,9 +1431,9 @@ checksum = "7e962a19be5cfc3f3bf6dd8f61eb50107f356ad6270fbb3ed41476571db78be5"
 
 [[package]]
 name = "demand"
-version = "1.1.0"
+version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0432739baa24b909fe06f17df94b483bae6c2c982dc8c4fad8f27e91031e118c"
+checksum = "ac0e05015a3ce6c1bf6c356e720577d25637dead76af65a67cfde43009d39e27"
 dependencies = [
  "console",
  "once_cell",

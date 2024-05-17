@@ -2,21 +2,29 @@ pub mod embeds;
 pub mod wallets;
 use async_recursion::async_recursion;
 use colored::*;
+use crossterm::cursor::SetCursorStyle;
+use futures::io::Cursor;
 use futures::Future;
 use jito_searcher_client::get_searcher_client;
+use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
+use solana_sdk::signer::Signer;
 use std::error::Error;
 use std::pin::Pin;
 use std::sync::Arc;
+use tokio::time::sleep;
 
 use demand::{DemandOption, Input, Select, Theme};
 use log::{error, info};
 use serde::Deserialize;
 use termcolor::{Color, ColorSpec};
 
+use crate::app::embeds::embed;
 use crate::env::load_settings;
 use crate::liquidity::freeze_authority::freeze_sells;
 use crate::liquidity::minter_main::raydium_creator;
+use crate::liquidity::option::wallet_gen::list_folders;
+use crate::liquidity::option::withdraw_sol::{deployer_details, folder_deployer_details};
 use crate::raydium::bundles::mev_trades::mev_trades;
 use crate::raydium::subscribe::auto_sniper_stream;
 use crate::raydium::swap::swap_in::{swap_in, swap_out, PriorityTip};
@@ -55,19 +63,27 @@ pub fn theme() -> Theme {
         title: ColorSpec::new()
             .set_fg(Some(Color::Rgb(181, 228, 140)))
             .clone(),
-        cursor: ColorSpec::new().set_fg(Some(Color::Yellow)).clone(),
+        cursor: ColorSpec::new()
+            .set_fg(Some(Color::Green))
+            .set_bold(true)
+            .clone(),
+
         selected_option: ColorSpec::new()
             .set_fg(Some(Color::Rgb(38, 70, 83)))
+            .set_bold(true) // make the selected option bold
+            .clone(),
+        selected_prefix_fg: ColorSpec::new()
+            .set_fg(Some(Color::Rgb(181, 228, 140)))
             .clone(),
         input_cursor: ColorSpec::new()
             .set_fg(Some(Color::Rgb(22, 138, 173)))
             .clone(),
         input_prompt: ColorSpec::new().set_fg(Some(Color::Blue)).clone(),
-
         ..Theme::default()
     }
 }
 
+#[async_recursion]
 pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>> {
     let args = match load_settings().await {
         Ok(args) => args,
@@ -76,9 +92,8 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
             return Ok(());
         }
     };
-    if mainmenu {
-        info!("Settings Successfully Loaded!");
 
+    if mainmenu {
         let _http_loader = rpc_key(args.rpc_url.clone()).await;
 
         // let data = load_minter_settings().await.unwrap();
@@ -90,14 +105,15 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
         .description("Select the Mode")
         .theme(&theme)
         .filterable(true)
+        .option(DemandOption::new("Swap Tokens").label("▪ Swap Mode"))
+        .option(DemandOption::new("Snipe Pools").label("▪ Snipe Mode"))
+        .option(DemandOption::new("Minter Mode").label("▪ Minter Mode"))
+        .option(DemandOption::new("Generate Volume").label("▪ Volume Mode"))
         .option(DemandOption::new("Wrap Sol Mode").label("📦 Wrap SOL"))
-        .option(DemandOption::new("Freeze Authority").label("🔒 Freeze Authority"))
-        .option(DemandOption::new("Swap Tokens").label("[1] Swap Mode"))
-        .option(DemandOption::new("Snipe Pools").label("[2] Snipe Mode"))
-        .option(DemandOption::new("Minter Mode").label("[4] Minter Mode"))
-        .option(DemandOption::new("Generate Volume").label("[5] Volume Mode"))
-        // .option(DemandOption::new("MEV Trades").label("[4] Sandwich Mode (Depricated)"))
-        .option(DemandOption::new("Wallet Details").label("🍄 Wallet Details"));
+        .option(DemandOption::new("Freeze Authority").label("❄️  Freeze Authority"))
+        .option(DemandOption::new("Wallet Details").label("🍄 Wallet Details"))
+        .option(DemandOption::new("deployerdetails").label("🧨 Deployer Wallet Details"))
+        .option(DemandOption::new("folder_deployerdetails").label("🗃️  Folder Wallet Details"));
 
     let selected_option = ms.run().expect("error running select");
 
@@ -109,7 +125,10 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
             let search = get_searcher_client(&args.block_engine_url, &Arc::new(auth_keypair()))
                 .await
                 .unwrap();
-            let _ = freeze_sells(search).await;
+            let (_, wallet) = list_folders().await.unwrap();
+            let wallets: Vec<Pubkey> = wallet.iter().map(|item| item.pubkey()).collect();
+
+            let _ = freeze_sells(Arc::new(wallets), search).await;
         }
         "Swap Tokens" => {
             let _ = swap_mode().await;
@@ -129,10 +148,22 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
         "Wallet Details" => {
             let _ = wallet_logger().await;
         }
+        "deployerdetails" => {
+            let _ = deployer_details().await;
+        }
+        "folder_deployerdetails" => {
+            let _ = folder_deployer_details().await;
+        }
         _ => {
             // Handle unexpected option here
         }
     }
+
+    sleep(tokio::time::Duration::from_secs(3)).await;
+    //clear the terminal
+    println!("{esc}[2J{esc}[1;1H", esc = 27 as char);
+    println!("{}", embed());
+    let _ = app(false).await;
 
     Ok(())
 }

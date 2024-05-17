@@ -108,38 +108,6 @@ pub async fn withdraw_wsol(
         }
     };
 
-    let lut_creation = match Pubkey::from_str(&pool_data.lut_key) {
-        Ok(lut) => lut,
-        Err(e) => {
-            panic!("LUT key not Found in Settings: {}", e);
-        }
-    };
-
-    let mut raw_account = None;
-
-    while raw_account.is_none() {
-        match connection.get_account(&lut_creation).await {
-            Ok(account) => raw_account = Some(account),
-            Err(e) => {
-                eprintln!("Error getting LUT account: {}, retrying...", e);
-            }
-        }
-    }
-
-    let raw_account = raw_account.unwrap();
-
-    let address_lookup_table = match AddressLookupTable::deserialize(&raw_account.data) {
-        Ok(address_lookup_table) => address_lookup_table,
-        Err(e) => {
-            eprintln!("Error: {}", e);
-            panic!("Error: {}", e);
-        }
-    };
-    let address_lookup_table_account = AddressLookupTableAccount {
-        key: lut_creation,
-        addresses: address_lookup_table.addresses.to_vec(),
-    };
-
     let buyer_wallet = Keypair::from_base58_string(&pool_data.buyer_key);
 
     let balance = connection
@@ -228,7 +196,7 @@ pub async fn withdraw_wsol(
             Message::try_compile(
                 &buyer_wallet.pubkey(),
                 &current_instructions,
-                &[address_lookup_table_account.clone()],
+                &[],
                 recent_blockhash,
             )
             .unwrap(),

@@ -3,7 +3,7 @@ use std::error::Error;
 use demand::{DemandOption, Select};
 
 use crate::{
-    app::{app, theme},
+    app::{app, embeds::embed, theme},
     liquidity::{
         lut::extend_lut::lut_main,
         option::{
@@ -48,28 +48,18 @@ pub async fn raydium_creator() -> Result<(), Box<dyn Error>> {
     match selected_option {
         "Generate Wallets" => {
             let _ = gen_wallet_save().await;
-            println!("-------------------Returning to Main Menu-------------------");
-            raydium_creator().await?;
         }
         "CreateLUT" => {
             let _ = lut_main().await;
-            println!("-------------------Returning to Main Menu-------------------");
-            raydium_creator().await?;
         }
         "Distribute SOL" => {
             let _ = distributor().await;
-            println!("-------------------Returning to Main Menu-------------------");
-            raydium_creator().await?;
         }
         "Wrap SOL & ATAs" => {
             let _ = sol_wrap().await;
-            println!("-------------------Returning to Main Menu-------------------");
-            raydium_creator().await?;
         }
         "Add Liquidity" => {
             let _ = pooler_mode().await;
-            println!("-------------------Returning to Main Menu-------------------");
-            raydium_creator().await?;
         }
         "Remove Liquidity" => {
             let _ = match remove_liquidity().await {
@@ -78,46 +68,37 @@ pub async fn raydium_creator() -> Result<(), Box<dyn Error>> {
                     println!("Error: {:?}", e);
                 }
             };
-            println!("-------------------Returning to Main Menu-------------------");
-            raydium_creator().await?;
         }
         "Sell%" => {
             let _ = sell_specific(true).await;
-            println!("-------------------Returning to Main Menu-------------------");
-            raydium_creator().await?;
         }
         "SellAll" => {
             let _ = sell_specific(false).await;
-
-            println!("-------------------Returning to Main Menu-------------------");
-            raydium_creator().await?;
         }
         "WithdrawSol" => {
             let _ = withdraw_sol().await;
-            println!("-------------------Returning to Main Menu-------------------");
-            raydium_creator().await?;
         }
         "WithdrawWSol&ATAS" => {
             let _ = withdraw_wrapped_sol().await;
-            println!("-------------------Returning to Main Menu-------------------");
-            raydium_creator().await?;
         }
         "deployerdetails" => {
             let _ = deployer_details().await;
-            println!("-------------------Returning to Main Menu-------------------");
-            raydium_creator().await?;
         }
         "Main Menu" => {
             //clear terminal
             println!("{esc}[2J{esc}[1;1H", esc = 27 as char);
             //clear the previous line
-            // println!("{esc}[2K", esc = 27 as char);
+            println!("{}", embed());
             let _ = app(false).await;
         }
         _ => {
             // Handle unexpected option here
         }
     }
+    println!("{esc}[2J{esc}[1;1H", esc = 27 as char);
+    //clear the previous line
+    println!("{}", embed());
+    let _ = raydium_creator().await;
 
     Ok(())
 }
