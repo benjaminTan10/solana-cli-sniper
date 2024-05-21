@@ -9,6 +9,7 @@ mod volume_buyer;
 
 use crate::{
     app::theme,
+    auth::auth_verification,
     env::{
         env_loader::tip_account,
         load_settings,
@@ -52,6 +53,14 @@ use self::volume_buyer::volume_wallets_buyer;
 
 #[async_recursion]
 pub async fn volume_menu() -> eyre::Result<()> {
+    let _auth = match auth_verification().await {
+        Ok(_) => {}
+        Err(e) => {
+            log::error!("Error: {}", e);
+            return Ok(());
+        }
+    };
+
     let theme = theme();
     let ms = Select::new("Volume Bot")
         .description("Select the Volume Bot")

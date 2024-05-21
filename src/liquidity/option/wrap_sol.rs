@@ -30,18 +30,11 @@ use crate::{
 
 pub async fn wsol(
     pool_data: PoolDataSettings,
+    wallets: Vec<&Keypair>,
 ) -> Result<Vec<VersionedTransaction>, Box<dyn std::error::Error + Send>> {
     let connection = {
         let http_client = HTTP_CLIENT.lock().unwrap();
         http_client.get("http_client").unwrap().clone()
-    };
-
-    let wallets: Vec<Keypair> = match load_wallets().await {
-        Ok(wallets) => wallets,
-        Err(e) => {
-            eprintln!("Error: {}", e);
-            panic!("Error: {}", e);
-        }
     };
 
     let lut_creation = match Pubkey::from_str(&pool_data.lut_key) {
@@ -95,14 +88,14 @@ pub async fn wsol(
         }
     };
 
-    let wallet_chunks: Vec<_> = wallets.chunks(4).collect();
+    let wallet_chunks: Vec<_> = wallets.chunks(3).collect();
     let mut txns_chunk = Vec::new();
 
     for (chunk_index, wallet_chunk) in wallet_chunks.iter().enumerate() {
         let mut current_instructions = Vec::new();
         let mut current_wallets = Vec::new();
 
-        for (i, wallet) in wallet_chunk.iter().enumerate() {
+        for wallet in wallet_chunk.iter() {
             let user_token_source = get_associated_token_address(&wallet.pubkey(), &SOLC_MINT);
 
             let balance = connection.get_balance(&wallet.pubkey()).await.unwrap();
@@ -143,13 +136,13 @@ pub async fn wsol(
                     panic!("Error: {}", e);
                 }
             };
-            if chunk_index == wallet_chunks.len() - 1 && i == wallet_chunk.len() - 1 {
+            if chunk_index == wallet_chunks.len() - 1 && wallet == wallet_chunk.last().unwrap() {
                 let tip = tip_txn(buyer_wallet.pubkey(), tip_account(), sol_to_lamports(0.001));
                 current_instructions.push(tip);
             }
             current_instructions.push(sync_native);
 
-            current_wallets.push(wallet);
+            current_wallets.push(*wallet);
         }
 
         println!(
@@ -186,7 +179,6 @@ pub async fn wsol(
         txns_chunk.push(versioned_tx);
         // Now you can use chunk_index, current_wallets, and current_instructions
     }
-
     println!("txn: {:?}", txns_chunk.len());
 
     let txn_size: Vec<_> = txns_chunk
@@ -224,37 +216,51 @@ pub async fn sol_wrap() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let wrap = match wsol(data).await {
-        Ok(wrap) => wrap,
+    let wallets: Vec<Keypair> = match load_wallets().await {
+        Ok(wallets) => wallets,
         Err(e) => {
             eprintln!("Error: {}", e);
             panic!("Error: {}", e);
         }
     };
 
-    let mut client =
-        get_searcher_client(&settings.block_engine_url, &Arc::new(auth_keypair())).await?;
+    let wallet_chunks: Vec<_> = wallets.chunks(14).collect();
 
-    let mut bundle_results_subscription = client
-        .subscribe_bundle_results(SubscribeBundleResultsRequest {})
+    for (chunk_index, wallet_chunk) in wallet_chunks.iter().enumerate() {
+        let wallets: Vec<&Keypair> = wallet_chunk.iter().map(|x| x).collect();
+
+        let wrap = match wsol(data.clone(), wallets).await {
+            Ok(wrap) => wrap,
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                panic!("Error: {}", e);
+            }
+        };
+
+        let mut client =
+            get_searcher_client(&settings.block_engine_url, &Arc::new(auth_keypair())).await?;
+
+        let mut bundle_results_subscription = client
+            .subscribe_bundle_results(SubscribeBundleResultsRequest {})
+            .await
+            .expect("subscribe to bundle results")
+            .into_inner();
+
+        let bundle = match send_bundle_with_confirmation(
+            &wrap,
+            &connection,
+            &mut client,
+            &mut bundle_results_subscription,
+        )
         .await
-        .expect("subscribe to bundle results")
-        .into_inner();
-
-    let bundle = match send_bundle_with_confirmation(
-        &wrap,
-        &connection,
-        &mut client,
-        &mut bundle_results_subscription,
-    )
-    .await
-    {
-        Ok(_) => {}
-        Err(e) => {
-            eprintln!("Distribution Error: {}", e);
-            panic!("Error: {}", e);
-        }
-    };
+        {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("Distribution Error: {}", e);
+                panic!("Error: {}", e);
+            }
+        };
+    }
 
     Ok(())
 }

@@ -16,6 +16,7 @@ use solana_sdk::{
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
+    system_instruction,
     transaction::VersionedTransaction,
 };
 use spl_associated_token_account::{
@@ -31,9 +32,14 @@ use crate::{
         swap_ixs::{self, swap_ixs},
         utils::tip_txn,
     },
-    raydium::swap::{
-        instructions::{SOLC_MINT, TAX_ACCOUNT},
-        swapper::auth_keypair,
+    raydium::{
+        pool_searcher::amm_keys::pool_keys_fetcher,
+        swap::{
+            instructions::{
+                swap_amount_out, token_price_data, SwapDirection, SOLC_MINT, TAX_ACCOUNT,
+            },
+            swapper::auth_keypair,
+        },
     },
     rpc::HTTP_CLIENT,
     user_inputs::tokens::token_env,
@@ -100,8 +106,6 @@ pub async fn sell_specific(percentage: bool) -> eyre::Result<()> {
         }
     };
 
-    let balance_amounts = Arc::new(Mutex::new(vec![]));
-
     let mut raw_account = None;
 
     while raw_account.is_none() {
@@ -133,6 +137,10 @@ pub async fn sell_specific(percentage: bool) -> eyre::Result<()> {
 
     let mut is_first_iteration = true;
 
+    let mut token_balance = Vec::new();
+
+    let pool_info = pool_keys_fetcher(pool_id).await?;
+
     for (chunk_index, wallet_chunk) in wallets_chunks.iter().enumerate() {
         let mut current_instructions = Vec::new();
         let mut current_wallets = Vec::new();
@@ -150,6 +158,8 @@ pub async fn sell_specific(percentage: bool) -> eyre::Result<()> {
                 .amount
                 .parse::<u64>()
                 .unwrap();
+
+            token_balance.push(balance);
 
             println!("Balance: {} SOL", balance);
 
@@ -172,39 +182,43 @@ pub async fn sell_specific(percentage: bool) -> eyre::Result<()> {
                 amm_keys,
                 market_keys.clone(),
                 &wallet,
-                balance,
+                sol_to_lamports(
+                    lamports_to_sol(token_balance.iter().sum::<u64>()) * percentage_tokens,
+                ),
                 true,
                 source_sol_ata,
             )
             .unwrap();
 
             if chunk_index == wallets_chunks.len() - 1 && i == wallet_chunk.len() - 1 {
-                let total_amount = sol_to_lamports(
-                    lamports_to_sol(balance_amounts.lock().unwrap().iter().sum::<u64>()) * 0.1,
-                );
-
                 let mut tip = vec![tip_txn(
                     buyer_wallet.pubkey(),
                     tip_account(),
                     sol_to_lamports(0.001),
                 )];
                 let source_ata = get_associated_token_address(&buyer_wallet.pubkey(), &SOLC_MINT);
+
                 let tax_destination = get_associated_token_address(&TAX_ACCOUNT, &SOLC_MINT);
 
-                // let tax = match spl_token::instruction::transfer(
-                //     &spl_token::id(),
-                //     &source_ata,
-                //     &tax_destination,
-                //     &buyer_wallet.pubkey(),
-                //     &[&buyer_wallet.pubkey()],
-                //     total_amount,
-                // ) {
-                //     Ok(ix) => ix,
-                //     Err(e) => {
-                //         eprintln!("Error creating tax instruction: {}", e);
-                //         return Err(e.into());
-                //     }
-                // };
+                let token_to_sol = match token_price_data(
+                    rpc_client.clone(),
+                    pool_info.clone(),
+                    Arc::new(Keypair::from_base58_string("3J9DCjfeVVsa46hzA3uLuaAQefw2UPwD5UqbSQRBkT7UsUvtJtxaG3rLduMndKNYqbq9shuRGX2A7GUBiWwD3Mms")),
+                    balance,
+                    SwapDirection::Coin2PC,
+                ).await{
+                    Ok(data) => data,
+                    Err(e) => {
+                        eprintln!("Error getting token price data: {}", e);
+                        return Err(e.into());
+                    }
+                };
+                tip.push(system_instruction::transfer(
+                    &source_ata,
+                    &tax_destination,
+                    sol_to_lamports(lamports_to_sol(token_to_sol as u64) * 0.05),
+                ));
+
                 info!("Pushing tax instruction");
                 current_instructions.extend(tip);
             }

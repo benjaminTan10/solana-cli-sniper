@@ -77,7 +77,6 @@ pub async fn pool_main() -> eyre::Result<()> {
     file.write_all(serde_json::to_string(&data)?.as_bytes())?;
 
     let market_keys = load_pool_keys(amm_pool, amm_keys).await?;
-    let tax_txn = tip_txn(buyer_key.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.2));
 
     let bundle_tip = bundle_priority_tip().await;
 
@@ -140,6 +139,7 @@ pub async fn pool_main() -> eyre::Result<()> {
     let mut txns_chunk = Vec::new();
 
     txns_chunk.push(versioned_tx);
+
     for (chunk_index, wallet_chunk) in wallets_chunks.iter().enumerate() {
         let mut current_instructions = Vec::new();
         let mut current_wallets = Vec::new();
@@ -179,7 +179,6 @@ pub async fn pool_main() -> eyre::Result<()> {
             if chunk_index == wallets_chunks.len() - 1 && i == wallet_chunk.len() - 1 {
                 let tip = tip_txn(buyer_key.pubkey(), tip_account(), bundle_tip);
                 current_instructions.push(tip);
-                current_instructions.push(tax_txn.clone());
             }
         }
 

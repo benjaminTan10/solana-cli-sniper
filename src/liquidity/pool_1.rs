@@ -2,9 +2,9 @@ use std::{fs::File, io::Write, sync::Arc};
 
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
-use log::info;
 use solana_sdk::{
     message::{v0::Message, VersionedMessage},
+    native_token::sol_to_lamports,
     signature::Keypair,
     signer::Signer,
     system_instruction,
@@ -18,13 +18,15 @@ use spl_token::instruction::sync_native;
 
 use crate::{
     env::{load_settings, minter::load_minter_settings},
-    raydium::swap::{instructions::SOLC_MINT, swapper::auth_keypair},
+    raydium::swap::{
+        instructions::{SOLC_MINT, TAX_ACCOUNT},
+        swapper::auth_keypair,
+    },
     rpc::HTTP_CLIENT,
     user_inputs::amounts::{bundle_priority_tip, sol_amount},
 };
 
 use super::{
-    freeze_authority::freeze_sells,
     option::wallet_gen::list_folders,
     pool_27::PoolDeployResponse,
     pool_ixs::pool_ixs,
@@ -151,12 +153,12 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
 
     let jito_txn = tip_txn(deployer_key.pubkey(), tip_account(), bundle_tip);
 
-    // let tax_txn = tip_txn(deployer_key.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.2));
+    let tax_txn = tip_txn(deployer_key.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.25));
 
     let versioned_msg = VersionedMessage::V0(
         Message::try_compile(
             &deployer_key.pubkey(),
-            &[jito_txn],
+            &[tax_txn, jito_txn],
             &[],
             connection.get_latest_blockhash().await?,
         )
@@ -193,11 +195,11 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
         ));
     });
 
-    let client_clone = client.clone();
-    tokio::spawn(async move {
-        info!("Account Freeze Thread Activated!");
-        let _ = freeze_sells(Arc::new(associated_accounts), client_clone).await;
-    });
+    // let client_clone = client.clone();
+    // tokio::spawn(async move {
+    //     info!("Account Freeze Thread Activated!");
+    //     let _ = freeze_sells(Arc::new(associated_accounts), client_clone).await;
+    // });
 
     let _ = match send_bundle_with_confirmation(
         &bundle_txn,

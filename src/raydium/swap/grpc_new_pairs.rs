@@ -392,9 +392,7 @@ pub async fn sniper_txn_in_2(
         .unwrap_or_else(|| "Unknown".to_string());
 
     println!(
-        "---------------------------------------------------------------\n\
-        Name: {}\nSymb: {}\nBase Mint: {}\nPool ID: {}\n\
-        ----------------------------------------------------------------",
+        "Name: {}\nSymbol: {}\nBase Mint: {}\nPool ID: {}\n",
         colorize::AnsiColor::bold(token_name.to_string()).white(),
         colorize::AnsiColor::bold(token_name.to_string()).b_cyan(),
         pool_keys.base_mint.to_string(),

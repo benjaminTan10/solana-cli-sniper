@@ -1,16 +1,16 @@
 use std::error::Error;
 
 use demand::{DemandOption, Select};
+use log::error;
 
 use crate::{
     app::{app, embeds::embed, theme},
+    auth::auth_verification,
     liquidity::{
         lut::extend_lut::lut_main,
         option::{
-            sol_distribution::distributor,
-            withdraw_sol::{deployer_details, withdraw_sol},
-            withdraw_wrapped::withdraw_wrapped_sol,
-            wrap_sol::sol_wrap,
+            sol_distribution::distributor, withdraw_sol::withdraw_sol,
+            withdraw_wrapped::withdraw_wrapped_sol, wrap_sol::sol_wrap,
         },
         pool_1::single_pool,
         pool_27::pool_main,
@@ -25,6 +25,14 @@ use async_recursion::async_recursion;
 
 #[async_recursion]
 pub async fn raydium_creator() -> Result<(), Box<dyn Error>> {
+    let _auth = match auth_verification().await {
+        Ok(_) => {}
+        Err(e) => {
+            error!("Error: {}", e);
+            return Ok(());
+        }
+    };
+
     let theme = theme();
     let ms = Select::new("Minter Mode")
         .description("Select the Mode")

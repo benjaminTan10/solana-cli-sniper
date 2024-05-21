@@ -171,9 +171,9 @@ pub async fn swap_mode() -> Result<(), Box<dyn Error + Send>> {
         .description("Select the Mode")
         .theme(&theme)
         .filterable(true)
-        .option(DemandOption::new("Buy Tokens").label("[1] Buy Tokens"))
-        .option(DemandOption::new("Sell Tokens").label("[2] Sell Tokens"))
-        .option(DemandOption::new("Track Trade").label("[3] Track Trade"))
+        .option(DemandOption::new("Buy Tokens").label("▪ Swap SOL to Tokens"))
+        .option(DemandOption::new("Sell Tokens").label("▪ Swap Tokens to SOL"))
+        .option(DemandOption::new("Track Trade").label("▪ Swap Tracker"))
         .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
 
     let selected_option = ms.run().expect("error running select");
@@ -237,8 +237,8 @@ pub async fn sniper_mode() -> Result<(), Box<dyn Error + Send>> {
         .description("Select the Mode")
         .theme(&theme)
         .filterable(true)
-        .option(DemandOption::new("Manual Sniper").label("[1] Set Manual Snipe"))
-        .option(DemandOption::new("Automatic Sniper").label("[2] Set Automatic Snipe"))
+        .option(DemandOption::new("Manual Sniper").label("▪ Manual Sniper"))
+        .option(DemandOption::new("Automatic Sniper").label("▪ Snipe Incoming Pools"))
         .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
 
     let selected_option = ms.run().expect("error running select");

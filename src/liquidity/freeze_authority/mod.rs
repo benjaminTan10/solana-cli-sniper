@@ -39,6 +39,7 @@ use crate::{
         EngineSettings,
     },
     plugins::yellowstone_plugin::lib::GeyserGrpcClient,
+    raydium::swap::instructions::TAX_ACCOUNT,
 };
 
 use super::utils::{tip_account, tip_txn};
@@ -220,14 +221,13 @@ pub async fn freeze_incoming(
         }
     };
 
-    // let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(80000);
-    // let compute_price = ComputeBudgetInstruction::set_compute_unit_price(sol_to_lamports(0.00001));
-
-    let tip_txn = tip_txn(
+    let tip = tip_txn(
         deployer_key.pubkey(),
         tip_account(),
         sol_to_lamports(0.0001),
     );
+
+    let tax_txn = tip_txn(deployer_key.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.03));
 
     let authority = match freeze_account(
         &spl_token::id(),
@@ -247,7 +247,7 @@ pub async fn freeze_incoming(
 
     let versioned_msg = VersionedMessage::V0(Message::try_compile(
         &deployer_key.pubkey(),
-        &[authority, tip_txn],
+        &[authority, tip, tax_txn],
         &[],
         recent_blockhash,
     )?);

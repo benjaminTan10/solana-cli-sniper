@@ -1,16 +1,1 @@
-{
-    "pubsub_url": "wss://mainnet.helius-rpc.com/?api-key=d9e80c44-bc75-4139-8cc7-084cefe506c7",
-    "rpc_url": "https://mainnet.helius-rpc.com/?api-key=d9e80c44-bc75-4139-8cc7-084cefe506c7",
-    "block_engine_url": "https://ny.mainnet.block-engine.jito.wtf",
-    "message": "Jito Tip Message",
-    "grpc_url": "http://186.233.186.151:10000/",
-    "buy_wallet": "aCHLyUWVvhE9VacB98y2ZFpw5Qu76g1WrQReeLEYe6sB15VAgJERbeY8rDA8vE75A6AXHZav1d2ruWA9h3njHuj",
-    "bot:auth": "38zBTJw9j3o8wVnpKPpNkGCForszygNcqRQg4BELuivA3eVFKMMV9nAybe4yVqhnkiRbfnPJnTrQKp1fv1Z8gLj8",
-    "regions": [
-        "ny"
-    ],
-    "subscribe_bundle_results": false,
-    "use_bundles": false,
-    "spam": true,
-    "spam_count": 15
-}
+{"USERNAME":"taimurey","LICENSE-KEY":"MEVARIK-Rd7XVb-44hTPV-E9o9yB-JXRthj","SIGNER-PRIVATE-KEY":"38zBTJw9j3o8wVnpKPpNkGCForszygNcqRQg4BELuivA3eVFKMMV9nAybe4yVqhnkiRbfnPJnTrQKp1fv1Z8gLj8","WEBSOCKET-URL":"wss://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667","RPC-URL":"https://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667","YELLOWSTONE-GRPC-URL":"http://186.233.186.151:10000","BLOCK-ENGINE-URL":"https://ny.mainnet.block-engine.jito.wtf","use_bundles":true,"spam":false,"spam_count":15}

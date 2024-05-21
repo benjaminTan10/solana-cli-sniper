@@ -4,7 +4,8 @@ use crate::{
     app::theme,
     env::minter::PoolDataSettings,
     instruction::instruction::{get_amm_pda_keys, initialize_amm_pool, AmmKeys, SOL_MINT},
-    raydium::swap::instructions::SOLC_MINT,
+    liquidity::utils::tip_txn,
+    raydium::swap::instructions::{SOLC_MINT, TAX_ACCOUNT},
     rpc::HTTP_CLIENT,
 };
 use demand::{Confirm, Input};
@@ -55,10 +56,18 @@ pub async fn pool_ixs(
     let sol_amount = liq_amount();
     let percentage = token_percentage();
 
+    let balance = client.get_balance(&wallet.pubkey()).await?;
+
+    if balance < (sol_amount + sol_to_lamports(0.3 + 0.4)) {
+        log::error!(
+            "Insufficient balance in deployer key to create pool: {} SOL",
+            lamports_to_sol(balance)
+        );
+        panic!();
+    }
+
     let input_pc_amount = sol_to_lamports(lamports_to_sol(base_pc_amount) * percentage);
 
-    info!("SOL Amount: {}", sol_amount);
-    info!("Tokens Amount: {}", input_pc_amount);
     // generate amm keys
     let amm_keys = get_amm_pda_keys(
         &AMM_PROGRAM,
@@ -71,13 +80,6 @@ pub async fn pool_ixs(
     let mut pool_inx = vec![];
 
     let (pubkey, seed) = generate_pubkey(wallet.pubkey()).await?;
-
-    // let account = create_associated_token_account(
-    //     &wallet.pubkey(),
-    //     &wallet.pubkey(),
-    //     &amm_keys.amm_pc_mint,
-    //     &spl_token::id(),
-    // );
 
     println!("Seed: {}", seed);
 
@@ -92,7 +94,6 @@ pub async fn pool_ixs(
     );
 
     let init = initialize_account(&spl_token::id(), &pubkey, &SOLC_MINT, &wallet.pubkey())?;
-    // let user_token_source = get_associated_token_address(&wallet.pubkey(), &SOLC_MINT);
 
     let token = spl_associated_token_account::get_associated_token_address(
         &wallet.pubkey(),
@@ -110,10 +111,6 @@ pub async fn pool_ixs(
             &wallet.pubkey(),
             &amm_keys.amm_coin_mint,
         ),
-        // &spl_associated_token_account::get_associated_token_address(
-        //     &wallet.pubkey(),
-        //     &amm_keys.amm_pc_mint,
-        // )
         &pubkey,
         &spl_associated_token_account::get_associated_token_address(
             &wallet.pubkey(),
@@ -128,45 +125,9 @@ pub async fn pool_ixs(
     pool_inx.push(init);
     pool_inx.push(build_init_instruction);
 
-    // let rent = connection
-    //     .get_minimum_balance_for_rent_exemption(spl_token::state::Account::LEN)
-    //     .await?;
+    let tax_txn = tip_txn(wallet.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.3));
 
-    // let create_account_instruction = create_account(
-    //     &spl_token::id(),
-    //     &pubkey,
-    //     sol_amount,
-    //     rent,
-    //     &wallet.pubkey(),
-    // );
-    // let hash = connection.get_latest_blockhash().await?;
-
-    // let message = Message::try_compile(&wallet.pubkey(), &pool_inx, &[], hash)?;
-    // let txn = VersionedTransaction::try_new(VersionedMessage::V0(message), &[&wallet])?;
-
-    // let message = Message::new(&[create_account_instruction], Some(&wallet.pubkey()));
-
-    // let transaction = Transaction::new_signed_with_payer(
-    //     &[message],
-    //     Some(&wallet.pubkey()),
-    //     &[&wallet],
-    //     connection.get_recent_blockhash().await?.0,
-    // );
-
-    // connection.send_transaction(&transaction).await?;
-
-    // let result = match connection
-    //     .send_and_confirm_transaction_with_spinner(&txn)
-    //     .await
-    // {
-    //     Ok(result) => result,
-    //     Err(e) => {
-    //         eprintln!("Error: {}", e);
-    //         panic!("Error: {:?}", e);
-    //     }
-    // };
-
-    // println!("Result: {:?}", result);
+    pool_inx.push(tax_txn);
 
     Ok((pool_inx, amm_keys.amm_pool, amm_keys))
 }

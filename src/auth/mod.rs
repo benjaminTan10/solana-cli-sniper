@@ -1,11 +1,11 @@
 use std::thread::sleep;
 
 use colored::Colorize;
-use log::error;
+use log::{error, warn};
 use mongodb::{Client, Collection};
 use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer};
 
-use crate::env::load_settings;
+use crate::{app::embeds::embed, env::load_settings};
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct AccessList {
@@ -46,31 +46,36 @@ pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let auth_wallet = args.bot_auth;
+    let mut keyauthapp = keyauth::v1_2::KeyauthApi::new(
+        "Mevarik",                                                          // Application Name
+        "zblTZGeem8",                                                       // Owner ID
+        "90aeddb3b5559a9f47d285bdd803f21c72d489cfc3e6aaaa956753ec4f2466e1", // Application Secret
+        "1.0",                                                              // Application Version
+        "https://keyauth.win/api/1.2/", // This is the API URL, change this to your custom domain if you have it enabled
+    );
 
-    let keypair = match Keypair::from_bytes(match &bs58::decode(&auth_wallet).into_vec() {
-        Ok(key) => key,
-        Err(e) => {
-            error!("Error: {:?}", e);
-            return Ok(()); // Return the error
-        }
-    }) {
-        Ok(keypair) => keypair,
-        Err(e) => {
-            error!("Error: {:?}", e);
-            return Err(e.into()); // Return the error
-        }
+    keyauthapp.init(None).unwrap();
+
+    let result = match keyauthapp.register(
+        args.username.clone(),
+        args.license_key.clone(),
+        args.license_key.clone(),
+        None,
+    ) {
+        Ok(result) => result,
+        Err(e) => {}
     };
 
-    let wallet = keypair.pubkey();
-
-    let is_user = get_user_addresses(wallet).await?;
-
-    if !is_user {
-        error!("{}: {}", "Unauthorized User".bold().red(), wallet);
-        sleep(std::time::Duration::from_secs(20));
-        std::process::exit(1); // Stop the bot and exit the process
-    }
+    let result = match keyauthapp.login(args.username, args.license_key.clone(), None) {
+        Ok(result) => {
+            println!("{esc}[2J{esc}[1;1H", esc = 27 as char);
+            println!("{}", embed());
+            result
+        }
+        Err(e) => {
+            return Err(e.into());
+        }
+    };
 
     Ok(())
 }
