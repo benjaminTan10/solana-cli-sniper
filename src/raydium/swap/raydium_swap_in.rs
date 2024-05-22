@@ -21,6 +21,7 @@ use crate::env::env_loader::tip_account;
 use crate::env::EngineSettings;
 use crate::plugins::jito_plugin::lib::{send_bundles, BundledTransactions};
 use crate::raydium::subscribe::PoolKeysSniper;
+use crate::raydium::swap::grpc_new_pairs::clear_previous_line;
 use crate::raydium::swap::instructions::{swap_base_in, SwapDirection, SOLC_MINT};
 use crate::raydium::swap::swapper::auth_keypair;
 use crate::rpc::HTTP_CLIENT;
@@ -126,15 +127,11 @@ pub async fn raydium_in(
 
         let bundle_txn = vec![transaction, tip_txn];
 
-        info!("Fetching Bundle Result...");
-
         let mut bundle_results_subscription = searcher_client
             .subscribe_bundle_results(SubscribeBundleResultsRequest {})
             .await
             .expect("subscribe to bundle results")
             .into_inner();
-
-        info!("Subscribed to bundle results");
 
         let bundle = match send_bundle_with_confirmation(
             &bundle_txn,
@@ -146,7 +143,6 @@ pub async fn raydium_in(
         {
             Ok(_) => {}
             Err(e) => {
-                eprintln!("Distribution Error: {}", e);
                 panic!("Error: {}", e);
             }
         };
@@ -305,6 +301,7 @@ pub async fn price_logger(
         let profit_percentage =
             ((total_value - lamports_to_sol(amount_in)) / lamports_to_sol(amount_in)) * 100.0;
 
+        let terminal = clear_previous_line().unwrap();
         info!(
             "Aped: {:.3} Sol | Worth {:.4} Sol | Profit {:.2}%",
             lamports_to_sol(amount_in),
@@ -363,10 +360,6 @@ pub async fn sell_tokens(
     }
 
     info!("Token Balance: {:?}", token_balance);
-
-    // let tokens_to_sell = token_balance * (amount as f64 / 100.0) as u64;
-
-    // info!("Selling {:?} tokens", tokens_to_sell);
 
     let _ = match raydium_out(&wallet, pool_keys, token_balance, 0, fees, args).await {
         Ok(_) => {}

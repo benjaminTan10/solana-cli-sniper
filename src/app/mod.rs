@@ -102,7 +102,7 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
         .option(DemandOption::new("Generate Volume").label("▪ Volume Mode"))
         .option(DemandOption::new("Wrap Sol Mode").label("📦 Wrap SOL"))
         .option(DemandOption::new("Unwrap Sol Mode").label("🪤  Unwrap SOL"))
-        .option(DemandOption::new("Freeze Authority").label("❄️  Freeze Authority"))
+        // .option(DemandOption::new("Freeze Authority").label("❄️  Freeze Authority"))
         .option(DemandOption::new("Wallet Details").label("🍄 Wallet Details"))
         .option(DemandOption::new("deployerdetails").label("🧨 Deployer Wallet Details"))
         .option(DemandOption::new("folder_deployerdetails").label("🗃️  Folder Wallet Details"));

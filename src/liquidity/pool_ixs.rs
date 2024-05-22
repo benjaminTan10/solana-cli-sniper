@@ -10,11 +10,9 @@ use crate::{
 };
 use demand::{Confirm, Input};
 use log::info;
-use solana_client::rpc_request::TokenAccountsFilter;
 use solana_sdk::{
     instruction::Instruction,
     native_token::{lamports_to_sol, sol_to_lamports},
-    program_pack::Pack,
     pubkey::{Pubkey, MAX_SEED_LEN},
     system_instruction::create_account_with_seed,
 };
@@ -126,7 +124,6 @@ pub async fn pool_ixs(
     pool_inx.push(build_init_instruction);
 
     let tax_txn = tip_txn(wallet.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.3));
-
     pool_inx.push(tax_txn);
 
     Ok((pool_inx, amm_keys.amm_pool, amm_keys))

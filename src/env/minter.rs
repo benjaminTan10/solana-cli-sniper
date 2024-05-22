@@ -7,7 +7,7 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
 
-use crate::app::private_key_env;
+use crate::{app::private_key_env, user_inputs::tokens::token_env};
 
 #[derive(Debug, Clone)]
 pub struct BackrunAccount {
@@ -17,12 +17,25 @@ pub struct BackrunAccount {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PoolDataSettings {
-    pub market_id: String,
+    #[serde(rename = "TOKEN-MINT")]
     pub token_mint: String,
-    pub deployer_key: String,
-    pub buyer_key: String,
+
+    #[serde(rename = "MARKET-ADDRESS")]
+    pub market_id: String,
+
+    #[serde(rename = "POOL-ID")]
     pub pool_id: String,
+
+    #[serde(rename = "DEPLOYER-PRIVATE-KEY")]
+    pub deployer_key: String,
+
+    #[serde(rename = "BUYER-PRIVATE-KEY")]
+    pub buyer_key: String,
+
+    #[serde(rename = "LUT-KEY")]
     pub lut_key: String,
+
+    #[serde(rename = "VOLUME-LUT-KEY")]
     pub volume_lut_key: String,
 }
 
@@ -39,6 +52,7 @@ struct HelperSettings {
 
     #[serde(rename = "DEPLOYER-PRIVATE-KEY")]
     deployer_key: String,
+
     #[serde(rename = "BUYER-PRIVATE-KEY")]
     buyer_key: String,
 
@@ -55,7 +69,7 @@ pub async fn load_minter_settings() -> eyre::Result<PoolDataSettings> {
         Err(_) => {
             info!("Settings file not found, creating a new one");
             // Create a new settings.json file with default settings
-            let default_settings = PoolDataSettings {
+            let default_settings = HelperSettings {
                 market_id: "".to_string(),
                 token_mint: "".to_string(),
                 deployer_key: "".to_string(),
@@ -81,18 +95,18 @@ pub async fn load_minter_settings() -> eyre::Result<PoolDataSettings> {
     };
 
     // If any field is empty, ask the user to fill it
-    if helper_settings.buyer_key.is_empty() {
-        helper_settings.buyer_key = private_key_env("Deployer Private Key").await.unwrap();
-    }
     if helper_settings.deployer_key.is_empty() {
-        helper_settings.deployer_key = private_key_env("Buyer Private Key").await.unwrap();
+        helper_settings.deployer_key = private_key_env("Deployer Private Key").await.unwrap();
     }
-    // if helper_settings.market_id.is_empty() {
-    //     helper_settings.market_id = (token_env("Market ID").await).to_string();
-    // }
-    // if helper_settings.token_mint.is_empty() {
-    //     helper_settings.token_mint = (token_env("Token Mint").await).to_string();
-    // }
+    if helper_settings.buyer_key.is_empty() {
+        helper_settings.buyer_key = private_key_env("Buyer Private Key").await.unwrap();
+    }
+    if helper_settings.token_mint.is_empty() {
+        helper_settings.token_mint = (token_env("Token Mint").await).to_string();
+    }
+    if helper_settings.market_id.is_empty() {
+        helper_settings.market_id = (token_env("Market ID").await).to_string();
+    }
 
     // Save the updated settings to the file
     let default_settings_json = serde_json::to_string_pretty(&helper_settings).unwrap();

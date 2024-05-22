@@ -21,6 +21,7 @@ use {
     solana_sdk::signature::Keypair,
     std::{
         collections::HashMap,
+        io::{self, Write},
         str::FromStr,
         sync::Arc,
         time::{Duration, SystemTime, UNIX_EPOCH},
@@ -102,7 +103,8 @@ pub async fn grpc_pair_sub(
     let private_key = &mev_ape.wallet;
     let secret_key = bs58::decode(private_key.clone()).into_vec()?;
 
-    info!("Successfully Subscribed to the stream...!");
+    clear_previous_line()?;
+    info!("Successfully connected to Geyser");
 
     let wallet = Keypair::from_bytes(&secret_key)?;
     let commitment = 0;
@@ -196,14 +198,17 @@ pub async fn grpc_pair_sub(
                                 }
                             };
 
-                            match Utc.timestamp_opt(open_time_i64, 0) {
-                                LocalResult::Single(datetime) => {
-                                    warn!("Pool Open Time: {}", datetime);
+                            let datetime = match Utc.timestamp_opt(open_time_i64, 0) {
+                                LocalResult::Single(datetime) => datetime,
+                                LocalResult::None => {
+                                    warn!("Open time is not available");
+                                    Utc::now()
                                 }
-                                _ => {
+                                LocalResult::Ambiguous(_, _) => {
                                     warn!("Open time is out of range");
+                                    Utc::now()
                                 }
-                            }
+                            };
 
                             let inner_instructions: Vec<CompiledInstruction> = meta
                                 .clone()
@@ -291,14 +296,12 @@ pub async fn grpc_pair_sub(
                                             ) {
                                                 Ok(marketinfo) => marketinfo,
                                                 Err(e) => {
-                                                    error!("Error: {:?}", e);
                                                     return Ok(());
                                                 }
                                             };
                                         (marketinfo, decoded_marketinfo)
                                     }
                                     None => {
-                                        error!("Error: {:?}", "No Market Info");
                                         return Ok(());
                                     }
                                 };
@@ -345,6 +348,7 @@ pub async fn grpc_pair_sub(
                                 mev_ape,
                                 manual_snipe,
                                 base_mint,
+                                datetime,
                             )
                             .await;
                         }
@@ -369,35 +373,41 @@ pub async fn sniper_txn_in_2(
     mev_ape: Arc<MevApe>,
     manual_snipe: bool,
     base_mint: Pubkey,
+    datetime: chrono::DateTime<Utc>,
 ) -> eyre::Result<()> {
     if manual_snipe && pool_keys.base_mint != base_mint {
         return Ok(());
     }
-    let (token, data) = mpl_token_metadata::accounts::Metadata::find_pda(&pool_keys.base_mint);
-    let metadata = match decode_metadata(&token).await {
-        Ok(metadata) => Some(metadata),
-        Err(e) => {
-            error!("Error: {:?}", e);
-            None
-        }
-    };
 
-    let token_name = metadata
-        .clone()
-        .and_then(|m| Some(m.name))
-        .unwrap_or_else(|| "Unknown".to_string());
-    let token_symbol = metadata
-        .clone()
-        .and_then(|m| Some(m.symbol))
-        .unwrap_or_else(|| "Unknown".to_string());
+    tokio::spawn(async move {
+        let (token, data) = mpl_token_metadata::accounts::Metadata::find_pda(&pool_keys.base_mint);
+        let metadata = match decode_metadata(&token).await {
+            Ok(metadata) => Some(metadata),
+            Err(e) => {
+                error!("Error: {:?}", e);
+                None
+            }
+        };
 
-    println!(
-        "Name: {}\nSymbol: {}\nBase Mint: {}\nPool ID: {}\n",
-        colorize::AnsiColor::bold(token_name.to_string()).white(),
-        colorize::AnsiColor::bold(token_name.to_string()).b_cyan(),
-        pool_keys.base_mint.to_string(),
-        pool_keys.id.to_string(),
-    );
+        let token_name = metadata
+            .clone()
+            .and_then(|m| Some(m.name))
+            .unwrap_or_else(|| "Unknown".to_string());
+        let token_symbol = metadata
+            .clone()
+            .and_then(|m| Some(m.symbol))
+            .unwrap_or_else(|| "Unknown".to_string());
+
+        clear_previous_line().unwrap();
+        println!(
+            "Name: {}\nSymbol: {}\nBase Mint: {}\nPool ID: {}",
+            colorize::AnsiColor::bold(token_name.to_string()).white(),
+            colorize::AnsiColor::bold(token_symbol.to_string()).b_cyan(),
+            pool_keys.base_mint.to_string(),
+            pool_keys.id.to_string(),
+        );
+        println!("Open Time: {}", datetime.to_string());
+    });
 
     let args = match load_settings().await {
         Ok(args) => args,
@@ -449,4 +459,10 @@ pub async fn sniper_txn_in_2(
     };
 
     Ok(())
+}
+
+pub fn clear_previous_line() -> io::Result<()> {
+    let clear_line = "\x1b[1A\x1b[2K";
+    io::stdout().write_all(clear_line.as_bytes())?;
+    io::stdout().flush()
 }

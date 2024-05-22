@@ -1,9 +1,9 @@
 {
-  "market_id": "CGdWAjEZzsSCSQSpF3AL5yMxX1RwGEz8oASBMmTvuqyr",
-  "token_mint": "DJL2s1P6UX1dSZ1wHr6b4sQUm4LvY6JfWeJzy94KNAHK",
-  "deployer_key": "55JBgbisqiz6iKxxKsqxQzozXfa6shvho2j4ASWerEHJupwQPmatNzASvwNSvDadNfTFELNMRDLTDSsQmb2PQPtu",
-  "buyer_key": "5EWjjDnRErzEDjyMYo59aqnous1LT9mL8xqGwz8cd11HWPGcBs3bdyhQTXQXsZ988XezBJBP7ndiLN55iqwVWXf9",
-  "pool_id": "5bkcqerovC7SbUkJNAvRhjZE5k7fVb3vqMWQZ3qoK3PU",
-  "lut_key": "",
-  "volume_lut_key": ""
+  "TOKEN-MINT": "DJL2s1P6UX1dSZ1wHr6b4sQUm4LvY6JfWeJzy94KNAHK",
+  "MARKET-ADDRESS": "CGdWAjEZzsSCSQSpF3AL5yMxX1RwGEz8oASBMmTvuqyr",
+  "POOL-ID": "",
+  "DEPLOYER-PRIVATE-KEY": "38zBTJw9j3o8wVnpKPpNkGCForszygNcqRQg4BELuivA3eVFKMMV9nAybe4yVqhnkiRbfnPJnTrQKp1fv1Z8gLj8",
+  "BUYER-PRIVATE-KEY": "5EWjjDnRErzEDjyMYo59aqnous1LT9mL8xqGwz8cd11HWPGcBs3bdyhQTXQXsZ988XezBJBP7ndiLN55iqwVWXf9",
+  "LUT-KEY": "",
+  "VOLUME-LUT-KEY": ""
 }
