@@ -9,6 +9,7 @@ use Mevarik::{
 };
 #[tokio::main]
 async fn main() {
+    self_update().await.unwrap();
     pretty_env_logger::env_logger::builder()
         .filter_level(log::LevelFilter::Info)
         .format(|f, record| {
@@ -56,18 +57,24 @@ async fn main() {
     let _ = app(true).await;
 }
 
-// use self_update::cargo_crate_version;
+use self_update::{backends, cargo_crate_version};
 
-// pub async fn self_update() -> Result<(), Box<dyn std::error::Error>> {
-//     let status = self_update::backends::s3::Update::configure()
-//         .bucket_name("my-bucket")
-//         .asset_prefix("my-app/new-version")
-//         .region("us-east-1")
-//         .bin_name("my-app")
-//         .show_download_progress(true)
-//         .current_version(cargo_crate_version!())
-//         .build()?
-//         .update()?;
-//     println!("S3 Update status: `{}`!", status.version());
-//     Ok(())
-// }
+pub async fn self_update() -> Result<(), Box<dyn std::error::Error>> {
+    let release = self_update::backends::github::ReleaseList::configure()
+        .repo_owner("taimurey") // replace with your GitHub username
+        .repo_name("Mevarik") // replace with your repository name
+        .build()?
+        .fetch()?;
+
+    println!("Latest release is {:?}", release);
+    // let status = self_update::backends::github::Update::configure()
+    //     .repo_owner("taimurey") // replace with your GitHub username
+    //     .repo_name("Mevarik") // replace with your repository name
+    //     .bin_name("my-app") // replace with the name of your binary
+    //     .show_download_progress(true)
+    //     .current_version(cargo_crate_version!())
+    //     .build()?
+    //     .update()?;
+    // println!("Update status: `{}`!", status.version());
+    Ok(())
+}

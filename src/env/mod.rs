@@ -174,6 +174,10 @@ pub async fn load_settings() -> eyre::Result<EngineSettings> {
             .unwrap();
     }
 
+    if helper_settings.buy_wallet.is_empty() {
+        helper_settings.buy_wallet = private_key_env("Enter Wallet Private-Key: ").await.unwrap();
+    }
+
     let mut file = File::create("settings.json").unwrap();
     file.write(serde_json::to_string(&helper_settings).unwrap().as_bytes())
         .unwrap();
