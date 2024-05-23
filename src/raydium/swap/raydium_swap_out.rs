@@ -210,6 +210,8 @@ pub async fn raydium_out(
             }
         };
 
+        std::mem::drop(bundle_results_subscription);
+
         info!("Fetching Bundle Result...");
     } else {
         info!("Sending Transaction");

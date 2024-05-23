@@ -218,19 +218,19 @@ pub async fn lut_caller(
 
     use bincode::serialize;
 
-    // let _ = match send_bundle_with_confirmation(
-    //     &versioned_txns,
-    //     &connection,
-    //     &mut client,
-    //     &mut bundle_results_subscription,
-    // )
-    // .await
-    // {
-    //     Ok(results) => results,
-    //     Err(e) => {
-    //         return Err(eyre::eyre!("Error sending bundle: {:?}", e));
-    //     }
-    // };
+    let _ = match send_bundle_with_confirmation(
+        &versioned_txns,
+        &connection,
+        &mut client,
+        &mut bundle_results_subscription,
+    )
+    .await
+    {
+        Ok(results) => results,
+        Err(e) => {
+            return Err(eyre::eyre!("Error sending bundle: {:?}", e));
+        }
+    };
 
     Ok(lut_account)
 }

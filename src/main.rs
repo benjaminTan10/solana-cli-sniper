@@ -1,15 +1,16 @@
 use chrono::Local;
 use colored::Colorize;
+use console::{Key, Term};
 use log::{error, info};
 use pretty_env_logger::env_logger::fmt::Color;
-use std::io::Write;
+use std::{error::Error, io::Write, thread};
+use tokio::io::stdout;
 use Mevarik::{
     app::{app, embeds::embed},
     auth::auth_verification,
 };
 #[tokio::main]
 async fn main() {
-    self_update().await.unwrap();
     pretty_env_logger::env_logger::builder()
         .filter_level(log::LevelFilter::Info)
         .format(|f, record| {
@@ -37,6 +38,7 @@ async fn main() {
             )
         })
         .init();
+
     println!("{esc}[2J{esc}[1;1H", esc = 27 as char);
     println!("{}", embed());
     info!("Authenticating...");
@@ -55,26 +57,22 @@ async fn main() {
     println!("{}", embed());
     println!("{}", "Authentication Successful".bold().green());
     let _ = app(true).await;
+
+    println!("Press any key to exit...");
+    let _ = read_keys().await;
 }
 
-use self_update::{backends, cargo_crate_version};
+pub async fn read_keys() -> Result<(), Box<dyn Error + Send>> {
+    let term = Term::stdout();
 
-pub async fn self_update() -> Result<(), Box<dyn std::error::Error>> {
-    let release = self_update::backends::github::ReleaseList::configure()
-        .repo_owner("taimurey") // replace with your GitHub username
-        .repo_name("Mevarik") // replace with your repository name
-        .build()?
-        .fetch()?;
+    loop {
+        match term.read_key().unwrap() {
+            _ => {
+                // Break the loop when any key is pressed
+                break;
+            }
+        }
+    }
 
-    println!("Latest release is {:?}", release);
-    // let status = self_update::backends::github::Update::configure()
-    //     .repo_owner("taimurey") // replace with your GitHub username
-    //     .repo_name("Mevarik") // replace with your repository name
-    //     .bin_name("my-app") // replace with the name of your binary
-    //     .show_download_progress(true)
-    //     .current_version(cargo_crate_version!())
-    //     .build()?
-    //     .update()?;
-    // println!("Update status: `{}`!", status.version());
     Ok(())
 }

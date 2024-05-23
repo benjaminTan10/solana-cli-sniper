@@ -146,6 +146,8 @@ pub async fn raydium_in(
                 panic!("Error: {}", e);
             }
         };
+
+        std::mem::drop(bundle_results_subscription);
     } else {
         info!("Sending Transaction");
         let config = RpcSendTransactionConfig {

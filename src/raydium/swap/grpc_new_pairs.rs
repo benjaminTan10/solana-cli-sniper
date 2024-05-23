@@ -23,7 +23,7 @@ use {
         collections::HashMap,
         io::{self, Write},
         str::FromStr,
-        sync::Arc,
+        sync::{Arc, Mutex},
         time::{Duration, SystemTime, UNIX_EPOCH},
     },
     tokio::{sync::mpsc::channel, time::sleep},
@@ -130,14 +130,17 @@ pub async fn grpc_pair_sub(
         .await?;
     let mev_ape = Arc::new(mev_ape);
 
+    let subscribe_tx = Arc::new(tokio::sync::Mutex::new(subscribe_tx));
+
     while let Some(message) = stream.next().await {
         let rpc_client = rpc_client.clone();
         let mev_ape = Arc::clone(&mev_ape);
         let private_key = &mev_ape.wallet;
         let secret_key = bs58::decode(private_key.clone()).into_vec()?;
-
+        let subscribe_tx = Arc::clone(&subscribe_tx);
         let wallet = Keypair::from_bytes(&secret_key)?;
         tokio::spawn(async move {
+            let mut subscribe_tx = subscribe_tx.lock().await;
             match message {
                 Ok(msg) => {
                     match msg.update_oneof {
@@ -342,15 +345,15 @@ pub async fn grpc_pair_sub(
                                 break;
                             }
 
-                            let _ = sniper_txn_in_2(
-                                pool_keys[0].clone(),
-                                open_time,
-                                mev_ape,
-                                manual_snipe,
-                                base_mint,
-                                datetime,
-                            )
-                            .await;
+                            // if manual_snipe && pool_keys[0].base_mint != base_mint {
+                            //     return Ok(());
+                            // } else if manual_snipe && pool_keys[0].base_mint == base_mint {
+                            // }
+                            let _ = subscribe_tx.close().await;
+
+                            let _ =
+                                sniper_txn_in_2(pool_keys[0].clone(), open_time, mev_ape, datetime)
+                                    .await;
                         }
 
                         _ => {}
@@ -371,14 +374,8 @@ pub async fn sniper_txn_in_2(
     pool_keys: PoolKeysSniper,
     sleep_duration: u64,
     mev_ape: Arc<MevApe>,
-    manual_snipe: bool,
-    base_mint: Pubkey,
     datetime: chrono::DateTime<Utc>,
 ) -> eyre::Result<()> {
-    if manual_snipe && pool_keys.base_mint != base_mint {
-        return Ok(());
-    }
-
     tokio::spawn(async move {
         let (token, data) = mpl_token_metadata::accounts::Metadata::find_pda(&pool_keys.base_mint);
         let metadata = match decode_metadata(&token).await {

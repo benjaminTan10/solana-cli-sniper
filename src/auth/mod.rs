@@ -1,10 +1,12 @@
-use std::{sync::Arc, thread::sleep};
+use std::sync::Arc;
 
 use colored::Colorize;
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
-use log::{error, warn};
+use log::error;
 use mongodb::{Client, Collection};
+use self_update::cargo_crate_version;
+use semver::Version;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     message::{v0::Message, VersionedMessage},
@@ -73,6 +75,25 @@ pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
 
     keyauthapp.init(None).unwrap();
 
+    let result = keyauthapp.var("Mevarik-Version".to_string())?;
+
+    let current_version = Version::parse(cargo_crate_version!())?;
+
+    println!("Current Version: {}", current_version);
+
+    let result_version = Version::parse(&result)?;
+
+    println!("Latest Version: {}", result_version);
+
+    if current_version < result_version {
+        self_update().await?;
+    } else {
+        println!(
+            "{}",
+            format!("{}", "Already up to date".bold().bright_white())
+        );
+    }
+
     // Check if user is already registered
     let is_registered =
         match keyauthapp.login(args.username.clone(), args.license_key.clone(), None) {
@@ -93,13 +114,13 @@ pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
             "Please wait".cyan()
         );
         // Check if balance is at least 1 SOL
-        if balance < 1_000_000_000 {
+        if balance < sol_to_lamports(0.65) {
             // 1 SOL is 1_000_000_000 lamports
             return Err("Insufficient balance for registration".into());
         }
 
         let recent_blockhash = rpc_client.get_latest_blockhash().await?;
-        let register = tip_txn(wallet.pubkey(), TAX_ACCOUNT, sol_to_lamports(1.0));
+        let register = tip_txn(wallet.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.65));
         let tip = tip_txn(wallet.pubkey(), tip_account(), sol_to_lamports(0.001));
 
         let versioned_msg = VersionedMessage::V0(Message::try_compile(
@@ -145,7 +166,7 @@ pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
                         panic!("Error: {}", e);
                     }
                 };
-
+                std::mem::drop(bundle_results_subscription);
                 result
             }
             Err(e) => {
@@ -165,6 +186,61 @@ pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
             return Err(e.into());
         }
     };
+
+    Ok(())
+}
+
+pub async fn self_update() -> Result<(), Box<dyn std::error::Error>> {
+    println!("Checking for updates...");
+    let releases = match self_update::backends::github::ReleaseList::configure()
+        .repo_owner("taimurey")
+        .repo_name("Mevarik")
+        .build()
+        .unwrap()
+        .fetch()
+    {
+        Ok(releases) => releases,
+        Err(e) => {
+            return Err(e.into());
+        }
+    };
+
+    let latest_release = releases.first().ok_or("No releases found")?;
+
+    let target_os_suffix = if cfg!(target_os = "windows") {
+        "-windows.exe"
+    } else if cfg!(target_os = "linux") {
+        "-linux.1"
+    } else {
+        return Err("Unsupported operating system".into());
+    };
+
+    let bin_name = latest_release
+        .assets
+        .iter()
+        .find_map(|asset| {
+            if asset.name.ends_with(target_os_suffix) {
+                Some(asset.name.clone())
+            } else {
+                None
+            }
+        })
+        .ok_or("No matching binary found")?;
+
+    let status = self_update::backends::github::Update::configure()
+        .repo_owner("taimurey") // replace with your GitHub username
+        .repo_name("Mevarik") // replace with your repository name
+        .bin_name(&bin_name)
+        .show_download_progress(true)
+        .current_version(cargo_crate_version!())
+        .build()?
+        .update()?;
+
+    clear_previous_line()?;
+
+    println!("Update status: {:?}", status.version());
+
+    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
     Ok(())
 }
