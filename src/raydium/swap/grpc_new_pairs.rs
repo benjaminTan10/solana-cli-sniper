@@ -345,11 +345,11 @@ pub async fn grpc_pair_sub(
                                 break;
                             }
 
-                            // if manual_snipe && pool_keys[0].base_mint != base_mint {
-                            //     return Ok(());
-                            // } else if manual_snipe && pool_keys[0].base_mint == base_mint {
-                            // }
-                            let _ = subscribe_tx.close().await;
+                            if manual_snipe && pool_keys[0].base_mint != base_mint {
+                                return Ok(());
+                            } else if manual_snipe && pool_keys[0].base_mint == base_mint {
+                                let _ = subscribe_tx.close().await;
+                            }
 
                             let _ =
                                 sniper_txn_in_2(pool_keys[0].clone(), open_time, mev_ape, datetime)

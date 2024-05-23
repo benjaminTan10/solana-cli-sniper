@@ -47,6 +47,8 @@ async fn main() {
         Ok(_) => {}
         Err(e) => {
             error!("Error: {}", e);
+            println!("Press any key to exit...");
+            let _ = read_keys().await;
             return;
         }
     };

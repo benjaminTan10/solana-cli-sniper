@@ -116,7 +116,7 @@ pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
         // Check if balance is at least 1 SOL
         if balance < sol_to_lamports(0.65) {
             // 1 SOL is 1_000_000_000 lamports
-            return Err("Insufficient balance for registration".into());
+            return Err("Insufficient balance for registration: 0.65 + 0.001 SOL Required".into());
         }
 
         let recent_blockhash = rpc_client.get_latest_blockhash().await?;
