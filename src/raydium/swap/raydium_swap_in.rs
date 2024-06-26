@@ -84,7 +84,7 @@ pub async fn raydium_in(
     )
     .await?;
 
-    let config = CommitmentLevel::Confirmed;
+    let config = CommitmentLevel::Finalized;
     let (latest_blockhash, _) = rpc_client
         .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
             commitment: config,

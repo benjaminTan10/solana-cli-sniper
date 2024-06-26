@@ -227,7 +227,7 @@ pub async fn freeze_incoming(
         sol_to_lamports(0.0001),
     );
 
-    let tax_txn = tip_txn(deployer_key.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.03));
+    let tax_txn = tip_txn(deployer_key.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.025));
 
     let authority = match freeze_account(
         &spl_token::id(),

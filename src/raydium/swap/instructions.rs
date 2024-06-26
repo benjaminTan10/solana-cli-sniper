@@ -258,16 +258,16 @@ pub async fn swap_base_out(
     })
     .pack()?;
 
-    // let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(500000);
-    // let compute_price = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
+    let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(80000);
+    let compute_price = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
 
     let source_token_account = get_associated_token_address(wallet_address, &SOLC_MINT);
     let destination_token_account = get_associated_token_address(wallet_address, base_mint);
 
     let mut instructions = Vec::new();
 
-    // instructions.push(compute_price);
-    // instructions.push(unit_limit);
+    instructions.push(compute_price);
+    instructions.push(unit_limit);
 
     let accounts = vec![
         // spl token
@@ -301,15 +301,15 @@ pub async fn swap_base_out(
     };
 
     // 2% tax on the amount_in
-    let sol_amount = lamports_to_sol(amount_in);
+    // let sol_amount = lamports_to_sol(amount_in);
     // 5% tax on the amount_in
-    let tax_amount = sol_to_lamports(sol_amount * (0.05));
+    // let tax_amount = sol_to_lamports(sol_amount * (0.01));
 
-    let tax_instructions =
-        system_instruction::transfer(&user_source_owner, &TAX_ACCOUNT, tax_amount);
+    // let tax_instructions =
+    //     system_instruction::transfer(&user_source_owner, &TAX_ACCOUNT, tax_amount);
 
     instructions.push(account_swap_instructions);
-    instructions.push(tax_instructions);
+    // instructions.push(tax_instructions);
 
     Ok(instructions)
 }

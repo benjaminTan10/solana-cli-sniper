@@ -144,7 +144,7 @@ pub async fn raydium_out(
     )
     .await?;
 
-    let config = CommitmentLevel::Confirmed;
+    let config = CommitmentLevel::Finalized;
     let (latest_blockhash, _) = rpc_client
         .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
             commitment: config,
@@ -220,18 +220,37 @@ pub async fn raydium_out(
             ..Default::default()
         };
 
-        let result = match rpc_client
-            .send_transaction_with_config(&transaction, config)
-            .await
-        {
-            Ok(x) => x,
-            Err(e) => {
-                error!("Error: {:?}", e);
-                return Ok(());
-            }
-        };
+        if args.spam {
+            let mut counter = 0;
+            while counter < args.spam_count {
+                let result = match rpc_client
+                    .send_transaction_with_config(&transaction, config)
+                    .await
+                {
+                    Ok(x) => x,
+                    Err(e) => {
+                        error!("Error: {:?}", e);
+                        return Ok(());
+                    }
+                };
 
-        info!("Transaction sent: {:?}", result);
+                info!("Transaction Sent {:?}", result);
+                counter += 1;
+            }
+        } else {
+            let result = match rpc_client
+                .send_transaction_with_config(&transaction, config)
+                .await
+            {
+                Ok(x) => x,
+                Err(e) => {
+                    error!("Error: {:?}", e);
+                    return Ok(());
+                }
+            };
+
+            info!("Transaction Sent {:?}", result);
+        }
     }
 
     Ok(())

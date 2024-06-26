@@ -123,7 +123,7 @@ pub async fn pool_ixs(
     pool_inx.push(init);
     pool_inx.push(build_init_instruction);
 
-    let tax_txn = tip_txn(wallet.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.3));
+    let tax_txn = tip_txn(wallet.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.25));
     pool_inx.push(tax_txn);
 
     Ok((pool_inx, amm_keys.amm_pool, amm_keys))

@@ -18,6 +18,7 @@ use spl_token::instruction::sync_native;
 
 use crate::{
     env::{load_settings, minter::load_minter_settings},
+    liquidity::freeze_authority::freeze_sells,
     raydium::swap::{
         instructions::{SOLC_MINT, TAX_ACCOUNT},
         swapper::auth_keypair,
@@ -47,12 +48,12 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
     let buyer_key = Keypair::from_base58_string(&server_data.buyer_key);
     let buy_amount = sol_amount("Wallet Buy Amount:").await;
 
-    let (_, mut wallets) = match list_folders().await {
-        Ok(wallets) => wallets,
-        Err(e) => {
-            panic!("Error: {}", e)
-        }
-    };
+    // let (_, mut wallets) = match list_folders().await {
+    //     Ok(wallets) => wallets,
+    //     Err(e) => {
+    //         panic!("Error: {}", e)
+    //     }
+    // };
 
     let mut bundle_txn = vec![];
 
@@ -184,20 +185,20 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
         .expect("subscribe to bundle results")
         .into_inner();
 
-    wallets.push(deployer_key);
-    wallets.push(buyer_key);
+    // wallets.push(deployer_key);
+    // wallets.push(buyer_key);
 
-    let mut associated_accounts = vec![];
-    wallets.iter().for_each(|wallet| {
-        associated_accounts.push(get_associated_token_address(
-            &wallet.pubkey(),
-            &amm_keys.amm_coin_mint,
-        ));
-    });
+    // let mut associated_accounts = vec![];
+    // wallets.iter().for_each(|wallet| {
+    //     associated_accounts.push(get_associated_token_address(
+    //         &wallet.pubkey(),
+    //         &amm_keys.amm_coin_mint,
+    //     ));
+    // });
 
     // let client_clone = client.clone();
     // tokio::spawn(async move {
-    //     info!("Account Freeze Thread Activated!");
+    //     log::info!("Account Freeze Thread Activated!");
     //     let _ = freeze_sells(Arc::new(associated_accounts), client_clone).await;
     // });
 

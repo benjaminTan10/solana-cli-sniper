@@ -3,8 +3,7 @@ use colored::Colorize;
 use console::{Key, Term};
 use log::{error, info};
 use pretty_env_logger::env_logger::fmt::Color;
-use std::{error::Error, io::Write, thread};
-use tokio::io::stdout;
+use std::{error::Error, io::Write};
 use Mevarik::{
     app::{app, embeds::embed},
     auth::auth_verification,
