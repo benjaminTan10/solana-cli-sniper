@@ -20,6 +20,7 @@ use crate::liquidity::freeze_authority::freeze_sells;
 use crate::liquidity::minter_main::raydium_creator;
 use crate::liquidity::option::wallet_gen::list_folders;
 use crate::liquidity::option::withdraw_sol::{deployer_details, folder_deployer_details};
+use crate::pumpfun::pump::pump_main;
 use crate::raydium::bundles::mev_trades::mev_trades;
 use crate::raydium::swap::swap_in::{swap_in, swap_out, PriorityTip};
 use crate::raydium::swap::swapper::auth_keypair;
@@ -50,6 +51,14 @@ pub struct UserData {
     pub autosell_stop_loss: f64,
     pub autosell_percent: f64,
     pub autosell_ms: f64,
+}
+
+#[derive(Debug)]
+pub struct MevApe {
+    pub sol_amount: u64,
+    pub fee: PriorityTip,
+    // pub bundle_tip: u64,
+    pub wallet: String,
 }
 
 pub fn theme() -> Theme {
@@ -96,8 +105,9 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
         .description("Select the Mode")
         .theme(&theme)
         .filterable(true)
-        .option(DemandOption::new("Swap Tokens").label("▪ Swap Mode"))
-        .option(DemandOption::new("Snipe Pools").label("▪ Snipe Mode"))
+        .option(DemandOption::new("RaydiumAMM").label("▪ Raydium AMM Mode"))
+        .option(DemandOption::new("RaydiumCPMM").label("▪ Raydium CPMM Mode"))
+        .option(DemandOption::new("PumpFun").label("▪ PumpFun Mode"))
         .option(DemandOption::new("Minter Mode").label("▪ Minter Mode"))
         .option(DemandOption::new("Generate Volume").label("▪ Volume Mode"))
         .option(DemandOption::new("Wrap Sol Mode").label("📦 Wrap SOL"))
@@ -126,11 +136,8 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
 
             let _ = freeze_sells(Arc::new(wallets), search).await;
         }
-        "Swap Tokens" => {
-            let _ = swap_mode().await;
-        }
-        "Snipe Pools" => {
-            let _ = sniper_mode().await;
+        "RaydiumAMM" => {
+            let _ = raydium_amm_mode().await;
         }
         "Minter Mode" => {
             let _ = raydium_creator().await;
@@ -150,6 +157,9 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
         "folder_deployerdetails" => {
             let _ = folder_deployer_details().await;
         }
+        "PumpFun" => {
+            let _ = pump_main().await;
+        }
         _ => {
             // Handle unexpected option here
         }
@@ -165,15 +175,17 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
 }
 
 #[async_recursion]
-pub async fn swap_mode() -> Result<(), Box<dyn Error + Send>> {
+pub async fn raydium_amm_mode() -> Result<(), Box<dyn Error + Send>> {
     let theme = theme();
     let ms = Select::new("Swap Mode")
         .description("Select the Mode")
         .theme(&theme)
         .filterable(true)
+        .option(DemandOption::new("Automatic Sniper").label("▪ Snipe Incoming Pools"))
+        .option(DemandOption::new("Manual Sniper").label("▪ Manual Sniper"))
         .option(DemandOption::new("Buy Tokens").label("▪ Swap SOL to Tokens"))
         .option(DemandOption::new("Sell Tokens").label("▪ Swap Tokens to SOL"))
-        .option(DemandOption::new("Track Trade").label("▪ Swap Tracker"))
+        .option(DemandOption::new("Track Trade").label("🎯 Track Token Gains"))
         .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
 
     let selected_option = ms.run().expect("error running select");
@@ -187,6 +199,12 @@ pub async fn swap_mode() -> Result<(), Box<dyn Error + Send>> {
         }
         "Track Trade" => {
             let _ = track_trades().await;
+        }
+        "Manual Sniper" => {
+            let _ = automatic_snipe(true).await;
+        }
+        "Automatic Sniper" => {
+            let _ = automatic_snipe(false).await;
         }
         "Main Menu" => {
             let _ = app(false).await;
@@ -217,54 +235,9 @@ pub async fn private_key_env(key: &str) -> Result<String, Box<dyn Error>> {
     }
 }
 
-// This is a placeholder function. You should replace this with your own validation logic.
-fn string_to_bytes(s: &str) -> Vec<u8> {
-    s.split(',').map(|b| b.parse::<u8>().unwrap()).collect()
-}
-
-use bs58;
-
 fn is_valid_private_key(private_key: &str) -> bool {
     let decoded = bs58::decode(private_key)
         .into_vec()
         .unwrap_or_else(|_| vec![]);
     Keypair::from_bytes(&decoded).is_ok()
-}
-
-pub async fn sniper_mode() -> Result<(), Box<dyn Error + Send>> {
-    let theme = theme();
-    let ms = Select::new("Sniper Mode")
-        .description("Select the Mode")
-        .theme(&theme)
-        .filterable(true)
-        .option(DemandOption::new("Manual Sniper").label("▪ Manual Sniper"))
-        .option(DemandOption::new("Automatic Sniper").label("▪ Snipe Incoming Pools"))
-        .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
-
-    let selected_option = ms.run().expect("error running select");
-
-    match selected_option {
-        "Manual Sniper" => {
-            let _ = automatic_snipe(true).await;
-        }
-        "Automatic Sniper" => {
-            let _ = automatic_snipe(false).await;
-        }
-        "Main Menu" => {
-            let _ = Box::pin(app(false)).await;
-        }
-        _ => {
-            // Handle unexpected option here
-        }
-    }
-
-    Ok(())
-}
-
-#[derive(Debug)]
-pub struct MevApe {
-    pub sol_amount: u64,
-    pub fee: PriorityTip,
-    // pub bundle_tip: u64,
-    pub wallet: String,
 }

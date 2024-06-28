@@ -14,8 +14,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::Receiver;
 
-use crate::env::env_loader::tip_account;
 use crate::env::EngineSettings;
+use crate::liquidity::utils::tip_account;
 use crate::plugins::jito_plugin::lib::{send_bundles, BundledTransactions};
 use crate::raydium::subscribe::PoolKeysSniper;
 use crate::raydium::swap::instructions::{swap_base_out, SOLC_MINT};

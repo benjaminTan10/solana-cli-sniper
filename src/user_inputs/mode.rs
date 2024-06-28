@@ -13,9 +13,9 @@ use crate::{
     raydium::{
         subscribe::auto_sniper_stream,
         swap::{
-            grpc_new_pairs::grpc_pair_sub,
             instructions::{unwrap_sol, wrap_sol},
             metadata::decode_metadata,
+            raydium_amm_sniper::grpc_pair_sub,
             swap_in::PriorityTip,
         },
     },

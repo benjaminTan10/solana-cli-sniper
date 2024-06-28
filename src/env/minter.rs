@@ -1,11 +1,15 @@
 use std::{
     fs::{self, File},
     io::Write,
+    rc::Rc,
 };
 
+use anchor_client::{Client, Cluster};
+use console::Key;
 use log::info;
 use serde::{Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
+use solana_sdk::signature::Keypair;
 
 use crate::{app::private_key_env, user_inputs::tokens::token_env};
 
@@ -122,4 +126,18 @@ pub async fn load_minter_settings() -> eyre::Result<PoolDataSettings> {
         lut_key: helper_settings.lut_key,
         volume_lut_key: helper_settings.volume_lut_key,
     })
+}
+
+pub fn anchor_cluster() -> Client<Rc<Keypair>> {
+    let payer = Keypair::new();
+    let url = Cluster::Custom(
+        String::from(
+            "https://mainnet.helius-rpc.com/?api-key=d9e80c44-bc75-4139-8cc7-084cefe506c7",
+        ),
+        String::from("wss://mainnet.helius-rpc.com/?api-key=d9e80c44-bc75-4139-8cc7-084cefe506c7"),
+    );
+
+    let client = Client::new(url, Rc::new(payer));
+
+    client
 }

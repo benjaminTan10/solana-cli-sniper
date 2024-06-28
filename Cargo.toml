@@ -94,6 +94,12 @@ num-derive = "0.4.2"
 mongodb = "2.0.0"
 self_update = "0.40.0"
 
+borsh = { version = "^0.10" }
+
+#anchor
+anchor-client = "0.29.0"
+anchor-lang = "0.29.0"
+
 [workspace]
 members = [
     "clients/yellowstone-grpc-proto",

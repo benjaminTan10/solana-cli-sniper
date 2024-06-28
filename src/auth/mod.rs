@@ -19,10 +19,10 @@ use solana_sdk::{
 
 use crate::{
     app::embeds::embed,
-    env::{env_loader::tip_account, load_settings},
-    liquidity::utils::tip_txn,
+    env::load_settings,
+    liquidity::utils::{tip_account, tip_txn},
     raydium::swap::{
-        grpc_new_pairs::clear_previous_line, instructions::TAX_ACCOUNT, swapper::auth_keypair,
+        instructions::TAX_ACCOUNT, raydium_amm_sniper::clear_previous_line, swapper::auth_keypair,
     },
 };
 

@@ -1,4 +1,3 @@
-use jito_protos::bundle::BundleResult;
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
 use log::{error, info};
@@ -17,12 +16,11 @@ use std::time::Duration;
 use tokio::sync::mpsc::{self, Receiver};
 use tokio::time::{self, sleep};
 
-use crate::env::env_loader::tip_account;
 use crate::env::EngineSettings;
-use crate::plugins::jito_plugin::lib::{send_bundles, BundledTransactions};
+use crate::liquidity::utils::tip_account;
 use crate::raydium::subscribe::PoolKeysSniper;
-use crate::raydium::swap::grpc_new_pairs::clear_previous_line;
 use crate::raydium::swap::instructions::{swap_base_in, SwapDirection, SOLC_MINT};
+use crate::raydium::swap::raydium_amm_sniper::clear_previous_line;
 use crate::raydium::swap::swapper::auth_keypair;
 use crate::rpc::HTTP_CLIENT;
 use crate::utils::read_single_key_impl;

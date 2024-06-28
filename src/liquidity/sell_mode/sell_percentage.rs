@@ -1,12 +1,8 @@
 use demand::Input;
-use futures::stream::StreamExt;
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
 use log::info;
-use std::{
-    str::FromStr,
-    sync::{Arc, Mutex},
-};
+use std::{str::FromStr, sync::Arc};
 
 use solana_address_lookup_table_program::state::AddressLookupTable;
 use solana_sdk::{
@@ -24,20 +20,18 @@ use spl_associated_token_account::{
 };
 
 use crate::{
-    env::{env_loader::tip_account, load_settings, minter::load_minter_settings},
+    env::{load_settings, minter::load_minter_settings},
     instruction::instruction::{get_keys_for_market, load_amm_keys},
     liquidity::{
         option::wallet_gen::list_folders,
         pool_ixs::AMM_PROGRAM,
         swap_ixs::{self, swap_ixs},
-        utils::tip_txn,
+        utils::{tip_account, tip_txn},
     },
     raydium::{
         pool_searcher::amm_keys::pool_keys_fetcher,
         swap::{
-            instructions::{
-                swap_amount_out, token_price_data, SwapDirection, SOLC_MINT, TAX_ACCOUNT,
-            },
+            instructions::{token_price_data, SwapDirection, SOLC_MINT, TAX_ACCOUNT},
             swapper::auth_keypair,
         },
     },
@@ -213,6 +207,7 @@ pub async fn sell_specific(percentage: bool) -> eyre::Result<()> {
                         return Err(e.into());
                     }
                 };
+
                 tip.push(system_instruction::transfer(
                     &source_ata,
                     &tax_destination,

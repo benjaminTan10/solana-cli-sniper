@@ -1,35 +1,28 @@
-use std::{error::Error, str::FromStr, sync::Arc};
+use std::{error::Error, sync::Arc};
 
 use bincode::serialize;
 use colored::Colorize;
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
-use log::{error, info};
-use solana_address_lookup_table_program::state::AddressLookupTable;
 use solana_sdk::{
-    address_lookup_table::AddressLookupTableAccount,
-    instruction::Instruction,
     message::{v0::Message, VersionedMessage},
-    native_token::{lamports_to_sol, sol_to_lamports},
-    pubkey::Pubkey,
+    native_token::lamports_to_sol,
     signature::Keypair,
     signer::Signer,
     system_instruction,
     transaction::VersionedTransaction,
 };
-use spl_associated_token_account::get_associated_token_address;
 
 use crate::{
     env::{
-        env_loader::tip_account,
         load_settings,
         minter::{load_minter_settings, PoolDataSettings},
     },
     liquidity::{
         option::wallet_gen::{list_folders, load_wallets},
-        utils::tip_txn,
+        utils::{tip_account, tip_txn},
     },
-    raydium::swap::{instructions::SOLC_MINT, swapper::auth_keypair},
+    raydium::swap::swapper::auth_keypair,
     rpc::HTTP_CLIENT,
     user_inputs::amounts::bundle_priority_tip,
 };

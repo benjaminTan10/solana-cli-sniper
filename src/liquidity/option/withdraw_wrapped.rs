@@ -20,11 +20,13 @@ use spl_token::instruction::close_account;
 
 use crate::{
     env::{
-        env_loader::tip_account,
         load_settings,
         minter::{load_minter_settings, PoolDataSettings},
     },
-    liquidity::{option::wallet_gen::load_wallets, utils::tip_txn},
+    liquidity::{
+        option::wallet_gen::load_wallets,
+        utils::{tip_account, tip_txn},
+    },
     raydium::swap::{instructions::SOLC_MINT, swapper::auth_keypair},
     rpc::HTTP_CLIENT,
     user_inputs::amounts::bundle_priority_tip,

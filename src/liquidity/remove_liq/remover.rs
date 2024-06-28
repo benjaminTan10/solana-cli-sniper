@@ -19,13 +19,13 @@ use solana_sdk::{
 use spl_token::instruction::initialize_account;
 
 use crate::{
-    env::{env_loader::tip_account, load_settings, minter::load_minter_settings},
+    env::{load_settings, minter::load_minter_settings},
     instruction::instruction::{
         get_keys_for_market, load_amm_keys, withdraw, AmmKeys, MarketPubkeys,
     },
     liquidity::{
         pool_ixs::{generate_pubkey, AMM_PROGRAM},
-        utils::tip_txn,
+        utils::{tip_account, tip_txn},
     },
     raydium::{
         pool_searcher::amm_keys::pool_keys_fetcher,

@@ -11,7 +11,6 @@ use crate::{
     app::theme,
     auth::auth_verification,
     env::{
-        env_loader::tip_account,
         load_settings,
         minter::{load_minter_settings, PoolDataSettings},
     },
@@ -22,7 +21,7 @@ use crate::{
             wallet_gen::gen_wallet_save,
             wrap_sol::sol_wrap,
         },
-        utils::tip_txn,
+        utils::{tip_account, tip_txn},
     },
     raydium::{
         pool_searcher::amm_keys::pool_keys_fetcher,

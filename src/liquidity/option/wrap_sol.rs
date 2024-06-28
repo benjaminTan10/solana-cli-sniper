@@ -19,11 +19,13 @@ use spl_token::instruction::sync_native;
 
 use crate::{
     env::{
-        env_loader::tip_account,
         load_settings,
         minter::{load_minter_settings, PoolDataSettings},
     },
-    liquidity::{option::wallet_gen::load_wallets, utils::tip_txn},
+    liquidity::{
+        option::wallet_gen::load_wallets,
+        utils::{tip_account, tip_txn},
+    },
     raydium::swap::{instructions::SOLC_MINT, swapper::auth_keypair},
     rpc::HTTP_CLIENT,
 };

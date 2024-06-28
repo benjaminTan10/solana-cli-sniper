@@ -7,6 +7,7 @@ use std::{error::Error, io::Write};
 use Mevarik::{
     app::{app, embeds::embed},
     auth::auth_verification,
+    env::utils::read_keys,
 };
 #[tokio::main]
 async fn main() {
@@ -42,15 +43,15 @@ async fn main() {
     println!("{}", embed());
     info!("Authenticating...");
 
-    let _auth = match auth_verification().await {
-        Ok(_) => {}
-        Err(e) => {
-            error!("Error: {}", e);
-            println!("Press any key to exit...");
-            let _ = read_keys().await;
-            return;
-        }
-    };
+    // let _auth = match auth_verification().await {
+    //     Ok(_) => {}
+    //     Err(e) => {
+    //         error!("Error: {}", e);
+    //         println!("Press any key to exit...");
+    //         let _ = read_keys().await;
+    //         return;
+    //     }
+    // };
 
     println!("{esc}[2J{esc}[1;1H", esc = 27 as char);
 
@@ -61,19 +62,4 @@ async fn main() {
 
     println!("Press any key to exit...");
     let _ = read_keys().await;
-}
-
-pub async fn read_keys() -> Result<(), Box<dyn Error + Send>> {
-    let term = Term::stdout();
-
-    loop {
-        match term.read_key().unwrap() {
-            _ => {
-                // Break the loop when any key is pressed
-                break;
-            }
-        }
-    }
-
-    Ok(())
 }
