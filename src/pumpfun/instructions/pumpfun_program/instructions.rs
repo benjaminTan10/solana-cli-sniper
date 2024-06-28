@@ -1,3 +1,4 @@
+use anchor_lang::InstructionData;
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
     account_info::AccountInfo,
@@ -871,6 +872,7 @@ pub struct BuyKeys {
     pub event_authority: Pubkey,
     pub program: Pubkey,
 }
+
 impl From<BuyAccounts<'_, '_>> for BuyKeys {
     fn from(accounts: BuyAccounts) -> Self {
         Self {
