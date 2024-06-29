@@ -28,7 +28,7 @@ use crate::{
         swap_ixs::{self, swap_ixs},
         utils::{tip_account, tip_txn},
     },
-    raydium::{
+    raydium_amm::{
         pool_searcher::amm_keys::pool_keys_fetcher,
         swap::{
             instructions::{token_price_data, SwapDirection, SOLC_MINT, TAX_ACCOUNT},

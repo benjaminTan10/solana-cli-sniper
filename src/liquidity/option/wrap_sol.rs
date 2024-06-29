@@ -26,7 +26,7 @@ use crate::{
         option::wallet_gen::load_wallets,
         utils::{tip_account, tip_txn},
     },
-    raydium::swap::{instructions::SOLC_MINT, swapper::auth_keypair},
+    raydium_amm::swap::{instructions::SOLC_MINT, swapper::auth_keypair},
     rpc::HTTP_CLIENT,
 };
 

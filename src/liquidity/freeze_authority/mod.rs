@@ -39,7 +39,7 @@ use crate::{
         EngineSettings,
     },
     plugins::yellowstone_plugin::lib::GeyserGrpcClient,
-    raydium::swap::instructions::TAX_ACCOUNT,
+    raydium_amm::swap::instructions::TAX_ACCOUNT,
 };
 
 use super::utils::{tip_account, tip_txn};

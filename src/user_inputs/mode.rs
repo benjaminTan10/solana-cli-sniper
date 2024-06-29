@@ -10,7 +10,7 @@ use solana_sdk::{pubkey::Pubkey, signature::Keypair};
 use crate::{
     app::{theme, MevApe},
     env::load_settings,
-    raydium::{
+    raydium_amm::{
         subscribe::auto_sniper_stream,
         swap::{
             instructions::{unwrap_sol, wrap_sol},

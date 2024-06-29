@@ -18,7 +18,7 @@ use crate::{
     env::{load_settings, minter::load_minter_settings},
     instruction::instruction::{get_keys_for_market, load_amm_keys},
     liquidity::{option::wallet_gen::list_folders, pool_ixs::AMM_PROGRAM, swap_ixs::swap_ixs},
-    raydium::swap::{instructions::SOLC_MINT, swapper::auth_keypair},
+    raydium_amm::swap::{instructions::SOLC_MINT, swapper::auth_keypair},
     rpc::HTTP_CLIENT,
 };
 

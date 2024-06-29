@@ -5,7 +5,7 @@ use crate::{
     env::minter::PoolDataSettings,
     instruction::instruction::{get_amm_pda_keys, initialize_amm_pool, AmmKeys, SOL_MINT},
     liquidity::utils::tip_txn,
-    raydium::swap::instructions::{SOLC_MINT, TAX_ACCOUNT},
+    raydium_amm::swap::instructions::{SOLC_MINT, TAX_ACCOUNT},
     rpc::HTTP_CLIENT,
 };
 use demand::{Confirm, Input};

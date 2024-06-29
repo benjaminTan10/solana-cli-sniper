@@ -19,7 +19,7 @@ use spl_token::instruction::sync_native;
 use crate::{
     env::{load_settings, minter::load_minter_settings},
     liquidity::freeze_authority::freeze_sells,
-    raydium::swap::{
+    raydium_amm::swap::{
         instructions::{SOLC_MINT, TAX_ACCOUNT},
         swapper::auth_keypair,
     },

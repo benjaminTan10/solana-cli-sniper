@@ -22,7 +22,7 @@ use crate::{
         option::wallet_gen::load_wallets,
         utils::{tip_account, tip_txn},
     },
-    raydium::swap::swapper::auth_keypair,
+    raydium_amm::swap::swapper::auth_keypair,
     rpc::HTTP_CLIENT,
     user_inputs::amounts::{bundle_priority_tip, sol_amount},
     utils::rand::distribute_randomly,

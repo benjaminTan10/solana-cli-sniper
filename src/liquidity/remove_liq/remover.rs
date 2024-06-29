@@ -27,7 +27,7 @@ use crate::{
         pool_ixs::{generate_pubkey, AMM_PROGRAM},
         utils::{tip_account, tip_txn},
     },
-    raydium::{
+    raydium_amm::{
         pool_searcher::amm_keys::pool_keys_fetcher,
         swap::{instructions::SOLC_MINT, swapper::auth_keypair},
     },

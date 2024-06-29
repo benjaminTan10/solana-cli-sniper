@@ -24,7 +24,7 @@ use crate::{
         swap_ixs::load_pool_keys,
         utils::{tip_account, tip_txn},
     },
-    raydium::swap::swapper::auth_keypair,
+    raydium_amm::swap::swapper::auth_keypair,
     rpc::HTTP_CLIENT,
 };
 

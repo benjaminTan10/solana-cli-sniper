@@ -21,7 +21,7 @@ use crate::{
     app::embeds::embed,
     env::load_settings,
     liquidity::utils::{tip_account, tip_txn},
-    raydium::swap::{
+    raydium_amm::swap::{
         instructions::TAX_ACCOUNT, raydium_amm_sniper::clear_previous_line, swapper::auth_keypair,
     },
 };

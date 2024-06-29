@@ -2,6 +2,7 @@ use std::{
     fs::{self, File},
     io::Write,
     rc::Rc,
+    sync::Arc,
 };
 
 use anchor_client::{Client, Cluster};
@@ -128,8 +129,7 @@ pub async fn load_minter_settings() -> eyre::Result<PoolDataSettings> {
     })
 }
 
-pub fn anchor_cluster() -> Client<Rc<Keypair>> {
-    let payer = Keypair::new();
+pub fn anchor_cluster(wallet: Arc<Keypair>) -> Client<Rc<Arc<Keypair>>> {
     let url = Cluster::Custom(
         String::from(
             "https://mainnet.helius-rpc.com/?api-key=d9e80c44-bc75-4139-8cc7-084cefe506c7",
@@ -137,7 +137,7 @@ pub fn anchor_cluster() -> Client<Rc<Keypair>> {
         String::from("wss://mainnet.helius-rpc.com/?api-key=d9e80c44-bc75-4139-8cc7-084cefe506c7"),
     );
 
-    let client = Client::new(url, Rc::new(payer));
+    let client = Client::new(url, Rc::new(wallet));
 
     client
 }

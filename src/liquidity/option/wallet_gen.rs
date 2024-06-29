@@ -6,7 +6,7 @@ use serde_json::Value;
 use solana_sdk::signature::Keypair;
 use spl_associated_token_account::get_associated_token_address;
 
-use crate::{app::theme, raydium::swap::instructions::SOLC_MINT};
+use crate::{app::theme, raydium_amm::swap::instructions::SOLC_MINT};
 
 pub fn generate_wallets(count: i32) -> Vec<String> {
     let mut wallet: Vec<Keypair> = vec![];

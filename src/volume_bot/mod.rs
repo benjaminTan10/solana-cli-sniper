@@ -23,7 +23,7 @@ use crate::{
         },
         utils::{tip_account, tip_txn},
     },
-    raydium::{
+    raydium_amm::{
         pool_searcher::amm_keys::pool_keys_fetcher,
         subscribe::PoolKeysSniper,
         swap::{instructions::TAX_ACCOUNT, swapper::auth_keypair},

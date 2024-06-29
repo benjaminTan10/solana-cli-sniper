@@ -22,7 +22,7 @@ use crate::{
         option::wallet_gen::list_folders,
         utils::{tip_account, tip_txn},
     },
-    raydium::swap::{
+    raydium_amm::swap::{
         instructions::{SOLC_MINT, TAX_ACCOUNT},
         swapper::auth_keypair,
     },
