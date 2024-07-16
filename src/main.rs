@@ -1,12 +1,10 @@
 use chrono::Local;
 use colored::Colorize;
-use console::{Key, Term};
-use log::{error, info};
+use log::info;
 use pretty_env_logger::env_logger::fmt::Color;
-use std::{error::Error, io::Write};
+use std::io::Write;
 use Mevarik::{
     app::{app, embeds::embed},
-    auth::auth_verification,
     env::utils::read_keys,
 };
 #[tokio::main]
@@ -43,23 +41,21 @@ async fn main() {
     println!("{}", embed());
     info!("Authenticating...");
 
-    // let _auth = match auth_verification().await {
-    //     Ok(_) => {}
+    // let _ = match Mevarik::auth::auth_verification().await {
+    //     Ok(_) => {
+    //         println!("{esc}[2J{esc}[1;1H", esc = 27 as char);
+
+    //         println!("{}", embed());
+    //         println!("{}", "Authentication Successful".bold().green());
+    //     }
     //     Err(e) => {
-    //         error!("Error: {}", e);
-    //         println!("Press any key to exit...");
+    //         log::error!("Error: {}", e);
     //         let _ = read_keys().await;
     //         return;
     //     }
     // };
 
-    println!("{esc}[2J{esc}[1;1H", esc = 27 as char);
-
-    //clear previous line
-    println!("{}", embed());
-    println!("{}", "Authentication Successful".bold().green());
     let _ = app(true).await;
 
-    println!("Press any key to exit...");
     let _ = read_keys().await;
 }

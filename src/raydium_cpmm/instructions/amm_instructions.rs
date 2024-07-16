@@ -10,10 +10,15 @@ use raydium_cp_swap::{
     states::{AMM_CONFIG_SEED, OBSERVATION_SEED, POOL_LP_MINT_SEED, POOL_SEED, POOL_VAULT_SEED},
     AUTH_SEED,
 };
+use spl_associated_token_account::instruction;
 use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::raydium_cpmm::cpmm_builder::ClientConfig;
+use crate::raydium_cpmm::cpmm_instructions::{
+    swap_base_input_ix_with_program_id, swap_base_output_ix_with_program_id, SwapBaseInputIxArgs,
+    SwapBaseInputKeys, SwapBaseOutputIxArgs, SwapBaseOutputKeys,
+};
 
 pub const RAYDIUM_CPMM: Pubkey = pubkey!("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C");
 
@@ -120,7 +125,7 @@ pub fn initialize_pool_instr(
 }
 
 pub fn swap_base_input_instr(
-    client: Arc<Client<Rc<Arc<Keypair>>>>,
+    payer: Pubkey,
     pool_id: Pubkey,
     amm_config: Pubkey,
     observation_account: Pubkey,
@@ -135,15 +140,12 @@ pub fn swap_base_input_instr(
     amount_in: u64,
     minimum_amount_out: u64,
 ) -> Result<Vec<Instruction>> {
-    // Client.
-    let program = client.program(RAYDIUM_CPMM)?;
+    let (authority, __bump) = Pubkey::find_program_address(&[AUTH_SEED.as_bytes()], &RAYDIUM_CPMM);
 
-    let (authority, __bump) = Pubkey::find_program_address(&[AUTH_SEED.as_bytes()], &program.id());
-
-    let instructions = program
-        .request()
-        .accounts(raydium_cp_accounts::Swap {
-            payer: program.payer(),
+    let instructions = swap_base_input_ix_with_program_id(
+        RAYDIUM_CPMM,
+        SwapBaseInputKeys {
+            payer,
             authority,
             amm_config,
             pool_state: pool_id,
@@ -156,17 +158,18 @@ pub fn swap_base_input_instr(
             input_token_mint,
             output_token_mint,
             observation_state: observation_account,
-        })
-        .args(raydium_cp_instructions::SwapBaseInput {
+        },
+        SwapBaseInputIxArgs {
             amount_in,
             minimum_amount_out,
-        })
-        .instructions()?;
-    Ok(instructions)
+        },
+    )?;
+
+    Ok([instructions].to_vec())
 }
 
 pub fn swap_base_output_instr(
-    client: Arc<Client<Rc<Arc<Keypair>>>>,
+    payer: Pubkey,
     pool_id: Pubkey,
     amm_config: Pubkey,
     observation_account: Pubkey,
@@ -181,14 +184,35 @@ pub fn swap_base_output_instr(
     max_amount_in: u64,
     amount_out: u64,
 ) -> Result<Vec<Instruction>> {
-    let program = client.program(RAYDIUM_CPMM)?;
+    let (authority, __bump) = Pubkey::find_program_address(&[AUTH_SEED.as_bytes()], &RAYDIUM_CPMM);
 
-    let (authority, __bump) = Pubkey::find_program_address(&[AUTH_SEED.as_bytes()], &program.id());
+    // let instructions = program
+    //     .request()
+    //     .accounts(raydium_cp_accounts::Swap {
+    //         payer: program.payer(),
+    //         authority,
+    //         amm_config,
+    //         pool_state: pool_id,
+    //         input_token_account,
+    //         output_token_account,
+    //         input_vault,
+    //         output_vault,
+    //         input_token_program,
+    //         output_token_program,
+    //         input_token_mint,
+    //         output_token_mint,
+    //         observation_state: observation_account,
+    //     })
+    //     .args(raydium_cp_instructions::SwapBaseOutput {
+    //         max_amount_in,
+    //         amount_out,
+    //     })
+    //     .instructions()?;
 
-    let instructions = program
-        .request()
-        .accounts(raydium_cp_accounts::Swap {
-            payer: program.payer(),
+    let instructions = swap_base_output_ix_with_program_id(
+        RAYDIUM_CPMM,
+        SwapBaseOutputKeys {
+            payer,
             authority,
             amm_config,
             pool_state: pool_id,
@@ -201,11 +225,11 @@ pub fn swap_base_output_instr(
             input_token_mint,
             output_token_mint,
             observation_state: observation_account,
-        })
-        .args(raydium_cp_instructions::SwapBaseOutput {
+        },
+        SwapBaseOutputIxArgs {
             max_amount_in,
             amount_out,
-        })
-        .instructions()?;
-    Ok(instructions)
+        },
+    )?;
+    Ok([instructions].to_vec())
 }

@@ -8,7 +8,9 @@ use crate::{
     env::load_settings,
 };
 
-use super::{instructions::instructions::PumpFunDirection, pump_swap_in::pump_swap};
+use super::{
+    instructions::instructions::PumpFunDirection, pump_swap_in::pump_swap, sniper::pumpfun_sniper,
+};
 
 pub async fn pump_main() -> Result<(), Box<dyn Error + Send>> {
     let theme = theme();
@@ -16,6 +18,7 @@ pub async fn pump_main() -> Result<(), Box<dyn Error + Send>> {
         .description("Select the Mode")
         .theme(&theme)
         .filterable(true)
+        .option(DemandOption::new("PumpSniperAuto").label("▪ PumpFun Sniper"))
         .option(DemandOption::new("PumpBuy").label("▪ Pump In"))
         .option(DemandOption::new("PumpSell").label("▪ Pump Out"))
         .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
@@ -23,6 +26,9 @@ pub async fn pump_main() -> Result<(), Box<dyn Error + Send>> {
     let selected_option = ms.run().expect("error running select");
 
     match selected_option {
+        "PumpSniperAuto" => {
+            let _ = pumpfun_sniper(false).await;
+        }
         "PumpBuy" => {
             let _ = pump_swap_in().await;
         }

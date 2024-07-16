@@ -15,10 +15,11 @@ use crate::{
         swap::{
             instructions::{unwrap_sol, wrap_sol},
             metadata::decode_metadata,
-            raydium_amm_sniper::grpc_pair_sub,
+            raydium_amm_sniper::RAYDIUM_AMM_FEE_COLLECTOR,
             swap_in::PriorityTip,
         },
     },
+    router::{grpc_pair_sub, SniperRoute},
 };
 
 use super::{
@@ -145,7 +146,16 @@ pub async fn automatic_snipe(manual_snipe: bool) -> eyre::Result<()> {
         wallet: args.payer_keypair.clone(),
     };
 
-    let _ = match grpc_pair_sub(mev_ape, args, manual_snipe, token).await {
+    let _ = match grpc_pair_sub(
+        mev_ape,
+        args,
+        manual_snipe,
+        token,
+        RAYDIUM_AMM_FEE_COLLECTOR.into(),
+        SniperRoute::RaydiumAMM,
+    )
+    .await
+    {
         Ok(_) => info!("Transaction Sent"),
         Err(e) => error!("{}", e),
     };

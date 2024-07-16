@@ -114,10 +114,10 @@ pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
             "Please wait".cyan()
         );
         // Check if balance is at least 1 SOL
-        if balance < sol_to_lamports(0.65) {
-            // 1 SOL is 1_000_000_000 lamports
-            return Err("Insufficient balance for registration: 0.65 + 0.001 SOL Required".into());
-        }
+        // if balance < sol_to_lamports(0.65) {
+        //     // 1 SOL is 1_000_000_000 lamports
+        //     return Err("Insufficient balance for registration: 0.65 + 0.001 SOL Required".into());
+        // }
 
         let recent_blockhash = rpc_client.get_latest_blockhash().await?;
         let register = tip_txn(wallet.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.65));
@@ -152,21 +152,21 @@ pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
             None,
         ) {
             Ok(result) => {
-                let bundle = match send_bundle_with_confirmation(
-                    &[txn],
-                    &Arc::new(rpc_client),
-                    &mut client,
-                    &mut bundle_results_subscription,
-                )
-                .await
-                {
-                    Ok(_) => {}
-                    Err(e) => {
-                        eprintln!("Distribution Error: {}", e);
-                        panic!("Error: {}", e);
-                    }
-                };
-                std::mem::drop(bundle_results_subscription);
+                // let bundle = match send_bundle_with_confirmation(
+                //     &[txn],
+                //     &Arc::new(rpc_client),
+                //     &mut client,
+                //     &mut bundle_results_subscription,
+                // )
+                // .await
+                // {
+                //     Ok(_) => {}
+                //     Err(e) => {
+                //         eprintln!("Distribution Error: {}", e);
+                //         panic!("Error: {}", e);
+                //     }
+                // };
+                // std::mem::drop(bundle_results_subscription);
                 result
             }
             Err(e) => {

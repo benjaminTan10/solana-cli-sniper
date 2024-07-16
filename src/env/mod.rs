@@ -75,6 +75,9 @@ pub struct EngineSettings {
 
     pub spam: bool,
     pub spam_count: i32,
+
+    //pub txn_level: i32,
+    pub slippage: bool,
 }
 
 #[derive(Deserialize, Clone)]
@@ -106,9 +109,19 @@ struct HelperSettings {
     #[serde(rename = "BLOCK-ENGINE-URL")]
     block_engine_url: String,
 
+    #[serde(rename = "USE-BUNDLES")]
     use_bundles: bool,
+
+    #[serde(rename = "SPAM")]
     spam: bool,
+
+    #[serde(rename = "SPAM-COUNT")]
     spam_count: i32,
+
+    // #[serde(rename = "Transaction-Level")]
+    // txn_level: i32,
+    #[serde(rename = "SLIPPAGE")]
+    slippage: bool,
 }
 
 pub async fn load_settings() -> eyre::Result<EngineSettings> {
@@ -129,6 +142,8 @@ pub async fn load_settings() -> eyre::Result<EngineSettings> {
             use_bundles: true,
             spam: false,
             spam_count: 15,
+            // txn_level: 1,
+            slippage: false,
         };
         let default_settings_json = serde_json::to_string(&default_settings).unwrap();
         let mut file = File::create("settings.json").unwrap();
@@ -154,6 +169,8 @@ pub async fn load_settings() -> eyre::Result<EngineSettings> {
             use_bundles: true,
             spam: false,
             spam_count: 15,
+            // txn_level: 1,
+            slippage: false,
         };
         let default_settings_json = serde_json::to_string(&default_settings).unwrap();
         let mut file = File::create("settings.json").unwrap();
@@ -196,6 +213,8 @@ pub async fn load_settings() -> eyre::Result<EngineSettings> {
         use_bundles: helper_settings.use_bundles,
         spam: helper_settings.spam,
         spam_count: helper_settings.spam_count,
+        //   txn_level: helper_settings.txn_level,
+        slippage: false,
     };
 
     Ok(settings)

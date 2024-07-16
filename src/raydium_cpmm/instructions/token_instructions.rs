@@ -16,7 +16,9 @@ use spl_token_2022::{
 use spl_token_client::{spl_token_2022, token::ExtensionInitializationParams};
 use std::{rc::Rc, str::FromStr, sync::Arc};
 
-use crate::raydium_cpmm::cpmm_builder::ClientConfig;
+use crate::{env::minter::anchor_cluster, raydium_cpmm::cpmm_builder::ClientConfig};
+
+use super::amm_instructions::RAYDIUM_CPMM;
 
 pub fn create_and_init_mint_instr(
     config: &ClientConfig,
@@ -90,25 +92,37 @@ pub fn create_account_rent_exmpt_instr(
     Ok(instructions)
 }
 
-pub fn create_ata_token_account_instr(
-    client: Arc<Client<Rc<Arc<Keypair>>>>,
+pub async fn create_ata_token_account_instr(
+    payer: Arc<Keypair>,
     token_program: Pubkey,
     mint: &Pubkey,
     owner: &Pubkey,
 ) -> Result<Vec<Instruction>> {
-    // Client.
-    let program = client.program(token_program)?;
-    let instructions = program
-        .request()
-        .instruction(
-            spl_associated_token_account::instruction::create_associated_token_account_idempotent(
-                &program.payer(),
-                owner,
-                mint,
-                &token_program,
-            ),
-        )
-        .instructions()?;
+    // let client = anchor_cluster(payer);
+
+    // let program = client.program(RAYDIUM_CPMM)?;
+
+    // // Client.
+    let instructions = vec![
+        spl_associated_token_account::instruction::create_associated_token_account_idempotent(
+            &payer.pubkey(),
+            owner,
+            mint,
+            &token_program,
+        ),
+    ];
+
+    // let instructions = program
+    //     .request()
+    //     .instruction(
+    //         spl_associated_token_account::instruction::create_associated_token_account_idempotent(
+    //             &program.payer(),
+    //             owner,
+    //             mint,
+    //             &token_program,
+    //         ),
+    //     )
+    //     .instructions()?;
     Ok(instructions)
 }
 

@@ -20,11 +20,13 @@ use crate::liquidity::freeze_authority::freeze_sells;
 use crate::liquidity::minter_main::raydium_creator;
 use crate::liquidity::option::wallet_gen::list_folders;
 use crate::liquidity::option::withdraw_sol::{deployer_details, folder_deployer_details};
+use crate::moonshot::menu::moonshot_menu;
 use crate::pumpfun::pump::pump_main;
 use crate::raydium_amm::bundles::mev_trades::mev_trades;
 use crate::raydium_amm::swap::swap_in::{swap_in, swap_out, PriorityTip};
 use crate::raydium_amm::swap::swapper::auth_keypair;
 use crate::raydium_amm::swap::trades::track_trades;
+use crate::raydium_cpmm::menu::raydium_cpmm;
 use crate::rpc::rpc_key;
 use crate::user_inputs::mode::{automatic_snipe, unwrap_sol_call, wrap_sol_call};
 use crate::volume_bot::volume_menu;
@@ -108,6 +110,7 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
         .option(DemandOption::new("RaydiumAMM").label("▪ Raydium AMM Mode"))
         .option(DemandOption::new("RaydiumCPMM").label("▪ Raydium CPMM Mode"))
         .option(DemandOption::new("PumpFun").label("▪ PumpFun Mode"))
+        .option(DemandOption::new("MoonShot").label("▪ MoonShot Mode"))
         .option(DemandOption::new("Minter Mode").label("▪ Minter Mode"))
         .option(DemandOption::new("Generate Volume").label("▪ Volume Mode"))
         .option(DemandOption::new("Wrap Sol Mode").label("📦 Wrap SOL"))
@@ -139,6 +142,15 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
         "RaydiumAMM" => {
             let _ = raydium_amm_mode().await;
         }
+        "RaydiumCPMM" => {
+            let _ = raydium_cpmm().await;
+        }
+        "MoonShot" => {
+            let _ = moonshot_menu().await;
+        }
+        "PumpFun" => {
+            let _ = pump_main().await;
+        }
         "Minter Mode" => {
             let _ = raydium_creator().await;
         }
@@ -157,9 +169,7 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
         "folder_deployerdetails" => {
             let _ = folder_deployer_details().await;
         }
-        "PumpFun" => {
-            let _ = pump_main().await;
-        }
+
         _ => {
             // Handle unexpected option here
         }

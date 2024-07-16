@@ -15,8 +15,8 @@ pub async fn amount_percentage() -> u64 {
         let string = t.run().expect("error running input");
 
         match string.parse::<f64>() {
-            Ok(val) => {
-                amount = sol_to_lamports(val);
+            Ok(_) => {
+                amount = string.parse::<u64>().unwrap();
                 break;
             }
             Err(_) => {
