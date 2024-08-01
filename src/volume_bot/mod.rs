@@ -206,7 +206,7 @@ pub async fn volume_lut() -> eyre::Result<()> {
     {
         Ok(_) => {
             data.volume_lut_key = lut_key.to_string();
-            let mut file = File::create("mintor_settings.json")?;
+            let mut file = File::create("bundler_settings.json")?;
             file.write_all(serde_json::to_string(&data)?.as_bytes())?;
         }
         Err(e) => {

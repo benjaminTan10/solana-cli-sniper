@@ -12,8 +12,10 @@ use solana_program::pubkey::Pubkey;
 
 use crate::app::private_key_env;
 
+pub mod input;
 pub mod minter;
 pub mod utils;
+pub mod vanity;
 
 #[derive(Debug, Clone)]
 pub struct BackrunAccount {

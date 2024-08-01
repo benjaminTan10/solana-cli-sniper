@@ -69,7 +69,7 @@ struct HelperSettings {
 }
 
 pub async fn load_minter_settings() -> eyre::Result<PoolDataSettings> {
-    let args = match fs::read_to_string("mintor_settings.json") {
+    let args = match fs::read_to_string("bundler_settings.json") {
         Ok(args) => args,
         Err(_) => {
             info!("Settings file not found, creating a new one");
@@ -84,7 +84,7 @@ pub async fn load_minter_settings() -> eyre::Result<PoolDataSettings> {
                 volume_lut_key: "".to_string(),
             };
             let default_settings_json = serde_json::to_string(&default_settings).unwrap();
-            let mut file = File::create("mintor_settings.json").unwrap();
+            let mut file = File::create("bundler_settings.json").unwrap();
             file.write_all(default_settings_json.as_bytes()).unwrap();
 
             "".to_string() // Return an empty string if the file does not exist
@@ -106,16 +106,10 @@ pub async fn load_minter_settings() -> eyre::Result<PoolDataSettings> {
     if helper_settings.buyer_key.is_empty() {
         helper_settings.buyer_key = private_key_env("Buyer Private Key").await.unwrap();
     }
-    if helper_settings.token_mint.is_empty() {
-        helper_settings.token_mint = (token_env("Token Mint").await).to_string();
-    }
-    if helper_settings.market_id.is_empty() {
-        helper_settings.market_id = (token_env("Market ID").await).to_string();
-    }
 
     // Save the updated settings to the file
     let default_settings_json = serde_json::to_string_pretty(&helper_settings).unwrap();
-    let mut file = File::create("mintor_settings.json").unwrap();
+    let mut file = File::create("bundler_settings.json").unwrap();
     file.write_all(default_settings_json.as_bytes()).unwrap();
 
     Ok(PoolDataSettings {

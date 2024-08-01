@@ -19,20 +19,27 @@ use crate::{
     env::{load_settings, minter::load_minter_settings},
     instruction::instruction::SOL_MINT,
     liquidity::{
-        option::wallet_gen::list_folders,
+        option::wallet_gen::{list_folders, list_json_wallets},
         utils::{tip_account, tip_txn},
+    },
+    pumpfun::{
+        bundler::{create_metadata::metadata_json, ix_accounts::token_create_ix},
+        instructions::{
+            instructions::{
+                calculate_buy_price, generate_pump_buy_ix, generate_pump_multi_buy_ix, GLOBAL_STATE,
+            },
+            pumpfun_program::{
+                accounts::{BondingCurve, GlobalAccount},
+                instructions::CreateIxArgs,
+            },
+        },
     },
     raydium_amm::swap::{
         instructions::{SOLC_MINT, TAX_ACCOUNT},
         swapper::auth_keypair,
     },
     rpc::HTTP_CLIENT,
-    user_inputs::amounts::bundle_priority_tip,
-};
-
-use super::{
-    pool_ixs::pool_ixs,
-    swap_ixs::{load_pool_keys, swap_ixs},
+    user_inputs::amounts::{bundle_priority_tip, sol_amount},
 };
 
 #[derive(Debug, serde::Serialize)]
@@ -41,7 +48,15 @@ pub struct PoolDeployResponse {
     pub amm_pool: Pubkey,
 }
 
-pub async fn pool_main() -> eyre::Result<()> {
+pub async fn multi_wallet_token() -> eyre::Result<()> {
+    let connection = {
+        let http_client = HTTP_CLIENT.lock().unwrap();
+        http_client.get("http_client").unwrap().clone()
+    };
+
+    let mut data = load_minter_settings().await?;
+    let engine = load_settings().await?;
+
     let (_, wallets) = match list_folders().await {
         Ok(folders) => folders,
         Err(e) => {
@@ -50,33 +65,38 @@ pub async fn pool_main() -> eyre::Result<()> {
         }
     };
 
-    let mut data = load_minter_settings().await?;
-    let engine = load_settings().await?;
-
-    let connection = {
-        let http_client = HTTP_CLIENT.lock().unwrap();
-        http_client.get("http_client").unwrap().clone()
-    };
-
     let deployer_key = Keypair::from_base58_string(&data.deployer_key);
     let buyer_key = Keypair::from_base58_string(&data.buyer_key);
 
     // -------------------Pool Creation Instructions--------------------------
     println!("Creating Pool Transaction");
 
-    let (create_pool_ixs, amm_pool, amm_keys) = match pool_ixs(data.clone()).await {
-        Ok(ixs) => ixs,
+    let create_metadata = match metadata_json().await {
+        Ok(metadata) => metadata,
         Err(e) => {
-            eprintln!("Error creating pool IXs: {}", e);
-            return Err(e);
+            eprintln!("Error creating metadata: {}", e);
+            return Ok(());
         }
     };
 
-    data.pool_id = amm_pool.to_string();
+    let args = CreateIxArgs {
+        name: create_metadata.name,
+        symbol: create_metadata.symbol,
+        uri: create_metadata.image,
+    };
+    let sol_amount = sol_amount("Buy SOL Amount:").await;
+    let mint = match list_json_wallets().await {
+        Ok(wallets) => wallets,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            return Ok(());
+        }
+    };
+
+    let token_ixs = token_create_ix(mint[0].pubkey(), deployer_key.pubkey(), args);
+
     let mut file = std::fs::File::create("bundler_settings.json").unwrap();
     file.write_all(serde_json::to_string(&data)?.as_bytes())?;
-
-    let market_keys = load_pool_keys(amm_pool, amm_keys).await?;
 
     let bundle_tip = bundle_priority_tip().await;
 
@@ -107,8 +127,6 @@ pub async fn pool_main() -> eyre::Result<()> {
         key: lut_creation,
         addresses: address_lookup_table.addresses.to_vec(),
     };
-    let market_keys = market_keys.clone();
-    let server_data = data.clone();
 
     let recent_blockhash = connection.get_latest_blockhash().await?;
 
@@ -116,29 +134,34 @@ pub async fn pool_main() -> eyre::Result<()> {
     let versioned_msg = VersionedMessage::V0(
         Message::try_compile(
             &deployer_key.pubkey(),
-            &create_pool_ixs, /* , tax_txn*/
+            &token_ixs, /* , tax_txn*/
             &[address_lookup_table_account.clone()],
             recent_blockhash,
         )
         .unwrap(),
     );
 
-    let versioned_tx = match VersionedTransaction::try_new(versioned_msg, &[&deployer_key]) {
-        Ok(tx) => tx,
-        Err(e) => {
-            eprintln!("Error creating pool transaction: {}", e);
-            return Err(e.into());
-        }
-    };
+    let versioned_tx =
+        match VersionedTransaction::try_new(versioned_msg, &[&deployer_key, &mint[0]]) {
+            Ok(tx) => tx,
+            Err(e) => {
+                eprintln!("Error creating pool transaction: {}", e);
+                return Err(e.into());
+            }
+        };
 
     // -------------------Swap Instructions---------------------------------------
-
-    let token_mint = Pubkey::from_str(&data.token_mint).unwrap();
 
     let wallets_chunks = wallets.chunks(7).collect::<Vec<_>>();
     let mut txns_chunk = Vec::new();
 
     txns_chunk.push(versioned_tx);
+
+    let account_data = connection.get_account_data(&GLOBAL_STATE).await?;
+
+    let sliced_data: &mut &[u8] = &mut account_data.as_slice();
+
+    let mut reserves = GlobalAccount::deserialize(sliced_data)?.0;
 
     for (chunk_index, wallet_chunk) in wallets_chunks.iter().enumerate() {
         let mut current_instructions = Vec::new();
@@ -161,20 +184,34 @@ pub async fn pool_main() -> eyre::Result<()> {
             println!("Balance: {} SOL", lamports_to_sol(balance));
 
             let user_token_source = get_associated_token_address(&wallet.pubkey(), &SOL_MINT);
+            let keypair = Keypair::to_base58_string(wallet);
 
-            let swap_ixs = swap_ixs(
-                server_data.clone(),
-                amm_keys.clone(),
-                market_keys.clone(),
-                wallet,
-                balance,
-                false,
-                user_token_source,
+            let reserves_tuple: (u128, u128, u128) = (
+                reserves.initial_virtual_sol_reserves as u128,
+                reserves.initial_virtual_token_reserves as u128,
+                reserves.initial_real_token_reserves as u128,
+            );
+
+            let price: (u128, (u128, u128, u128)) =
+                calculate_buy_price(balance as u128, reserves_tuple);
+
+            let swap_ixs = generate_pump_multi_buy_ix(
+                connection.clone(),
+                mint[0].pubkey(),
+                sol_amount,
+                Arc::new(Keypair::from_base58_string(&keypair)),
+                reserves_tuple,
             )
+            .await
             .unwrap();
 
-            current_instructions.push(swap_ixs);
+            current_instructions.extend(swap_ixs);
             current_wallets.push(wallet);
+
+            // Update reserves after transaction
+            reserves.initial_virtual_sol_reserves = price.1 .0 as u64;
+            reserves.initial_virtual_token_reserves = price.1 .1 as u64;
+            reserves.initial_real_token_reserves = price.1 .2 as u64;
 
             if chunk_index == wallets_chunks.len() - 1 && i == wallet_chunk.len() - 1 {
                 let tip = tip_txn(buyer_key.pubkey(), tip_account(), bundle_tip);

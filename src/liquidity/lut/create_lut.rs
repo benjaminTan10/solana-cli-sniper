@@ -32,7 +32,7 @@ pub async fn create_lut(mut pool_data: PoolDataSettings) -> eyre::Result<(Instru
     let (lut, lut_key) = create_lookup_table(buyer_key.pubkey(), buyer_key.pubkey(), recent_slot);
 
     pool_data.lut_key = lut_key.to_string();
-    let mut file = File::create("mintor_settings.json")?;
+    let mut file = File::create("bundler_settings.json")?;
     file.write_all(serde_json::to_string(&pool_data)?.as_bytes())?;
     // let transaction = Transaction::new_signed_with_payer(
     //     &[lut],

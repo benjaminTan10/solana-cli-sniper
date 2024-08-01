@@ -2,14 +2,12 @@ use std::sync::Arc;
 
 use log::{error, info};
 use solana_sdk::signature::Keypair;
-use tokio::sync::mpsc::channel;
 
 use crate::{
     env::load_settings,
-    plugins::jito_plugin::event_loop::bundle_results_loop,
     raydium_amm::{
         pool_searcher::amm_keys::pool_keys_fetcher,
-        swap::{raydium_swap_in::price_logger, swap_in::PriorityTip, swapper::auth_keypair},
+        swap::{raydium_swap_in::price_logger, swap_in::PriorityTip},
     },
     user_inputs::{
         amounts::{bundle_priority_tip, priority_fee, sol_amount},

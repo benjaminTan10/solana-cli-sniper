@@ -1,4 +1,6 @@
-mod instructions;
+pub mod bundler;
+pub mod instructions;
+pub mod migration_sniper;
 pub mod pump;
-mod pump_swap_in;
+pub mod pump_swap_in;
 pub mod sniper;

@@ -25,13 +25,13 @@ use async_recursion::async_recursion;
 
 #[async_recursion]
 pub async fn raydium_creator() -> Result<(), Box<dyn Error>> {
-    let _auth = match auth_verification().await {
-        Ok(_) => {}
-        Err(e) => {
-            error!("Error: {}", e);
-            return Ok(());
-        }
-    };
+    // let _auth = match auth_verification().await {
+    //     Ok(_) => {}
+    //     Err(e) => {
+    //         error!("Error: {}", e);
+    //         return Ok(());
+    //     }
+    // };
 
     let theme = theme();
     let ms = Select::new("Minter Mode")

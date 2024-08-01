@@ -21,6 +21,7 @@ use crate::liquidity::minter_main::raydium_creator;
 use crate::liquidity::option::wallet_gen::list_folders;
 use crate::liquidity::option::withdraw_sol::{deployer_details, folder_deployer_details};
 use crate::moonshot::menu::moonshot_menu;
+use crate::pumpfun::bundler::menu::pump_bundler;
 use crate::pumpfun::pump::pump_main;
 use crate::raydium_amm::bundles::mev_trades::mev_trades;
 use crate::raydium_amm::swap::swap_in::{swap_in, swap_out, PriorityTip};
@@ -107,11 +108,12 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
         .description("Select the Mode")
         .theme(&theme)
         .filterable(true)
-        .option(DemandOption::new("RaydiumAMM").label("▪ Raydium AMM Mode"))
-        .option(DemandOption::new("RaydiumCPMM").label("▪ Raydium CPMM Mode"))
-        .option(DemandOption::new("PumpFun").label("▪ PumpFun Mode"))
-        .option(DemandOption::new("MoonShot").label("▪ MoonShot Mode"))
-        .option(DemandOption::new("Minter Mode").label("▪ Minter Mode"))
+        // .option(DemandOption::new("RaydiumAMM").label("▪ Raydium AMM Mode"))
+        // .option(DemandOption::new("RaydiumCPMM").label("▪ Raydium CPMM Mode"))
+        // .option(DemandOption::new("PumpFun").label("▪ PumpFun Mode"))
+        // .option(DemandOption::new("MoonShot").label("▪ MoonShot Mode"))
+        .option(DemandOption::new("RayAMMBundlerMode").label("▪ Raydium Bundler Mode"))
+        .option(DemandOption::new("PumpBundlerMode").label("▪ PumpFun Bundler Mode"))
         .option(DemandOption::new("Generate Volume").label("▪ Volume Mode"))
         .option(DemandOption::new("Wrap Sol Mode").label("📦 Wrap SOL"))
         .option(DemandOption::new("Unwrap Sol Mode").label("🪤  Unwrap SOL"))
@@ -151,8 +153,11 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
         "PumpFun" => {
             let _ = pump_main().await;
         }
-        "Minter Mode" => {
+        "RayAMMBundlerMode" => {
             let _ = raydium_creator().await;
+        }
+        "PumpBundlerMode" => {
+            let _ = pump_bundler().await;
         }
         "Generate Volume" => {
             let _ = volume_menu().await;

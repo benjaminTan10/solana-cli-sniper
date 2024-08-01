@@ -85,6 +85,48 @@ pub async fn generate_pump_buy_ix(
     Ok([buy_ix].to_vec())
 }
 
+pub async fn generate_pump_multi_buy_ix(
+    rpc_client: Arc<RpcClient>,
+    token: Pubkey,
+    sol_amount: u64,
+    main_signer: Arc<Keypair>,
+    reserves: (u128, u128, u128),
+) -> eyre::Result<Vec<Instruction>> {
+    let bonding_curve_pda = get_bonding_curve(token, &PUMP_PROGRAM);
+    let bonding_curve_ata = get_associated_token_address(&bonding_curve_pda, &token);
+    let signer_ata = get_associated_token_address(&main_signer.pubkey(), &token);
+
+    let price: (u128, (u128, u128, u128)) = calculate_buy_price(sol_amount as u128, reserves);
+
+    println!("Price: {:?}", price);
+    let amount = (price.0) as u64;
+    let fee_bps = sol_amount * 1 / 100;
+
+    let buy_ix = buy_ix_with_program_id(
+        PUMP_PROGRAM,
+        BuyKeys {
+            global: GLOBAL_STATE,
+            fee_recipient: FEE_RECEPIENT,
+            mint: token,
+            bonding_curve: bonding_curve_pda,
+            associated_bonding_curve: bonding_curve_ata,
+            associated_user: signer_ata,
+            user: main_signer.pubkey(),
+            system_program: system_program::id(),
+            token_program: spl_token::id(),
+            rent: solana_program::sysvar::rent::id(),
+            event_authority: EVENT_AUTH,
+            program: PUMP_PROGRAM,
+        },
+        BuyIxArgs {
+            amount,
+            max_sol_cost: sol_amount + fee_bps,
+        },
+    )?;
+
+    Ok([buy_ix].to_vec())
+}
+
 pub async fn generate_pump_sell_ix(
     token: Pubkey,
     token_amount: u64,
@@ -119,7 +161,7 @@ pub async fn generate_pump_sell_ix(
     Ok([sell_ix].to_vec())
 }
 
-fn get_bonding_curve(mint: Pubkey, program_id: &Pubkey) -> Pubkey {
+pub fn get_bonding_curve(mint: Pubkey, program_id: &Pubkey) -> Pubkey {
     Pubkey::find_program_address(&[b"bonding-curve", &mint.to_bytes()], program_id).0
 }
 

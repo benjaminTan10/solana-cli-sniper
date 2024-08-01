@@ -24,7 +24,10 @@ use crate::{
     },
     raydium_amm::{
         subscribe::auto_sniper_stream,
-        swap::{metadata::decode_metadata, swap_in::PriorityTip},
+        swap::{
+            metadata::decode_metadata, raydium_amm_sniper::RAYDIUM_AMM_FEE_COLLECTOR,
+            swap_in::PriorityTip,
+        },
     },
     router::{grpc_pair_sub, SniperRoute},
     user_inputs::{
@@ -35,7 +38,7 @@ use crate::{
 
 pub const PUMPFUN_CONTRACT: &str = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
 
-pub async fn pumpfun_sniper(manual_snipe: bool) -> eyre::Result<()> {
+pub async fn pumpfun_sniper(manual_snipe: bool, route: SniperRoute) -> eyre::Result<()> {
     let args = match load_settings().await {
         Ok(args) => args,
         Err(e) => {
@@ -108,16 +111,13 @@ pub async fn pumpfun_sniper(manual_snipe: bool) -> eyre::Result<()> {
         wallet: args.payer_keypair.clone(),
     };
 
-    let _ = match grpc_pair_sub(
-        mev_ape,
-        args,
-        manual_snipe,
-        token,
-        PUMPFUN_CONTRACT.into(),
-        SniperRoute::PumpFun,
-    )
-    .await
-    {
+    let contract = if route == SniperRoute::PumpFun {
+        PUMPFUN_CONTRACT
+    } else {
+        RAYDIUM_AMM_FEE_COLLECTOR
+    };
+
+    let _ = match grpc_pair_sub(mev_ape, args, manual_snipe, token, contract.into(), route).await {
         Ok(_) => info!("Transaction Sent"),
         Err(e) => error!("{}", e),
     };
@@ -188,6 +188,12 @@ pub async fn pumpfun_parser(
 
     let signature = bs58::encode(&info.signature).into_string();
 
+    if manual_snipe && accounts[1] != base_mint {
+        return Ok(());
+    } else if manual_snipe && accounts[1] == base_mint {
+        let _ = subscribe_tx.close().await;
+    }
+
     info!(
         "Transaction: {}\nCoin: {:?}\nMaker: {}\nMint: {}",
         &signature.to_string(),
@@ -195,12 +201,6 @@ pub async fn pumpfun_parser(
         accounts[0],
         accounts[1]
     );
-
-    if manual_snipe && accounts[1] != base_mint {
-        return Ok(());
-    } else if manual_snipe && accounts[1] == base_mint {
-        let _ = subscribe_tx.close().await;
-    }
 
     let wallet = Keypair::from_base58_string(&mev_ape.wallet);
 

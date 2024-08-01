@@ -22,9 +22,7 @@ use std::mem::size_of;
 
 use crate::raydium_amm::{
     swap::instructions::SOLC_MINT,
-    utils::utils::{
-        program_address, LIQUIDITY_STATE_LAYOUT_V4, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT,
-    },
+    utils::utils::{program_address, LIQUIDITY_STATE_LAYOUT_V4},
 };
 
 use super::error::AmmError;

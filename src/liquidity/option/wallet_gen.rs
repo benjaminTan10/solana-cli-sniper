@@ -6,7 +6,10 @@ use serde_json::Value;
 use solana_sdk::signature::Keypair;
 use spl_associated_token_account::get_associated_token_address;
 
-use crate::{app::theme, raydium_amm::swap::instructions::SOLC_MINT};
+use crate::{
+    app::{theme, wallets},
+    raydium_amm::swap::instructions::SOLC_MINT,
+};
 
 pub fn generate_wallets(count: i32) -> Vec<String> {
     let mut wallet: Vec<Keypair> = vec![];
@@ -135,4 +138,45 @@ pub async fn list_folders() -> Result<(String, Vec<Keypair>), Box<dyn Error>> {
     });
 
     Ok((selected_option.clone(), wallets))
+}
+
+pub async fn list_json_wallets() -> Result<Vec<Keypair>, Box<dyn Error>> {
+    let paths = fs::read_dir(".")?;
+
+    let mut json_files = Vec::new();
+    for path in paths {
+        let path = path?.path();
+        if path.extension().and_then(|s| s.to_str()) == Some("json") {
+            json_files.push(path.file_name().unwrap().to_str().unwrap().to_string());
+        }
+    }
+
+    let mut select = Select::new("Mint Keypair")
+        .description("Select the Mint Keypair - json")
+        .filterable(true);
+
+    for json_file in &json_files {
+        select = select.option(DemandOption::new(json_file).label(json_file));
+    }
+
+    let selected_option = select.run()?;
+
+    let mut wallets = Vec::new();
+    let json_str = fs::read_to_string(selected_option)?;
+    let json_value: Value = serde_json::from_str(&json_str)?;
+    if let Some(keypair_bytes) = json_value.as_array() {
+        let keypair_bytes: Vec<u8> = keypair_bytes
+            .iter()
+            .filter_map(|v| v.as_u64().map(|u| u as u8))
+            .collect();
+
+        if let Ok(keypair) = Keypair::from_bytes(&keypair_bytes) {
+            wallets.push(keypair);
+        } else {
+            eprintln!("Failed to create Keypair from bytes");
+        }
+    } else {
+        eprintln!("Keypair bytes not found in JSON");
+    }
+    Ok(wallets)
 }

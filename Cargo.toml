@@ -82,7 +82,6 @@ http = "1.0.0"
 thiserror = "1.0.29"
 bytes = "1.5.0"
 
-clap = { version = "4.3.0", features = ["derive"] }
 bs58 = "0.4.0"
 chrono = "0.4.19"
 
@@ -102,6 +101,12 @@ borsh = { version = "^0.10" }
 #anchor
 anchor-client = "0.29.0"
 anchor-lang = "0.29.0"
+rand_chacha = "0.3.1"
+num_cpus = "1.16.0"
+webbrowser = "1.0.1"
+tiny-bip39 = "0.8.2"
+clap = { version = "3.2.23", features = ["cargo"] }
+rpassword = "7.3.1"
 
 [workspace]
 members = [

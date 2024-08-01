@@ -607,9 +607,9 @@ pub async fn unwrap_sol(deployer: bool) -> Result<(), Box<dyn std::error::Error>
     let mut keypairs: Vec<Keypair> = Vec::new();
 
     if deployer {
-        let mintor_settings = load_minter_settings().await?;
-        let buyer_wallet = Keypair::from_base58_string(&mintor_settings.buyer_key);
-        let deployer_wallet = Keypair::from_base58_string(&mintor_settings.deployer_key);
+        let bundler_settings = load_minter_settings().await?;
+        let buyer_wallet = Keypair::from_base58_string(&bundler_settings.buyer_key);
+        let deployer_wallet = Keypair::from_base58_string(&bundler_settings.deployer_key);
         keypairs.push(buyer_wallet);
         keypairs.push(deployer_wallet);
     } else {

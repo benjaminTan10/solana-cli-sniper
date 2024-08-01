@@ -44,13 +44,12 @@ fn read_keypair_file(s: &str) -> Result<Keypair> {
         .map_err(|_| format_err!("failed to read keypair from {}", s))
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug)]
 pub struct Opts {
-    #[clap(subcommand)]
     pub command: RaydiumCpCommands,
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug)]
 pub enum RaydiumCpCommands {
     SwapBaseIn {
         pool_id: Pubkey,

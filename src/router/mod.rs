@@ -15,7 +15,7 @@ use crate::{
     env::EngineSettings,
     moonshot::sniper::moonshot_parser,
     plugins::yellowstone_plugin::lib::GeyserGrpcClient,
-    pumpfun::sniper::pumpfun_parser,
+    pumpfun::{migration_sniper::pumpfun_migration_snipe_parser, sniper::pumpfun_parser},
     raydium_amm::swap::raydium_amm_sniper::{clear_previous_line, raydium_sniper_parser},
 };
 
@@ -24,6 +24,7 @@ pub enum SniperRoute {
     RaydiumAMM,
     RaydiumCPMM,
     PumpFun,
+    PumpFunMigration,
     MoonShot,
 }
 
@@ -90,6 +91,23 @@ pub async fn grpc_pair_sub(
                         if route == SniperRoute::RaydiumAMM {
                             let tx = tx.clone();
                             let _ = match raydium_sniper_parser(
+                                rpc_client.clone(),
+                                tx,
+                                manual_snipe,
+                                base_mint,
+                                mev_ape.clone(),
+                                subscribe_tx,
+                            )
+                            .await
+                            {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    error!("Error: {:?}", e);
+                                }
+                            };
+                        } else if route == SniperRoute::PumpFunMigration {
+                            let tx = tx.clone();
+                            let _ = match pumpfun_migration_snipe_parser(
                                 rpc_client.clone(),
                                 tx,
                                 manual_snipe,

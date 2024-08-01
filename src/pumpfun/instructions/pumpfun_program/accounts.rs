@@ -84,4 +84,22 @@ impl BondingCurveAccount {
         self.serialize(&mut data)?;
         Ok(data)
     }
+
+    pub fn new(
+        virtual_token_reserves: u64,
+        virtual_sol_reserves: u64,
+        real_token_reserves: u64,
+        real_sol_reserves: u64,
+        token_total_supply: u64,
+        complete: bool,
+    ) -> Self {
+        Self(BondingCurve {
+            virtual_token_reserves,
+            virtual_sol_reserves,
+            real_token_reserves,
+            real_sol_reserves,
+            token_total_supply,
+            complete,
+        })
+    }
 }

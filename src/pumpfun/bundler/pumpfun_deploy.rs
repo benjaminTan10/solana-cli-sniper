@@ -4,7 +4,6 @@ use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
 use solana_sdk::{
     message::{v0::Message, VersionedMessage},
-    native_token::sol_to_lamports,
     signature::Keypair,
     signer::Signer,
     system_instruction,
@@ -18,77 +17,85 @@ use spl_token::instruction::sync_native;
 
 use crate::{
     env::{load_settings, minter::load_minter_settings},
-    liquidity::freeze_authority::freeze_sells,
-    raydium_amm::swap::{
-        instructions::{SOLC_MINT, TAX_ACCOUNT},
-        swapper::auth_keypair,
+    liquidity::{
+        option::wallet_gen::list_json_wallets,
+        utils::{tip_account, tip_txn},
     },
+    pumpfun::instructions::{
+        instructions::{generate_pump_multi_buy_ix, GLOBAL_STATE},
+        pumpfun_program::{accounts::GlobalAccount, instructions::CreateIxArgs},
+    },
+    raydium_amm::swap::{instructions::SOLC_MINT, swapper::auth_keypair},
     rpc::HTTP_CLIENT,
     user_inputs::amounts::{bundle_priority_tip, sol_amount},
 };
 
-use super::{
-    option::wallet_gen::list_folders,
-    pool_27::PoolDeployResponse,
-    pool_ixs::pool_ixs,
-    swap_ixs::{load_pool_keys, swap_ixs},
-    utils::{tip_account, tip_txn},
-};
+use super::{create_metadata::metadata_json, ix_accounts::token_create_ix};
 
-pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
+pub async fn one_pumpfun_deploy() -> eyre::Result<()> {
     let connection = {
         let http_client = HTTP_CLIENT.lock().unwrap();
         http_client.get("http_client").unwrap().clone()
     };
-    let bundle_tip = bundle_priority_tip().await;
+
+    let mint = match list_json_wallets().await {
+        Ok(wallets) => wallets,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            return Ok(());
+        }
+    };
 
     let mut server_data = load_minter_settings().await?;
     let engine = load_settings().await?;
     let deployer_key = Keypair::from_base58_string(&server_data.deployer_key);
-    let buyer_key = Keypair::from_base58_string(&server_data.buyer_key);
-    let buy_amount = sol_amount("Wallet Buy Amount:").await;
+    let buyer_key = Arc::new(Keypair::from_base58_string(&server_data.buyer_key));
 
-    // let (_, mut wallets) = match list_folders().await {
-    //     Ok(wallets) => wallets,
-    //     Err(e) => {
-    //         panic!("Error: {}", e)
-    //     }
-    // };
+    let create_metadata = match metadata_json().await {
+        Ok(metadata) => metadata,
+        Err(e) => {
+            eprintln!("Error creating metadata: {}", e);
+            return Ok(());
+        }
+    };
+
+    let args = CreateIxArgs {
+        name: create_metadata.name,
+        symbol: create_metadata.symbol,
+        uri: create_metadata.image,
+    };
+    let buy_amount = sol_amount("Wallet Buy Amount:").await;
+    let bundle_tip = bundle_priority_tip().await;
+
+    println!("Bundle Tip: {}", bundle_tip);
 
     let mut bundle_txn = vec![];
 
-    // -------------------Pool Creation Instructions--------------------------
-    let (create_pool_ixs, amm_pool, amm_keys) = match pool_ixs(server_data.clone()).await {
-        Ok(ixs) => ixs,
-        Err(e) => {
-            eprintln!("Error creating pool IXs: {}", e);
-            return Err(e);
-        }
-    };
+    //-------------------Pool Creation Instructions--------------------------
+    let create_ixs = token_create_ix(mint[0].pubkey(), deployer_key.pubkey(), args);
 
     let versioned_msg = VersionedMessage::V0(
         Message::try_compile(
             &deployer_key.pubkey(),
-            &create_pool_ixs[0..3],
+            &create_ixs,
             &[],
             connection.get_latest_blockhash().await?,
         )
         .unwrap(),
     );
 
-    let pool_create_tx = match VersionedTransaction::try_new(versioned_msg, &[&deployer_key]) {
-        Ok(tx) => tx,
-        Err(e) => {
-            eprintln!("Error creating pool transaction: {}", e);
-            return Err(e.into());
-        }
-    };
+    let pool_create_tx =
+        match VersionedTransaction::try_new(versioned_msg, &[&deployer_key, &mint[0]]) {
+            Ok(tx) => tx,
+            Err(e) => {
+                eprintln!("Error creating pool transaction: {}", e);
+                return Err(e.into());
+            }
+        };
 
     bundle_txn.push(pool_create_tx);
 
     // -------------------Pool Keys------------------------------------------
-    let market_keys = load_pool_keys(amm_pool, amm_keys).await?;
-
     let user_token_source = get_associated_token_address(&buyer_key.pubkey(), &SOLC_MINT);
 
     let create_source = create_associated_token_account_idempotent(
@@ -111,31 +118,40 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
     let create_destination = create_associated_token_account(
         &buyer_key.pubkey(),
         &buyer_key.pubkey(),
-        &amm_keys.amm_coin_mint,
+        &mint[0].pubkey(),
         &spl_token::id(),
     );
+    let account_data = connection.get_account_data(&GLOBAL_STATE).await?;
 
-    let swap_ixs = swap_ixs(
-        server_data.clone(),
-        amm_keys,
-        market_keys.clone(),
-        &buyer_key,
+    let sliced_data: &mut &[u8] = &mut account_data.as_slice();
+
+    let reserves = GlobalAccount::deserialize(sliced_data)?.0;
+
+    let reserves_tuple: (u128, u128, u128) = (
+        reserves.initial_virtual_sol_reserves as u128,
+        reserves.initial_virtual_token_reserves as u128,
+        reserves.initial_real_token_reserves as u128,
+    );
+
+    let swap_ixs = generate_pump_multi_buy_ix(
+        connection.clone(),
+        mint[0].pubkey(),
         buy_amount,
-        false,
-        user_token_source,
+        buyer_key.clone(),
+        reserves_tuple,
     )
+    .await
     .unwrap();
+
+    let mut instructions = vec![create_source, transfer, sync_native, create_destination];
+
+    // Append all instructions from swap_ixs
+    instructions.extend(swap_ixs);
 
     let versioned_msg = VersionedMessage::V0(
         Message::try_compile(
             &buyer_key.pubkey(),
-            &[
-                create_source,
-                transfer,
-                sync_native,
-                create_destination,
-                swap_ixs,
-            ],
+            &instructions,
             &[],
             connection.get_latest_blockhash().await?,
         )
@@ -154,12 +170,12 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
 
     let jito_txn = tip_txn(deployer_key.pubkey(), tip_account(), bundle_tip);
 
-    let tax_txn = tip_txn(deployer_key.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.25));
+    // let tax_txn = tip_txn(deployer_key.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.25));
 
     let versioned_msg = VersionedMessage::V0(
         Message::try_compile(
             &deployer_key.pubkey(),
-            &[tax_txn, jito_txn],
+            &[jito_txn],
             &[],
             connection.get_latest_blockhash().await?,
         )
@@ -185,22 +201,13 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
         .expect("subscribe to bundle results")
         .into_inner();
 
-    // wallets.push(deployer_key);
-    // wallets.push(buyer_key);
-
-    // let mut associated_accounts = vec![];
-    // wallets.iter().for_each(|wallet| {
-    //     associated_accounts.push(get_associated_token_address(
-    //         &wallet.pubkey(),
-    //         &amm_keys.amm_coin_mint,
-    //     ));
-    // });
-
-    // let client_clone = client.clone();
-    // tokio::spawn(async move {
-    //     log::info!("Account Freeze Thread Activated!");
-    //     let _ = freeze_sells(Arc::new(associated_accounts), client_clone).await;
-    // });
+    println!(
+        "Signatures: {:?}",
+        bundle_txn
+            .iter()
+            .map(|x| x.signatures[0])
+            .collect::<Vec<_>>()
+    );
 
     let _ = match send_bundle_with_confirmation(
         &bundle_txn,
@@ -216,12 +223,9 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
         }
     };
 
-    server_data.pool_id = amm_pool.to_string();
+    server_data.pool_id = mint[0].pubkey().to_string();
     let mut file = File::create("bundler_settings.json").unwrap();
     file.write_all(serde_json::to_string(&server_data)?.as_bytes())?;
 
-    Ok(PoolDeployResponse {
-        wallets: vec![],
-        amm_pool,
-    })
+    Ok(())
 }
