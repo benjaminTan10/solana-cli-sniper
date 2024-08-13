@@ -21,7 +21,9 @@ use solana_sdk::{
     signer::Signer,
     transaction::{Transaction, VersionedTransaction},
 };
-use spl_associated_token_account::get_associated_token_address;
+use spl_associated_token_account::{
+    get_associated_token_address, instruction::create_associated_token_account_idempotent,
+};
 use spl_token_client::token;
 
 pub async fn pump_swap(
@@ -78,16 +80,28 @@ pub async fn pump_swap(
 
     let tip_account = tip_account();
 
-    let swap_instructions: Vec<solana_sdk::instruction::Instruction>;
+    let mut swap_instructions = vec![];
+
+    let create_account = create_associated_token_account_idempotent(
+        &wallet.pubkey(),
+        &wallet.pubkey(),
+        &token_address,
+        &spl_token::id(),
+    );
+
+    swap_instructions.push(create_account);
+
     if direction == PumpFunDirection::Buy {
-        swap_instructions =
+        let buy_ix =
             generate_pump_buy_ix(rpc_client.clone(), token_address, amount, wallet.clone())
                 .await
                 .unwrap();
+        swap_instructions.extend(buy_ix);
     } else {
-        swap_instructions = generate_pump_sell_ix(token_address, amount, wallet.clone())
+        let sell_ix = generate_pump_sell_ix(token_address, amount, wallet.clone())
             .await
             .unwrap();
+        swap_instructions.extend(sell_ix);
     }
 
     let config = CommitmentLevel::Finalized;

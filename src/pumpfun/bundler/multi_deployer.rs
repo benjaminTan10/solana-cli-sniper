@@ -95,6 +95,7 @@ pub async fn multi_wallet_token() -> eyre::Result<()> {
 
     let token_ixs = token_create_ix(mint[0].pubkey(), deployer_key.pubkey(), args);
 
+    data.token_mint = mint[0].pubkey().to_string();
     let mut file = std::fs::File::create("bundler_settings.json").unwrap();
     file.write_all(serde_json::to_string(&data)?.as_bytes())?;
 

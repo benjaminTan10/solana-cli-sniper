@@ -51,6 +51,10 @@ pub async fn one_pumpfun_deploy() -> eyre::Result<()> {
     let deployer_key = Keypair::from_base58_string(&server_data.deployer_key);
     let buyer_key = Arc::new(Keypair::from_base58_string(&server_data.buyer_key));
 
+    server_data.token_mint = mint[0].pubkey().to_string();
+    let mut file = File::create("bundler_settings.json").unwrap();
+    file.write_all(serde_json::to_string(&server_data)?.as_bytes())?;
+
     let create_metadata = match metadata_json().await {
         Ok(metadata) => metadata,
         Err(e) => {
