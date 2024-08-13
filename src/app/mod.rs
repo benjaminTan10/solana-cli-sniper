@@ -112,15 +112,15 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
         .option(DemandOption::new("RaydiumCPMM").label("▪ Raydium CPMM Mode"))
         .option(DemandOption::new("PumpFun").label("▪ PumpFun Mode"))
         .option(DemandOption::new("MoonShot").label("▪ MoonShot Mode"))
-        .option(DemandOption::new("RayAMMBundlerMode").label("▪ Raydium Bundler Mode"))
-        .option(DemandOption::new("PumpBundlerMode").label("▪ PumpFun Bundler Mode"))
-        .option(DemandOption::new("Generate Volume").label("▪ Volume Mode"))
-        .option(DemandOption::new("Wrap Sol Mode").label("📦 Wrap SOL"))
-        .option(DemandOption::new("Unwrap Sol Mode").label("🪤  Unwrap SOL"))
-        .option(DemandOption::new("Freeze Authority").label("❄️  Freeze Authority"))
-        .option(DemandOption::new("Wallet Details").label("🍄 Wallet Details"))
-        .option(DemandOption::new("deployerdetails").label("🧨 Deployer Wallet Details"))
-        .option(DemandOption::new("folder_deployerdetails").label("🗃️  Folder Wallet Details"));
+        // .option(DemandOption::new("RayAMMBundlerMode").label("▪ Raydium Bundler Mode"))
+        // .option(DemandOption::new("PumpBundlerMode").label("▪ PumpFun Bundler Mode"))
+        // .option(DemandOption::new("Generate Volume").label("▪ Volume Mode"))
+        // .option(DemandOption::new("Wrap Sol Mode").label("📦 Wrap SOL"))
+        // .option(DemandOption::new("Unwrap Sol Mode").label("🪤  Unwrap SOL"))
+        // .option(DemandOption::new("Freeze Authority").label("❄️  Freeze Authority"))
+        .option(DemandOption::new("Wallet Details").label("🍄 Wallet Details"));
+    // .option(DemandOption::new("deployerdetails").label("🧨 Deployer Wallet Details"))
+    // .option(DemandOption::new("folder_deployerdetails").label("🗃️  Folder Wallet Details"))
 
     let selected_option = ms.run().expect("error running select");
 
