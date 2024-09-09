@@ -10,9 +10,7 @@ use raydium_cp_swap::{
     states::{AMM_CONFIG_SEED, OBSERVATION_SEED, POOL_LP_MINT_SEED, POOL_SEED, POOL_VAULT_SEED},
     AUTH_SEED,
 };
-use spl_associated_token_account::instruction;
 use std::rc::Rc;
-use std::sync::Arc;
 
 use crate::raydium_cpmm::cpmm_builder::ClientConfig;
 use crate::raydium_cpmm::cpmm_instructions::{
@@ -141,6 +139,24 @@ pub fn swap_base_input_instr(
     minimum_amount_out: u64,
 ) -> Result<Vec<Instruction>> {
     let (authority, __bump) = Pubkey::find_program_address(&[AUTH_SEED.as_bytes()], &RAYDIUM_CPMM);
+
+    //print all pubkeys
+    println!("Payer: {:?}", payer);
+    println!("Authority: {:?}", authority);
+    println!("Pool ID: {:?}", pool_id);
+    println!("AMM Config: {:?}", amm_config);
+    println!("Observation Account: {:?}", observation_account);
+    println!("Input Token Account: {:?}", input_token_account);
+    println!("Output Token Account: {:?}", output_token_account);
+    println!("Input Vault: {:?}", input_vault);
+    println!("Output Vault: {:?}", output_vault);
+    println!("Input Token Mint: {:?}", input_token_mint);
+    println!("Output Token Mint: {:?}", output_token_mint);
+    println!("Input Token Program: {:?}", input_token_program);
+    println!("Output Token Program: {:?}", output_token_program);
+
+    println!("Amount In: {:?}", amount_in);
+    println!("Minimum Amount Out: {:?}", minimum_amount_out);
 
     let instructions = swap_base_input_ix_with_program_id(
         RAYDIUM_CPMM,

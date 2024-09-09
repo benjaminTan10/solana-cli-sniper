@@ -1,1 +1,21 @@
-{"USERNAME":"taimurey","LICENSE-KEY":"MEVARIK-Rd7XVb-44hTPV-E9o9yB-JXRthj","SIGNER-PRIVATE-KEY":"38zBTJw9j3o8wVnpKPpNkGCForszygNcqRQg4BELuivA3eVFKMMV9nAybe4yVqhnkiRbfnPJnTrQKp1fv1Z8gLj8","WEBSOCKET-URL":"wss://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667","RPC-URL":"https://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667","YELLOWSTONE-GRPC-URL":"http://185.209.179.229:10000","BLOCK-ENGINE-URL":"https://ny.mainnet.block-engine.jito.wtf","USE-BUNDLES":true,"SPAM":false,"SPAM-COUNT":15,"SLIPPAGE":false}
+{
+  "USERNAME": "taimurey",
+  "LICENSE-KEY": "MEVARIK-Rd7XVb-44hTPV-E9o9yB-JXRthj",
+  "SIGNER-PRIVATE-KEY": "38zBTJw9j3o8wVnpKPpNkGCForszygNcqRQg4BELuivA3eVFKMMV9nAybe4yVqhnkiRbfnPJnTrQKp1fv1Z8gLj8",
+  "WEBSOCKET-URL": "wss://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667",
+  "RPC-URL": "http://160.202.128.179:8899",
+  "YELLOWSTONE-GRPC-URL": "http://160.202.128.179:10000",
+  "BLOCK-ENGINE-URL": "https://ny.mainnet.block-engine.jito.wtf",
+  "USE-BUNDLES": false,
+  "SPAM": false,
+  "SPAM-COUNT": 15,
+  "SLIPPAGE": false,
+  "Bundle-Tip": 0.0001,
+  "COPYTRADE-ACCOUNTS": [
+    "5iywveQKkidqPDKt2CExJcWKex2EXz9kbGcYiZvhuXWs",
+    "EP7bbErAipyxFqibUDwkPNrwcsN7zNPoz7o5EoNQM9qd",
+    "AZ1wHjhG1v2r87HGKNPcH3sAouAPRVE7W3jpSMzP9Sje",
+    "3gpEqHucCshdReaJ6Heu9afEKT17KpCe5oafKVshBvhN",
+    "9yMwSPk9mrXSN7yDHUuZurAh1sjbJsfpUqjZ7SvVtdco"
+  ]
+}

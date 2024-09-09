@@ -15,7 +15,7 @@ use solana_sdk::{
 
 use crate::{
     env::{
-        load_settings,
+        load_config,
         minter::{load_minter_settings, PoolDataSettings},
     },
     liquidity::{
@@ -41,7 +41,7 @@ pub async fn withdraw_sol() -> Result<(), Box<dyn Error + Send>> {
         }
     };
 
-    let settings = match load_settings().await {
+    let settings = match load_config().await {
         Ok(settings) => settings,
         Err(e) => {
             eprintln!("Error: {}", e);
@@ -50,7 +50,7 @@ pub async fn withdraw_sol() -> Result<(), Box<dyn Error + Send>> {
     };
 
     let mut client =
-        match get_searcher_client(&settings.block_engine_url, &Arc::new(auth_keypair())).await {
+        match get_searcher_client(&settings.network.block_engine_url, &Arc::new(auth_keypair())).await {
             Ok(client) => client,
             Err(e) => {
                 eprintln!("Error: {}", e);

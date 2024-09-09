@@ -19,7 +19,7 @@ use solana_sdk::{
 use spl_token::instruction::initialize_account;
 
 use crate::{
-    env::{load_settings, minter::load_minter_settings},
+    env::{load_config, minter::load_minter_settings},
     instruction::instruction::{
         get_keys_for_market, load_amm_keys, withdraw, AmmKeys, MarketPubkeys,
     },
@@ -44,7 +44,7 @@ pub async fn remove_liquidity() -> eyre::Result<()> {
             return Ok(());
         }
     };
-    let engine = load_settings().await?;
+    let engine = load_config().await?;
     let mut pool_id = Pubkey::from_str(&data.pool_id)?;
     if data.pool_id.is_empty() {
         pool_id = token_env("Pool ID: ").await;
@@ -159,7 +159,7 @@ pub async fn remove_liquidity() -> eyre::Result<()> {
     let tx = VersionedTransaction::try_new(versioned_msg, &[&wallet])?;
 
     let mut searcher_client =
-        get_searcher_client(&engine.block_engine_url, &Arc::new(auth_keypair())).await?;
+        get_searcher_client(&engine.network.block_engine_url, &Arc::new(auth_keypair())).await?;
 
     let mut bundle_results_subscription = searcher_client
         .subscribe_bundle_results(SubscribeBundleResultsRequest {})

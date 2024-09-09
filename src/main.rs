@@ -24,7 +24,7 @@ async fn main() {
             let mut style = f.style();
             style.set_color(color).set_bold(true);
 
-            let timestamp = Local::now().format("%I:%M:%S %p");
+            let timestamp = Local::now().format("%I:%M:%S%.3f %p");
 
             writeln!(
                 f,
@@ -39,7 +39,7 @@ async fn main() {
 
     println!("{esc}[2J{esc}[1;1H", esc = 27 as char);
     println!("{}", embed());
-    info!("Authenticating...");
+    // info!("Authenticating...");
 
     // let _ = match Mevarik::auth::auth_verification().await {
     //     Ok(_) => {

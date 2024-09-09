@@ -5,7 +5,7 @@ use solana_sdk::signature::Keypair;
 
 use crate::{
     app::{app, theme},
-    env::load_settings,
+    env::load_config,
 };
 
 use super::{
@@ -57,7 +57,7 @@ pub async fn pump_main() -> Result<(), Box<dyn Error + Send>> {
 }
 
 pub async fn pump_swap_in() -> eyre::Result<()> {
-    let settings = match load_settings().await {
+    let settings = match load_config().await {
         Ok(s) => s,
         Err(e) => {
             log::error!("Error: {}", e);
@@ -65,7 +65,7 @@ pub async fn pump_swap_in() -> eyre::Result<()> {
         }
     };
 
-    let wallet = Keypair::from_base58_string(&settings.payer_keypair);
+    let wallet = Keypair::from_base58_string(&settings.engine.payer_keypair);
 
     match pump_swap(&Arc::new(wallet), settings, PumpFunDirection::Buy).await {
         Ok(s) => s,
@@ -79,7 +79,7 @@ pub async fn pump_swap_in() -> eyre::Result<()> {
 }
 
 pub async fn pump_swap_out() -> eyre::Result<()> {
-    let settings = match load_settings().await {
+    let settings = match load_config().await {
         Ok(s) => s,
         Err(e) => {
             log::error!("Error: {}", e);
@@ -87,7 +87,7 @@ pub async fn pump_swap_out() -> eyre::Result<()> {
         }
     };
 
-    let wallet = Keypair::from_base58_string(&settings.payer_keypair);
+    let wallet = Keypair::from_base58_string(&settings.engine.payer_keypair);
 
     match pump_swap(&Arc::new(wallet), settings, PumpFunDirection::Sell).await {
         Ok(s) => s,

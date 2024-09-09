@@ -1,27 +1,17 @@
-use std::{env::args, sync::Arc};
+use std::sync::Arc;
 
-use borsh::BorshDeserialize;
 use colorize::AnsiColor;
 use crossterm::style::Stylize;
-use futures::{channel::mpsc::SendError, Sink, SinkExt};
+use futures::{channel::mpsc::SendError, Sink};
 use log::{error, info};
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::{
-    pubkey::Pubkey,
-    signature::{Keypair, Signature},
-};
+use solana_sdk::{pubkey::Pubkey, signature::Keypair};
 use yellowstone_grpc_proto::geyser::{SubscribeRequest, SubscribeUpdateTransaction};
 
 use crate::{
     app::MevApe,
-    env::{load_settings, EngineSettings},
-    pumpfun::{
-        instructions::{
-            instructions::PumpFunDirection,
-            pumpfun_program::instructions::{CreateIxArgs, CreateIxData},
-        },
-        pump_swap_in::pump_swap,
-    },
+    env::{load_config, EngineSettings, SettingsConfig},
+    pumpfun::instructions::pumpfun_program::instructions::CreateIxData,
     raydium_amm::{
         subscribe::auto_sniper_stream,
         swap::{
@@ -39,7 +29,7 @@ use crate::{
 pub const PUMPFUN_CONTRACT: &str = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
 
 pub async fn pumpfun_sniper(manual_snipe: bool, route: SniperRoute) -> eyre::Result<()> {
-    let args = match load_settings().await {
+    let args = match load_config().await {
         Ok(args) => args,
         Err(e) => {
             error!("Error: {:?}", e);
@@ -47,18 +37,18 @@ pub async fn pumpfun_sniper(manual_snipe: bool, route: SniperRoute) -> eyre::Res
         }
     };
 
-    if args.grpc_url.is_empty() {
+    if args.network.grpc_url.is_empty() {
         let _ = auto_sniper_stream(manual_snipe).await?;
         return Ok(());
     }
     let sol_amount = sol_amount("Snipe Amount:").await;
 
-    let mut token = Pubkey::default();
+    let token;
 
     let mut bundle_tip = 0;
-    let mut priority_fee_value = 0;
+    let priority_fee_value;
 
-    if args.use_bundles {
+    if args.engine.use_bundles {
         priority_fee_value = priority_fee().await;
         bundle_tip = bundle_priority_tip().await;
     } else {
@@ -66,9 +56,9 @@ pub async fn pumpfun_sniper(manual_snipe: bool, route: SniperRoute) -> eyre::Res
     }
 
     if manual_snipe {
-        token = token_env("Base Mint").await;
+        token = Some(token_env("Base Mint").await);
 
-        let (token, data) = mpl_token_metadata::accounts::Metadata::find_pda(&token);
+        let (token, data) = mpl_token_metadata::accounts::Metadata::find_pda(&token.unwrap());
         let metadata = match decode_metadata(&token).await {
             Ok(metadata) => Some(metadata),
             Err(e) => {
@@ -94,7 +84,7 @@ pub async fn pumpfun_sniper(manual_snipe: bool, route: SniperRoute) -> eyre::Res
 
         info!("Listening for the Launch...")
     } else {
-        token = Pubkey::default();
+        token = None;
     }
 
     // let wallet = private_key_env().await?;
@@ -108,7 +98,7 @@ pub async fn pumpfun_sniper(manual_snipe: bool, route: SniperRoute) -> eyre::Res
         sol_amount,
         fee: fees,
         // bundle_tip,
-        wallet: args.payer_keypair.clone(),
+        wallet: args.engine.payer_keypair.clone(),
     };
 
     let contract = if route == SniperRoute::PumpFun {
@@ -127,10 +117,10 @@ pub async fn pumpfun_sniper(manual_snipe: bool, route: SniperRoute) -> eyre::Res
 
 pub async fn pumpfun_parser(
     rpc_client: Arc<RpcClient>,
-    args: EngineSettings,
+    args: SettingsConfig,
     tx: SubscribeUpdateTransaction,
     manual_snipe: bool,
-    base_mint: Pubkey,
+    base_mint: Option<Pubkey>,
     mev_ape: Arc<MevApe>,
     mut subscribe_tx: tokio::sync::MutexGuard<
         '_,
@@ -188,10 +178,10 @@ pub async fn pumpfun_parser(
 
     let signature = bs58::encode(&info.signature).into_string();
 
-    if manual_snipe && accounts[1] != base_mint {
-        return Ok(());
-    } else if manual_snipe && accounts[1] == base_mint {
-        let _ = subscribe_tx.close().await;
+    if base_mint.is_some() {
+        if accounts[1] != base_mint.unwrap() {
+            return Ok(());
+        }
     }
 
     info!(
@@ -204,13 +194,13 @@ pub async fn pumpfun_parser(
 
     let wallet = Keypair::from_base58_string(&mev_ape.wallet);
 
-    match pump_swap(&Arc::new(wallet), args, PumpFunDirection::Buy).await {
-        Ok(s) => s,
-        Err(e) => {
-            log::error!("Error: {}", e);
-            return Ok(());
-        }
-    };
+    // match pump_swap(&Arc::new(wallet), args, PumpFunDirection::Buy).await {
+    //     Ok(s) => s,
+    //     Err(e) => {
+    //         log::error!("Error: {}", e);
+    //         return Ok(());
+    //     }
+    // };
 
     Ok(())
 }

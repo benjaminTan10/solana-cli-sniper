@@ -2,8 +2,7 @@ use {
     super::raydium_swap_in::raydium_in,
     crate::{
         app::MevApe,
-        env::{load_settings, EngineSettings},
-        plugins::yellowstone_plugin::lib::GeyserGrpcClient,
+        env::load_config,
         raydium_amm::{
             sniper::utils::{market_authority, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT},
             subscribe::PoolKeysSniper,
@@ -13,26 +12,21 @@ use {
     chrono::{LocalResult, TimeZone, Utc},
     colorize::AnsiColor,
     crossterm::style::Stylize,
-    futures::{channel::mpsc::SendError, lock::MutexGuard, sink::SinkExt, stream::StreamExt, Sink},
+    futures::{channel::mpsc::SendError, sink::SinkExt, Sink},
     log::{error, info, warn},
-    maplit::hashmap,
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_program::pubkey::Pubkey,
-    solana_sdk::signature::Keypair,
+    solana_sdk::{program_pack::Pack, signature::Keypair},
+    spl_token::state::Mint,
     std::{
-        collections::HashMap,
         io::{self, Write},
-        str::FromStr,
-        sync::{Arc, Mutex},
+        sync::Arc,
         time::{Duration, SystemTime, UNIX_EPOCH},
     },
-    tokio::{sync::mpsc::channel, time::sleep},
+    tokio::time::sleep,
     yellowstone_grpc_proto::{
         geyser::SubscribeUpdateTransaction,
-        prelude::{
-            subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
-            SubscribeRequestFilterBlocksMeta, SubscribeRequestFilterTransactions,
-        },
+        prelude::{CommitmentLevel, SubscribeRequest},
         solana::storage::confirmed_block::CompiledInstruction,
     },
 };
@@ -93,7 +87,7 @@ pub async fn raydium_sniper_parser(
     rpc_client: Arc<RpcClient>,
     tx: SubscribeUpdateTransaction,
     manual_snipe: bool,
-    base_mint: Pubkey,
+    base_mint: Option<Pubkey>,
     mev_ape: Arc<MevApe>,
     mut subscribe_tx: tokio::sync::MutexGuard<
         '_,
@@ -154,6 +148,7 @@ pub async fn raydium_sniper_parser(
             0
         }
     };
+    info!("Account Keys: {:#?}", accounts);
 
     let datetime = match Utc.timestamp_opt(open_time_i64, 0) {
         LocalResult::Single(datetime) => datetime,
@@ -194,6 +189,7 @@ pub async fn raydium_sniper_parser(
         if item.data[0] != 1 {
             continue;
         }
+
         let key_index: Vec<u8> = item.accounts.iter().map(|b| *b).collect();
 
         let account_keys = vec![
@@ -201,6 +197,9 @@ pub async fn raydium_sniper_parser(
             accounts[key_index[9] as usize],
             accounts[key_index[16] as usize],
         ];
+
+        println!("Account Keys: {:#?}", account_keys);
+
         let account_infos = match rpc_client.get_multiple_accounts(&account_keys).await {
             Ok(a) => a,
             Err(e) => {
@@ -221,7 +220,6 @@ pub async fn raydium_sniper_parser(
                 }
             },
             None => {
-                error!("Error: {:?}", "No Base Mint Info");
                 return Ok(());
             }
         };
@@ -288,13 +286,30 @@ pub async fn raydium_sniper_parser(
         break;
     }
 
-    if manual_snipe && pool_keys[0].base_mint != base_mint {
-        return Ok(());
-    } else if manual_snipe && pool_keys[0].base_mint == base_mint {
-        let _ = subscribe_tx.close().await;
+    // if manual_snipe && pool_keys[0].base_mint != base_mint {
+    //     return Ok(());
+    // } else if manual_snipe && pool_keys[0].base_mint == base_mint {
+    //     let _ = subscribe_tx.close().await;
+    // }
+
+    if base_mint.is_some() {
+        if pool_keys[0].base_mint != base_mint.unwrap() {
+            return Ok(());
+        }
     }
 
-    let _ = sniper_txn_in_2(pool_keys[0].clone(), open_time, mev_ape, datetime).await;
+    let freeze_check = rpc_client.get_account_data(&pool_keys[0].base_mint).await?;
+
+    let freeze_check = Mint::unpack(&freeze_check).unwrap();
+
+    println!("Freeze Check: {:#?}", freeze_check);
+
+    if freeze_check.freeze_authority.is_some() {
+        info!("Freeze Authority set, skipping transaction");
+        return Ok(());
+    }
+
+    // let _ = sniper_txn_in_2(pool_keys[0].clone(), open_time, mev_ape, datetime).await;
 
     Ok(())
 }
@@ -335,7 +350,7 @@ pub async fn sniper_txn_in_2(
         println!("Open Time: {}", datetime.to_string());
     });
 
-    let args = match load_settings().await {
+    let args = match load_config().await {
         Ok(args) => args,
         Err(e) => {
             error!("Error: {:?}", e);

@@ -1,14 +1,14 @@
 use {
     crate::{
         app::MevApe,
-        instruction::instruction::PoolKeysSniper,
         raydium_amm::{
             sniper::utils::{market_authority, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT},
-            swap::raydium_amm_sniper::RAYDIUM_AMM_V4_PROGRAM_ID,
+            subscribe::PoolKeysSniper,
+            swap::raydium_amm_sniper::{sniper_txn_in_2, RAYDIUM_AMM_V4_PROGRAM_ID},
         },
     },
     chrono::{LocalResult, TimeZone, Utc},
-    futures::{channel::mpsc::SendError, sink::SinkExt, Sink},
+    futures::{channel::mpsc::SendError, Sink},
     log::{error, info, warn},
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_program::pubkey::Pubkey,
@@ -27,7 +27,7 @@ pub async fn pumpfun_migration_snipe_parser(
     rpc_client: Arc<RpcClient>,
     tx: SubscribeUpdateTransaction,
     manual_snipe: bool,
-    base_mint: Pubkey,
+    base_mint: Option<Pubkey>,
     mev_ape: Arc<MevApe>,
     mut subscribe_tx: tokio::sync::MutexGuard<
         '_,
@@ -70,7 +70,8 @@ pub async fn pumpfun_migration_snipe_parser(
         .clone()
         .and_then(|s| s.split("open_time: ").nth(1))
         .and_then(|s| s.split(',').next());
-    info!("Account Keys: {:?}", accounts);
+
+    info!("Account Keys: {:#?}", accounts);
 
     let open_time = match open_time_split {
         Some(time_str) => match time_str.parse::<u64>() {
@@ -136,10 +137,13 @@ pub async fn pumpfun_migration_snipe_parser(
         let key_index: Vec<u8> = item.accounts.iter().map(|b| *b).collect();
 
         let account_keys = vec![
-            accounts[key_index[8] as usize],
             accounts[key_index[9] as usize],
-            accounts[21],
+            accounts[key_index[8] as usize],
+            accounts[accounts.len() - 1],
         ];
+
+        println!("Account Keys: {:#?}", account_keys);
+
         let account_infos = match rpc_client.get_multiple_accounts(&account_keys).await {
             Ok(a) => a,
             Err(e) => {
@@ -149,7 +153,7 @@ pub async fn pumpfun_migration_snipe_parser(
         };
         let base_mint = &account_infos[0];
         let quote_mint = &account_infos[1];
-        let market_info = &account_infos[2];
+        let mut market_info: Option<solana_sdk::account::Account> = None;
 
         let base_mint_info = match base_mint {
             Some(basemintinfo) => match SPL_MINT_LAYOUT::decode(&mut &basemintinfo.data[..]) {
@@ -179,18 +183,32 @@ pub async fn pumpfun_migration_snipe_parser(
             }
         };
 
+        if market_info.is_none() {
+            let info = match rpc_client.get_account(&accounts[accounts.len() - 1]).await {
+                Ok(marketinfo) => Some(marketinfo),
+                Err(e) => {
+                    error!("Error: {:?}", e);
+                    return Ok(());
+                }
+            };
+
+            market_info = info;
+        }
+
         let (market_account, market_info) = match market_info {
             Some(marketinfo) => {
                 let decoded_marketinfo =
                     match MARKET_STATE_LAYOUT_V3::decode(&mut &marketinfo.data[..]) {
                         Ok(marketinfo) => marketinfo,
                         Err(e) => {
+                            error!("Error: {:?}", e);
                             return Ok(());
                         }
                     };
                 (marketinfo, decoded_marketinfo)
             }
             None => {
+                error!("Error: {:?}", "No Market Info");
                 return Ok(());
             }
         };
@@ -224,14 +242,16 @@ pub async fn pumpfun_migration_snipe_parser(
             lookup_table_account: Pubkey::default(),
         });
 
+        println!("Pool Keys: {:#?}", pool_keys[0].base_mint.to_string());
         break;
     }
 
-    if manual_snipe && pool_keys[0].base_mint != base_mint {
-        return Ok(());
-    } else if manual_snipe && pool_keys[0].base_mint == base_mint {
-        let _ = subscribe_tx.close().await;
+    if base_mint.is_some() {
+        if pool_keys[0].base_mint != base_mint.unwrap() {
+            return Ok(());
+        }
     }
+
     let signature = bs58::encode(&info.signature).into_string();
     println!(
         "Transaction: {}\nPool: {:?}\nBaseMint: {}\nMaker: {}",
@@ -241,7 +261,7 @@ pub async fn pumpfun_migration_snipe_parser(
         accounts[0]
     );
 
-    // let _ = sniper_txn_in_2(pool_keys[0].clone(), open_time, mev_ape, datetime).await;
+    let _ = sniper_txn_in_2(pool_keys[0].clone(), open_time, mev_ape, datetime).await;
 
     Ok(())
 }

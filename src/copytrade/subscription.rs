@@ -21,6 +21,7 @@ use yellowstone_grpc_proto::geyser::{
 
 use crate::{
     app::MevApe,
+    copytrade::copytrading_decoder::copy_trade_sub,
     env::{EngineSettings, SettingsConfig},
     moonshot::sniper::moonshot_parser,
     plugins::yellowstone_plugin::lib::GeyserGrpcClient,
@@ -37,13 +38,10 @@ pub enum SniperRoute {
     MoonShot,
 }
 
-pub async fn grpc_pair_sub(
+pub async fn copytrading_grpc(
     mev_ape: MevApe,
     args: SettingsConfig,
-    manual_snipe: bool,
-    base_mint: Option<Pubkey>,
-    contract: String,
-    route: SniperRoute,
+    address: Vec<String>,
 ) -> anyhow::Result<()> {
     // Shared atomic boolean flag to stop the animation
     let stop_animation = Arc::new(AtomicBool::new(false));
@@ -93,9 +91,9 @@ pub async fn grpc_pair_sub(
             accounts: HashMap::new(),
             transactions: hashmap! { "".to_owned() => SubscribeRequestFilterTransactions {
                 vote: Default::default(),
-                failed: Default::default(),
+                failed: Some(false),
                 signature: Default::default(),
-                account_include: [contract].into(),
+                account_include: address.into(),
                 account_exclude: Default::default(),
                 account_required: Default::default(),
             } },
@@ -116,79 +114,24 @@ pub async fn grpc_pair_sub(
         let mev_ape = Arc::clone(&mev_ape);
         let subscribe_tx = Arc::clone(&subscribe_tx);
         let args = args.clone();
-        let route = route.clone();
         tokio::spawn(async move {
             let subscribe_tx = subscribe_tx.lock().await;
             match message {
                 Ok(msg) => match msg.update_oneof {
                     Some(UpdateOneof::Transaction(tx)) => {
-                        if route == SniperRoute::RaydiumAMM {
-                            let tx = tx.clone();
-                            let _ = match raydium_sniper_parser(
-                                rpc_client.clone(),
-                                tx,
-                                manual_snipe,
-                                base_mint,
-                                mev_ape.clone(),
-                                subscribe_tx,
-                            )
-                            .await
-                            {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    error!("Error: {:?}", e);
-                                }
-                            };
-                        } else if route == SniperRoute::PumpFunMigration {
-                            let tx = tx.clone();
-                            let _ = match pumpfun_migration_snipe_parser(
-                                rpc_client.clone(),
-                                tx,
-                                manual_snipe,
-                                base_mint,
-                                mev_ape.clone(),
-                                subscribe_tx,
-                            )
-                            .await
-                            {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    error!("Error: {:?}", e);
-                                }
-                            };
-                        } else if route == SniperRoute::PumpFun {
-                            let _ = match pumpfun_parser(
-                                rpc_client.clone(),
-                                args,
-                                tx,
-                                manual_snipe,
-                                base_mint,
-                                mev_ape.clone(),
-                                subscribe_tx,
-                            )
-                            .await
-                            {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    error!("Error: {:?}", e);
-                                }
-                            };
-                        } else if route == SniperRoute::MoonShot {
-                            let _ = match moonshot_parser(
-                                rpc_client.clone(),
-                                tx,
-                                manual_snipe,
-                                mev_ape.clone(),
-                                subscribe_tx,
-                            )
-                            .await
-                            {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    error!("Error: {:?}", e);
-                                }
-                            };
-                        }
+                        let _ = match copy_trade_sub(
+                            rpc_client.clone(),
+                            tx,
+                            mev_ape.clone(),
+                            subscribe_tx,
+                        )
+                        .await
+                        {
+                            Ok(_) => {}
+                            Err(e) => {
+                                error!("Error: {:?}", e);
+                            }
+                        };
                     }
                     _ => {}
                 },

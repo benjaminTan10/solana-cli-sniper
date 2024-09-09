@@ -4,7 +4,7 @@ use super::instructions::instructions::{
     generate_pump_buy_ix, generate_pump_sell_ix, PumpFunDirection,
 };
 use crate::{
-    env::{utils::read_keys, EngineSettings},
+    env::{utils::read_keys, EngineSettings, SettingsConfig},
     liquidity::{pool_ixs::token_percentage, utils::tip_account},
     raydium_amm::{swap::swapper::auth_keypair, volume_pinger::volume::buy_amount},
     rpc::HTTP_CLIENT,
@@ -28,7 +28,7 @@ use spl_token_client::token;
 
 pub async fn pump_swap(
     wallet: &Arc<Keypair>,
-    args: EngineSettings,
+    args: SettingsConfig,
     direction: PumpFunDirection,
 ) -> eyre::Result<()> {
     let rpc_client = {
@@ -69,14 +69,14 @@ pub async fn pump_swap(
     info!("Tokens Amount: {}", amount);
 
     let mut bundle_tip = 0;
-    if args.use_bundles {
+    if args.engine.use_bundles {
         bundle_tip = bundle_priority_tip().await;
     }
 
     let user_source_owner = wallet.pubkey();
 
     let mut searcher_client =
-        get_searcher_client(&args.block_engine_url, &Arc::new(auth_keypair())).await?;
+        get_searcher_client(&args.network.block_engine_url, &Arc::new(auth_keypair())).await?;
 
     let tip_account = tip_account();
 
@@ -135,7 +135,7 @@ pub async fn pump_swap(
         }
     };
 
-    if args.use_bundles {
+    if args.engine.use_bundles {
         info!("Building Bundle");
 
         let tip_txn = VersionedTransaction::from(Transaction::new_signed_with_payer(
@@ -175,9 +175,9 @@ pub async fn pump_swap(
             ..Default::default()
         };
 
-        if args.spam {
+        if args.trading.spam {
             let mut counter = 0;
-            while counter < args.spam_count {
+            while counter < args.trading.spam_count {
                 let result = match rpc_client
                     .send_transaction_with_config(&transaction, config)
                     .await

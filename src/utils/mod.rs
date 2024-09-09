@@ -48,7 +48,7 @@ pub async fn read_single_key(stop_tx: &mut tokio::sync::mpsc::Sender<()>) {
 use console::{Key, Term};
 
 use crate::{
-    env::EngineSettings,
+    env::{EngineSettings, SettingsConfig},
     raydium_amm::{
         subscribe::PoolKeysSniper,
         swap::{
@@ -61,7 +61,7 @@ use crate::{
 pub async fn read_single_key_impl(
     stop_tx: &mut Sender<()>,
     pool_keys: PoolKeysSniper,
-    args: EngineSettings,
+    args: SettingsConfig,
     fees: PriorityTip,
     wallet: &Arc<Keypair>,
 ) -> Result<(), Box<dyn Error + Send>> {

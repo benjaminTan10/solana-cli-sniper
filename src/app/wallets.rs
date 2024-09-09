@@ -34,7 +34,7 @@ pub fn private_keys() -> io::Result<Vec<(String, Keypair)>> {
 use serde_json::Value;
 use std::io;
 
-use crate::env::load_settings;
+use crate::env::load_config;
 
 fn private_keys_loader() -> io::Result<Vec<(String, String)>> {
     let mut keys = Vec::new();
@@ -68,7 +68,7 @@ fn private_keys_loader() -> io::Result<Vec<(String, String)>> {
 }
 pub async fn wallet_logger() -> io::Result<()> {
     info!("Loading details...");
-    let args = match load_settings().await {
+    let args = match load_config().await {
         Ok(args) => args,
         Err(e) => {
             error!("Error: {:?}", e);
@@ -76,8 +76,10 @@ pub async fn wallet_logger() -> io::Result<()> {
         }
     };
 
-    let rpc_client = RpcClient::new(args.rpc_url.to_string());
-    let secret_key = bs58::decode(args.payer_keypair.clone()).into_vec().unwrap();
+    let rpc_client = RpcClient::new(args.network.rpc_url.to_string());
+    let secret_key = bs58::decode(args.engine.payer_keypair.clone())
+        .into_vec()
+        .unwrap();
     let wallet = match Keypair::from_bytes(&secret_key) {
         Ok(wallet) => wallet,
         Err(e) => {

@@ -16,7 +16,7 @@ use spl_associated_token_account::{
 use spl_token::instruction::sync_native;
 
 use crate::{
-    env::{load_settings, minter::load_minter_settings},
+    env::{load_config, minter::load_minter_settings},
     liquidity::{
         option::wallet_gen::list_json_wallets,
         utils::{tip_account, tip_txn},
@@ -47,7 +47,7 @@ pub async fn one_pumpfun_deploy() -> eyre::Result<()> {
     };
 
     let mut server_data = load_minter_settings().await?;
-    let engine = load_settings().await?;
+    let engine = load_config().await?;
     let deployer_key = Keypair::from_base58_string(&server_data.deployer_key);
     let buyer_key = Arc::new(Keypair::from_base58_string(&server_data.buyer_key));
 
@@ -197,7 +197,7 @@ pub async fn one_pumpfun_deploy() -> eyre::Result<()> {
     bundle_txn.push(tip_tx);
 
     let mut client =
-        get_searcher_client(&engine.block_engine_url, &Arc::new(auth_keypair())).await?;
+        get_searcher_client(&engine.network.block_engine_url, &Arc::new(auth_keypair())).await?;
 
     let mut bundle_results_subscription = client
         .subscribe_bundle_results(SubscribeBundleResultsRequest {})

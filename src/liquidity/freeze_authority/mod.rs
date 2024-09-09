@@ -34,9 +34,9 @@ use yellowstone_grpc_proto::{
 
 use crate::{
     env::{
-        load_settings,
+        load_config,
         minter::{load_minter_settings, PoolDataSettings},
-        EngineSettings,
+        EngineSettings, SettingsConfig,
     },
     plugins::yellowstone_plugin::lib::GeyserGrpcClient,
     raydium_amm::swap::instructions::TAX_ACCOUNT,
@@ -49,9 +49,9 @@ pub async fn freeze_sells(
     search_client: SearcherServiceClient<InterceptedService<Channel, ClientInterceptor>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let settings = Arc::new(load_minter_settings().await.unwrap());
-    let engine = Arc::new(load_settings().await.unwrap());
+    let engine = Arc::new(load_config().await.unwrap());
 
-    let endpoint = engine.grpc_url.clone();
+    let endpoint = engine.network.grpc_url.clone();
     let x_token = Some("00000000-0000-0000-0000-000000000000");
     let mut client = GeyserGrpcClient::connect(endpoint, x_token, None)?;
     let (mut subscribe_tx, mut stream) = client.subscribe().await?;
@@ -201,7 +201,7 @@ pub async fn freeze_authority() -> Result<bool, Box<dyn std::error::Error>> {
 
 pub async fn freeze_incoming(
     settings: Arc<PoolDataSettings>,
-    engine: Arc<EngineSettings>,
+    engine: Arc<SettingsConfig>,
     signer: Pubkey,
     mut search_client: SearcherServiceClient<InterceptedService<Channel, ClientInterceptor>>,
     wallets: Arc<Vec<Pubkey>>,
@@ -211,7 +211,7 @@ pub async fn freeze_incoming(
         return Ok(());
     }
 
-    let rpc_client = Arc::new(RpcClient::new(engine.rpc_url.clone()));
+    let rpc_client = Arc::new(RpcClient::new(engine.network.rpc_url.clone()));
     let deployer_key = Keypair::from_base58_string(&settings.deployer_key);
     let mint = match Pubkey::from_str(&settings.token_mint) {
         Ok(mint) => mint,

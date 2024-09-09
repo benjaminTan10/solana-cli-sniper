@@ -9,7 +9,7 @@ use spl_token_client::spl_token_2022;
 
 use crate::{
     app::{app, theme},
-    env::load_settings,
+    env::load_config,
     raydium_amm::volume_pinger::volume::buy_amount,
     rpc::HTTP_CLIENT,
     user_inputs::{amounts::amount_percentage, tokens::token_env},
@@ -32,8 +32,8 @@ pub async fn raydium_cpmm() -> Result<(), Box<dyn Error + Send>> {
         .description("Select the Mode")
         .theme(&theme)
         .filterable(true)
-        .option(DemandOption::new("BuyTokens").label("▪ Swap Tokens to SOL"))
-        .option(DemandOption::new("SellTokens").label("▪ Swap SOL to Tokens"))
+        .option(DemandOption::new("BuyTokens").label("▪ Swap SOL to Tokens"))
+        .option(DemandOption::new("SellTokens").label("▪ Swap Tokens to SOL"))
         .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
 
     let selected_option = ms.run().expect("error running select");
@@ -58,7 +58,7 @@ pub async fn raydium_cpmm() -> Result<(), Box<dyn Error + Send>> {
 }
 
 pub async fn cpmm_swap_builder(direction: RaydiumCPMMDirection) -> eyre::Result<()> {
-    let args = match load_settings().await {
+    let args = match load_config().await {
         Ok(args) => args,
         Err(e) => {
             eprintln!("Error: {}", e);
@@ -71,7 +71,7 @@ pub async fn cpmm_swap_builder(direction: RaydiumCPMMDirection) -> eyre::Result<
         http_client.get("http_client").unwrap().clone()
     };
 
-    let wallet = Keypair::from_base58_string(&args.payer_keypair);
+    let wallet = Keypair::from_base58_string(&args.engine.payer_keypair);
 
     let pool_address = token_env("Pool Address").await;
 

@@ -7,7 +7,8 @@ use {
     solana_sdk::{bs58, pubkey::Pubkey, signature::Signature},
     solana_transaction_status::{EncodedTransactionWithStatusMeta, UiTransactionEncoding},
     std::{
-        collections::HashMap, fmt,
+        collections::HashMap,
+        fmt,
         fs::File,
         sync::{Arc, Mutex},
         time::Duration,
@@ -381,11 +382,6 @@ impl From<SubscribeUpdateTransaction> for TransactionPretty {
 }
 
 pub async fn geyser_streamer() -> Result<(), Box<dyn std::error::Error>> {
-    // env::set_var(
-    //     env_logger::DEFAULT_FILTER_ENV,
-    //     env::var_os(env_logger::DEFAULT_FILTER_ENV).unwrap_or_else(|| "info".into()),
-    // );
-    // env_logger::init();
     info!("Calling Events..");
 
     // Open the JSON file

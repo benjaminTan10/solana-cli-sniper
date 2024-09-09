@@ -14,7 +14,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::Receiver;
 
-use crate::env::EngineSettings;
+use crate::env::{EngineSettings, SettingsConfig};
 use crate::liquidity::utils::tip_account;
 use crate::plugins::jito_plugin::lib::{send_bundles, BundledTransactions};
 use crate::raydium_amm::subscribe::PoolKeysSniper;
@@ -29,7 +29,7 @@ pub async fn raydium_txn_backrun(
     pool_keys: PoolKeysSniper,
     token_amount: u64,
     fees: PriorityTip,
-    args: EngineSettings,
+    args: SettingsConfig,
 ) -> eyre::Result<()> {
     let start = Instant::now();
     let mut token_balance = 0;
@@ -97,7 +97,7 @@ pub async fn raydium_out(
     amount_in: u64,
     amount_out: u64,
     fees: PriorityTip,
-    args: EngineSettings,
+    args: SettingsConfig,
 ) -> eyre::Result<()> {
     info!("Building Bundle...");
 
@@ -107,7 +107,7 @@ pub async fn raydium_out(
         http_client.get("http_client").unwrap().clone()
     };
     let mut searcher_client =
-        get_searcher_client(&args.block_engine_url, &Arc::new(auth_keypair())).await?;
+        get_searcher_client(&args.network.block_engine_url, &Arc::new(auth_keypair())).await?;
 
     let tip_account = tip_account();
 
@@ -175,7 +175,7 @@ pub async fn raydium_out(
         }
     };
 
-    if args.use_bundles {
+    if args.engine.use_bundles {
         info!("Building Bundle");
 
         let tip_txn = VersionedTransaction::from(Transaction::new_signed_with_payer(
@@ -220,9 +220,9 @@ pub async fn raydium_out(
             ..Default::default()
         };
 
-        if args.spam {
+        if args.trading.spam {
             let mut counter = 0;
-            while counter < args.spam_count {
+            while counter < args.trading.spam_count {
                 let result = match rpc_client
                     .send_transaction_with_config(&transaction, config)
                     .await

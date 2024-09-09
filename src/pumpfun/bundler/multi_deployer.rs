@@ -16,7 +16,7 @@ use solana_sdk::{
 use spl_associated_token_account::get_associated_token_address;
 
 use crate::{
-    env::{load_settings, minter::load_minter_settings},
+    env::{load_config, minter::load_minter_settings},
     instruction::instruction::SOL_MINT,
     liquidity::{
         option::wallet_gen::{list_folders, list_json_wallets},
@@ -55,7 +55,7 @@ pub async fn multi_wallet_token() -> eyre::Result<()> {
     };
 
     let mut data = load_minter_settings().await?;
-    let engine = load_settings().await?;
+    let engine = load_config().await?;
 
     let (_, wallets) = match list_folders().await {
         Ok(folders) => folders,
@@ -263,7 +263,7 @@ pub async fn multi_wallet_token() -> eyre::Result<()> {
     // -------------------Subscribe to Bundle Results---------------------------------------
 
     let mut client =
-        get_searcher_client(&engine.block_engine_url, &Arc::new(auth_keypair())).await?;
+        get_searcher_client(&engine.network.block_engine_url, &Arc::new(auth_keypair())).await?;
 
     let mut bundle_results_subscription = client
         .subscribe_bundle_results(SubscribeBundleResultsRequest {})

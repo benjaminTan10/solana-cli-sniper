@@ -4,7 +4,7 @@ use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::pubkey::Pubkey;
 
 use crate::{
-    env::load_settings,
+    env::load_config,
     raydium_amm::{
         subscribe::PoolKeysSniper,
         swap::instructions::SOLC_MINT,
@@ -19,7 +19,7 @@ use crate::{
 pub async fn pool_keys_fetcher(id: Pubkey) -> eyre::Result<PoolKeysSniper> {
     // let http_client = HTTP_CLIENT.lock().unwrap();
     // let rpc_client = http_client.get("http_client").unwrap();
-    let args = match load_settings().await {
+    let args = match load_config().await {
         Ok(args) => args,
         Err(e) => {
             eprintln!("Error: {}", e);
@@ -27,7 +27,7 @@ pub async fn pool_keys_fetcher(id: Pubkey) -> eyre::Result<PoolKeysSniper> {
         }
     };
 
-    let rpc_client = Arc::new(RpcClient::new(args.rpc_url));
+    let rpc_client = Arc::new(RpcClient::new(args.network.rpc_url));
     let mut retries = 0;
     let max_retries = 1000;
     let mut account = None;

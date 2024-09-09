@@ -2,13 +2,13 @@ use std::{
     error::Error,
     fs::{self, File},
     io::Write,
-    process::exit,
 };
 
 use demand::Input;
 use log::info;
 use serde::{Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
+use toml;
 
 use crate::app::private_key_env;
 
@@ -17,217 +17,150 @@ pub mod minter;
 pub mod utils;
 pub mod vanity;
 
-#[derive(Debug, Clone)]
-pub struct BackrunAccount {
-    pub id: String,
-    pub account: Pubkey,
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SettingsConfig {
+    pub user: UserSettings,
+    pub network: NetworkSettings,
+    pub engine: EngineSettings,
+    pub trading: TradingSettings,
 }
 
-#[derive(Debug, Clone)]
-pub struct EngineSettings {
-    /// URL of the block engine.
-    /// See: https://jito-labs.gitbook.io/mev/searcher-resources/block-engine#connection-details
-    pub block_engine_url: String,
-
-    /// Account pubkeys to backrun
-    // pub backrun_accounts: Vec<Pubkey>,
-
-    /// Path to keypair file used to sign and pay for transactions
-    pub payer_keypair: String,
-
-    /// Path to keypair file used to authenticate with the Jito Block Engine
-    /// See: https://jito-labs.gitbook.io/mev/searcher-resources/getting-started#block-engine-api-key
-    // pub auth_keypair: Vec<u8>,
-
-    /// RPC Websocket URL.
-    /// See: https://solana.com/docs/rpc/websocket
-    /// Note that this RPC server must have --rpc-pubsub-enable-block-subscription enabled
-    pub pubsub_url: String,
-
-    /// RPC HTTP URL.
-    pub rpc_url: String,
-
-    /// GRPC URL.
-    pub grpc_url: String,
-
-    /// Message to pass into the memo program as part of a bundle.
-    pub message: String,
-
-    /// License
-    pub license_key: String,
-
-    /// Discord Username
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct UserSettings {
     pub username: String,
+    pub license_key: String,
+}
 
-    /// Tip payment program public key
-    /// See: https://jito-foundation.gitbook.io/mev/mev-payment-and-distribution/on-chain-addresses
-    // pub tip_program_id: Pubkey,
-
-    /// Comma-separated list of regions to request cross-region data from.
-    /// If no region specified, then default to the currently connected block engine's region.
-    /// Details: https://jito-labs.gitbook.io/mev/searcher-services/recommendations#cross-region
-    /// Available regions: https://jito-labs.gitbook.io/mev/searcher-resources/block-engine#connection-details
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct NetworkSettings {
+    pub block_engine_url: String,
+    pub pubsub_url: String,
+    pub rpc_url: String,
+    pub grpc_url: String,
     pub regions: Vec<String>,
+}
 
-    /// Subscribe and print bundle results.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct EngineSettings {
+    pub payer_keypair: String,
     pub subscribe_bundle_results: bool,
-
-    /// Use Bundles for Buy & Sell
     pub use_bundles: bool,
+}
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TradingSettings {
     pub spam: bool,
     pub spam_count: i32,
-
-    //pub txn_level: i32,
     pub slippage: bool,
+    pub bundle_tip: f64,
+    pub copytrade_accounts: Vec<String>,
+    pub loss_threshold_percentage: f64,
+    pub profit_threshold_percentage: f64,
 }
 
-#[derive(Deserialize, Clone)]
-struct HelperBackrunAccount {
-    id: String,
-    account: String,
-}
-
-#[derive(Deserialize, Serialize, Clone)]
-struct HelperSettings {
-    #[serde(rename = "USERNAME")]
-    username: String,
-
-    #[serde(rename = "LICENSE-KEY")]
-    license_key: String,
-
-    #[serde(rename = "SIGNER-PRIVATE-KEY")]
-    buy_wallet: String,
-
-    #[serde(rename = "WEBSOCKET-URL")]
-    pubsub_url: String,
-
-    #[serde(rename = "RPC-URL")]
-    rpc_url: String,
-
-    #[serde(rename = "YELLOWSTONE-GRPC-URL")]
-    grpc_url: String,
-
-    #[serde(rename = "BLOCK-ENGINE-URL")]
-    block_engine_url: String,
-
-    #[serde(rename = "USE-BUNDLES")]
-    use_bundles: bool,
-
-    #[serde(rename = "SPAM")]
-    spam: bool,
-
-    #[serde(rename = "SPAM-COUNT")]
-    spam_count: i32,
-
-    // #[serde(rename = "Transaction-Level")]
-    // txn_level: i32,
-    #[serde(rename = "SLIPPAGE")]
-    slippage: bool,
-}
-
-pub async fn load_settings() -> eyre::Result<EngineSettings> {
-    let args = fs::read_to_string("settings.json").unwrap_or_else(|_| {
-        info!("Settings file not found, creating a new one");
-        // Create a new settings.json file with default settings
-        let default_settings = HelperSettings {
-            username: "".to_string(),
-            license_key: "".to_string(),
-            block_engine_url: "https://ny.mainnet.block-engine.jito.wtf".to_string(),
-            buy_wallet: "".to_string(),
-            grpc_url: "".to_string(),
-            pubsub_url:
-                "wss://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
-                    .to_string(),
-            rpc_url: "https://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
-                .to_string(),
-            use_bundles: true,
-            spam: false,
-            spam_count: 15,
-            // txn_level: 1,
-            slippage: false,
+pub async fn load_config() -> eyre::Result<SettingsConfig> {
+    let config_content = fs::read_to_string("config.toml").unwrap_or_else(|_| {
+        info!("Config file not found, creating a new one");
+        let default_config = SettingsConfig {
+            user: UserSettings {
+                username: String::new(),
+                license_key: String::new(),
+            },
+            network: NetworkSettings {
+                block_engine_url: "https://ny.mainnet.block-engine.jito.wtf".to_string(),
+                pubsub_url:
+                    "wss://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
+                        .to_string(),
+                rpc_url:
+                    "https://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
+                        .to_string(),
+                grpc_url: String::new(),
+                regions: vec!["ny".to_string()],
+            },
+            engine: EngineSettings {
+                payer_keypair: String::new(),
+                subscribe_bundle_results: false,
+                use_bundles: true,
+            },
+            trading: TradingSettings {
+                spam: false,
+                spam_count: 15,
+                slippage: false,
+                bundle_tip: 0.0,
+                copytrade_accounts: vec![],
+                loss_threshold_percentage: 50.0,
+                profit_threshold_percentage: 100.0,
+            },
         };
-        let default_settings_json = serde_json::to_string(&default_settings).unwrap();
-        let mut file = File::create("settings.json").unwrap();
-        file.write_all(default_settings_json.as_bytes()).unwrap();
-
-        return default_settings_json;
+        let default_toml = toml::to_string(&default_config).unwrap();
+        let mut file = File::create("config.toml").unwrap();
+        file.write_all(default_toml.as_bytes()).unwrap();
+        default_toml
     });
 
-    let mut helper_settings: HelperSettings = serde_json::from_str(&args).unwrap_or_else(|_| {
-        info!("Settings file not found, creating a new one");
-        // Create a new settings.json file with default settings
-        let default_settings = HelperSettings {
-            username: "".to_string(),
-            license_key: "".to_string(),
-            block_engine_url: "https://ny.mainnet.block-engine.jito.wtf".to_string(),
-            buy_wallet: "".to_string(),
-            grpc_url: "".to_string(),
-            pubsub_url:
-                "wss://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
-                    .to_string(),
-            rpc_url: "https://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
-                .to_string(),
-            use_bundles: true,
-            spam: false,
-            spam_count: 15,
-            // txn_level: 1,
-            slippage: false,
+    let mut config: SettingsConfig = toml::from_str(&config_content).unwrap_or_else(|_| {
+        info!("Invalid config file, creating a new one");
+        let default_config = SettingsConfig {
+            user: UserSettings {
+                username: String::new(),
+                license_key: String::new(),
+            },
+            network: NetworkSettings {
+                block_engine_url: "https://ny.mainnet.block-engine.jito.wtf".to_string(),
+                pubsub_url:
+                    "wss://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
+                        .to_string(),
+                rpc_url:
+                    "https://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
+                        .to_string(),
+                grpc_url: String::new(),
+                regions: vec!["ny".to_string()],
+            },
+            engine: EngineSettings {
+                payer_keypair: String::new(),
+                subscribe_bundle_results: false,
+                use_bundles: true,
+            },
+            trading: TradingSettings {
+                spam: false,
+                spam_count: 15,
+                slippage: false,
+                bundle_tip: 0.0,
+                copytrade_accounts: vec![],
+                loss_threshold_percentage: 50.0,
+                profit_threshold_percentage: 100.0,
+            },
         };
-        let default_settings_json = serde_json::to_string(&default_settings).unwrap();
-        let mut file = File::create("settings.json").unwrap();
-        file.write_all(default_settings_json.as_bytes()).unwrap();
-
-        return default_settings;
+        let default_toml = toml::to_string(&default_config).unwrap();
+        let mut file = File::create("config.toml").unwrap();
+        file.write_all(default_toml.as_bytes()).unwrap();
+        default_config
     });
 
-    if helper_settings.username.is_empty() {
-        helper_settings.username = register_sims("Enter Discord Username: ", "popuy...")
+    if config.user.username.is_empty() {
+        config.user.username = register_sims("Enter Discord Username: ", "popuy...")
             .await
             .unwrap();
     }
 
-    if helper_settings.license_key.is_empty() {
-        helper_settings.license_key = register_sims("Enter License Key: ", "MEVA........ImCh")
+    if config.user.license_key.is_empty() {
+        config.user.license_key = register_sims("Enter License Key: ", "MEVA........ImCh")
             .await
             .unwrap();
     }
 
-    if helper_settings.buy_wallet.is_empty() {
-        helper_settings.buy_wallet = private_key_env("Enter Wallet Private-Key: ").await.unwrap();
+    if config.engine.payer_keypair.is_empty() {
+        config.engine.payer_keypair = private_key_env("Enter Wallet Private-Key: ").await.unwrap();
     }
 
-    let mut file = File::create("settings.json").unwrap();
-    file.write(serde_json::to_string(&helper_settings).unwrap().as_bytes())
-        .unwrap();
+    let updated_config = toml::to_string_pretty(&config).unwrap();
+    fs::write("config.toml", updated_config)?;
 
-    let settings = EngineSettings {
-        block_engine_url: helper_settings.block_engine_url,
-        payer_keypair: helper_settings.buy_wallet,
-        grpc_url: helper_settings.grpc_url,
-        pubsub_url: helper_settings.pubsub_url,
-        rpc_url: helper_settings.rpc_url,
-        message: "hello".to_string(),
-        username: helper_settings.username,
-        license_key: helper_settings.license_key,
-        regions: ["ny".to_string()].into(),
-        subscribe_bundle_results: false,
-        use_bundles: helper_settings.use_bundles,
-        spam: helper_settings.spam,
-        spam_count: helper_settings.spam_count,
-        //   txn_level: helper_settings.txn_level,
-        slippage: false,
-    };
-
-    Ok(settings)
+    Ok(config)
 }
 
 pub async fn register_sims(key: &str, place_holder: &str) -> Result<String, Box<dyn Error>> {
     let t = Input::new(key).placeholder(place_holder).prompt("Input: ");
-
     let string = t.run().expect("error running input");
-
-    // Check if the private key is valid
-
     Ok(string)
 }

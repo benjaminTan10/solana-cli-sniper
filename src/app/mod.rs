@@ -15,7 +15,8 @@ use serde::Deserialize;
 use termcolor::{Color, ColorSpec};
 
 use crate::app::embeds::embed;
-use crate::env::load_settings;
+use crate::copytrade::copytrade;
+use crate::env::load_config;
 use crate::liquidity::freeze_authority::freeze_sells;
 use crate::liquidity::minter_main::raydium_creator;
 use crate::liquidity::option::wallet_gen::list_folders;
@@ -91,7 +92,7 @@ pub fn theme() -> Theme {
 
 #[async_recursion]
 pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>> {
-    let args = match load_settings().await {
+    let args = match load_config().await {
         Ok(args) => args,
         Err(e) => {
             error!("Error: {:?}", e);
@@ -100,7 +101,7 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
     };
 
     if mainmenu {
-        let _http_loader = rpc_key(args.rpc_url.clone()).await;
+        let _http_loader = rpc_key(args.network.rpc_url.clone()).await;
     }
 
     let theme = theme();
@@ -109,16 +110,17 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
         .theme(&theme)
         .filterable(true)
         .option(DemandOption::new("RaydiumAMM").label("▪ Raydium AMM Mode"))
-        .option(DemandOption::new("RaydiumCPMM").label("▪ Raydium CPMM Mode"))
+        // .option(DemandOption::new("RaydiumCPMM").label("▪ Raydium CPMM Mode"))
         .option(DemandOption::new("PumpFun").label("▪ PumpFun Mode"))
-        .option(DemandOption::new("MoonShot").label("▪ MoonShot Mode"))
+        .option(DemandOption::new("CopyTrade").label("▪ CopyTrade Mode"))
+        // .option(DemandOption::new("MoonShot").label("▪ MoonShot Mode"))
         // .option(DemandOption::new("RayAMMBundlerMode").label("▪ Raydium Bundler Mode"))
         // .option(DemandOption::new("PumpBundlerMode").label("▪ PumpFun Bundler Mode"))
-        // .option(DemandOption::new("Generate Volume").label("▪ Volume Mode"))
-        // .option(DemandOption::new("Wrap Sol Mode").label("📦 Wrap SOL"))
-        // .option(DemandOption::new("Unwrap Sol Mode").label("🪤  Unwrap SOL"))
-        // .option(DemandOption::new("Freeze Authority").label("❄️  Freeze Authority"))
+        .option(DemandOption::new("Wrap Sol Mode").label("📦 Wrap SOL"))
+        .option(DemandOption::new("Unwrap Sol Mode").label("🪤  Unwrap SOL"))
         .option(DemandOption::new("Wallet Details").label("🍄 Wallet Details"));
+    // .option(DemandOption::new("Generate Volume").label("▪ Volume Mode"))
+    // .option(DemandOption::new("Freeze Authority").label("❄️  Freeze Authority"))
     // .option(DemandOption::new("deployerdetails").label("🧨 Deployer Wallet Details"))
     // .option(DemandOption::new("folder_deployerdetails").label("🗃️  Folder Wallet Details"))
 
@@ -133,9 +135,10 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
         }
 
         "Freeze Authority" => {
-            let search = get_searcher_client(&args.block_engine_url, &Arc::new(auth_keypair()))
-                .await
-                .unwrap();
+            let search =
+                get_searcher_client(&args.network.block_engine_url, &Arc::new(auth_keypair()))
+                    .await
+                    .unwrap();
             let (_, wallet) = list_folders().await.unwrap();
             let wallets: Vec<Pubkey> = wallet.iter().map(|item| item.pubkey()).collect();
 
@@ -152,6 +155,9 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
         }
         "PumpFun" => {
             let _ = pump_main().await;
+        }
+        "CopyTrade" => {
+            let _ = copytrade().await;
         }
         "RayAMMBundlerMode" => {
             let _ = raydium_creator().await;

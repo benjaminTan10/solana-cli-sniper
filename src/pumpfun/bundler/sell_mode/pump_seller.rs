@@ -19,7 +19,7 @@ use spl_associated_token_account::{
 };
 
 use crate::{
-    env::{load_settings, minter::load_minter_settings},
+    env::{load_config, minter::load_minter_settings},
     liquidity::{
         option::wallet_gen::list_folders,
         utils::{tip_account, tip_txn},
@@ -46,7 +46,7 @@ pub async fn pump_bundle_seller(percentage: bool) -> eyre::Result<()> {
         percentage_tokens = percentage.parse::<f64>()?;
     }
 
-    let engine = load_settings().await?;
+    let engine = load_config().await?;
 
     let (_, wallets) = match list_folders().await {
         Ok((folder_name, wallets)) => (folder_name, wallets),
@@ -188,7 +188,7 @@ pub async fn pump_bundle_seller(percentage: bool) -> eyre::Result<()> {
     }
 
     let mut client =
-        get_searcher_client(&engine.block_engine_url, &Arc::new(auth_keypair())).await?;
+        get_searcher_client(&engine.network.block_engine_url, &Arc::new(auth_keypair())).await?;
 
     let mut bundle_results_subscription = client
         .subscribe_bundle_results(SubscribeBundleResultsRequest {})

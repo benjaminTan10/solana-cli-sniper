@@ -21,13 +21,13 @@ use spl_token_client::spl_token_2022::{
 use std::str::FromStr;
 use std::sync::Arc;
 
-use crate::{env::load_settings, raydium_cpmm::cpmm_instructions::PoolStateAccount};
+use crate::{env::load_config, raydium_cpmm::cpmm_instructions::PoolStateAccount};
 
 use super::instructions::events_instructions_parse::*;
 use super::instructions::rpc::*;
 use super::instructions::token_instructions::*;
 use super::instructions::utils::*;
-use super::{instructions::amm_instructions::*, menu::RaydiumCPMMDirection};
+use super::{instructions::cpmm_inxs::*, menu::RaydiumCPMMDirection};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ClientConfig {
@@ -73,7 +73,7 @@ pub async fn cpmm_transaction(
     slippage: u64,
     direction: RaydiumCPMMDirection,
 ) -> Result<()> {
-    let args = match load_settings().await {
+    let args = match load_config().await {
         Ok(a) => a,
         Err(e) => {
             println!("Error: {}", e);

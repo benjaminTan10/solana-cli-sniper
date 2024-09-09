@@ -5,7 +5,7 @@ use solana_sdk::signature::Keypair;
 
 use crate::{
     app::{app, theme},
-    env::load_settings,
+    env::load_config,
     user_inputs::tokens::token_env,
 };
 
@@ -50,7 +50,7 @@ pub async fn moonshot_menu() -> Result<(), Box<dyn Error + Send>> {
 }
 
 pub async fn moonshot_swap_handler(dir: MoonShotDirection) -> Result<(), Box<dyn Error + Send>> {
-    let args = match load_settings().await {
+    let args = match load_config().await {
         Ok(s) => s,
         Err(e) => {
             log::error!("Error: {}", e);
@@ -58,7 +58,7 @@ pub async fn moonshot_swap_handler(dir: MoonShotDirection) -> Result<(), Box<dyn
         }
     };
 
-    let wallet = Keypair::from_base58_string(&args.payer_keypair);
+    let wallet = Keypair::from_base58_string(&args.engine.payer_keypair);
 
     let token_address = token_env("Token Address: ").await;
 

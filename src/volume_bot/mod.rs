@@ -11,7 +11,7 @@ use crate::{
     app::theme,
     auth::auth_verification,
     env::{
-        load_settings,
+        load_config,
         minter::{load_minter_settings, PoolDataSettings},
     },
     liquidity::{
@@ -130,7 +130,7 @@ pub async fn volume_lut() -> eyre::Result<()> {
     };
 
     let mut data = load_minter_settings().await?;
-    let engine = load_settings().await?;
+    let engine = load_config().await?;
 
     let pool_id = token_env("Pool ID:").await;
 
@@ -186,7 +186,7 @@ pub async fn volume_lut() -> eyre::Result<()> {
     }
 
     let mut search =
-        get_searcher_client(&engine.block_engine_url, &Arc::new(auth_keypair())).await?;
+        get_searcher_client(&engine.network.block_engine_url, &Arc::new(auth_keypair())).await?;
 
     let mut bundle_results_subscription = search
         .subscribe_bundle_results(SubscribeBundleResultsRequest {})

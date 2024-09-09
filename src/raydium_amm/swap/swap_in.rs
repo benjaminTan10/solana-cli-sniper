@@ -5,7 +5,7 @@ use solana_sdk::{bs58, signature::Keypair};
 use tokio::sync::mpsc::channel;
 
 use crate::{
-    env::load_settings,
+    env::load_config,
     plugins::jito_plugin::event_loop::bundle_results_loop,
     raydium_amm::{pool_searcher::amm_keys::pool_keys_fetcher, swap::swapper::auth_keypair},
     rpc::HTTP_CLIENT,
@@ -18,7 +18,7 @@ use crate::{
 use super::{raydium_swap_in::raydium_in, raydium_swap_out::raydium_txn_backrun};
 
 pub async fn swap_in() -> Result<(), Box<dyn std::error::Error>> {
-    let args = match load_settings().await {
+    let args = match load_config().await {
         Ok(args) => args,
         Err(e) => {
             error!("Error: {:?}", e);
@@ -31,7 +31,7 @@ pub async fn swap_in() -> Result<(), Box<dyn std::error::Error>> {
     let mut bundle_tip = 0;
     let mut priority_fee_value = 0;
 
-    if args.use_bundles {
+    if args.engine.use_bundles {
         priority_fee_value = priority_fee().await;
         bundle_tip = bundle_priority_tip().await;
     } else {
@@ -40,7 +40,8 @@ pub async fn swap_in() -> Result<(), Box<dyn std::error::Error>> {
 
     let token_out = token_env("Pool Address").await;
 
-    let private_key = Keypair::from_bytes(&bs58::decode(&args.payer_keypair).into_vec().unwrap())?;
+    let private_key =
+        Keypair::from_bytes(&bs58::decode(&args.engine.payer_keypair).into_vec().unwrap())?;
 
     info!("Fetching pool keys...");
     let pool_keys = pool_keys_fetcher(token_out).await?;
@@ -68,7 +69,7 @@ pub struct PriorityTip {
 }
 
 pub async fn swap_out() -> Result<(), Box<dyn std::error::Error>> {
-    let args = match load_settings().await {
+    let args = match load_config().await {
         Ok(args) => args,
         Err(e) => {
             error!("Error: {:?}", e);
@@ -80,13 +81,14 @@ pub async fn swap_out() -> Result<(), Box<dyn std::error::Error>> {
     let sol_amount = amount_percentage().await;
     let mut bundle_tip = 0;
     let mut priority_fee_value = 0;
-    if args.use_bundles {
+    if args.engine.use_bundles {
         priority_fee_value = priority_fee().await;
         bundle_tip = bundle_priority_tip().await;
     } else {
         priority_fee_value = priority_fee().await;
     }
-    let private_key = Keypair::from_bytes(&bs58::decode(&args.payer_keypair).into_vec().unwrap())?;
+    let private_key =
+        Keypair::from_bytes(&bs58::decode(&args.engine.payer_keypair).into_vec().unwrap())?;
     let rpc_client = {
         let http_client = HTTP_CLIENT.lock().unwrap();
         http_client.get("http_client").unwrap().clone()

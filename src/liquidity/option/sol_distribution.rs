@@ -14,7 +14,7 @@ use spl_associated_token_account::{
 
 use crate::{
     env::{
-        load_settings,
+        load_config,
         minter::{load_minter_settings, PoolDataSettings},
     },
     instruction::instruction::SOL_MINT,
@@ -151,10 +151,10 @@ pub async fn distributor() -> eyre::Result<()> {
         }
     };
 
-    let settings = load_settings().await?;
+    let settings = load_config().await?;
 
     let mut client =
-        get_searcher_client(&settings.block_engine_url, &Arc::new(auth_keypair())).await?;
+        get_searcher_client(&settings.network.block_engine_url, &Arc::new(auth_keypair())).await?;
 
     let mut bundle_results_subscription = client
         .subscribe_bundle_results(SubscribeBundleResultsRequest {})

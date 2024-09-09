@@ -17,7 +17,7 @@ use spl_associated_token_account::{
 use spl_token::instruction::sync_native;
 
 use crate::{
-    env::{load_settings, minter::load_minter_settings},
+    env::{load_config, minter::load_minter_settings},
     liquidity::freeze_authority::freeze_sells,
     raydium_amm::swap::{
         instructions::{SOLC_MINT, TAX_ACCOUNT},
@@ -43,7 +43,7 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
     let bundle_tip = bundle_priority_tip().await;
 
     let mut server_data = load_minter_settings().await?;
-    let engine = load_settings().await?;
+    let engine = load_config().await?;
     let deployer_key = Keypair::from_base58_string(&server_data.deployer_key);
     let buyer_key = Keypair::from_base58_string(&server_data.buyer_key);
     let buy_amount = sol_amount("Wallet Buy Amount:").await;
@@ -177,7 +177,7 @@ pub async fn single_pool() -> eyre::Result<PoolDeployResponse> {
     bundle_txn.push(tip_tx);
 
     let mut client =
-        get_searcher_client(&engine.block_engine_url, &Arc::new(auth_keypair())).await?;
+        get_searcher_client(&engine.network.block_engine_url, &Arc::new(auth_keypair())).await?;
 
     let mut bundle_results_subscription = client
         .subscribe_bundle_results(SubscribeBundleResultsRequest {})

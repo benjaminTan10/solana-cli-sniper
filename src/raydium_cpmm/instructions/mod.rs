@@ -1,4 +1,4 @@
-pub mod amm_instructions;
+pub mod cpmm_inxs;
 pub mod events_instructions_parse;
 pub mod rpc;
 pub mod token_instructions;

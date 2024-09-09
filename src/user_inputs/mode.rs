@@ -9,7 +9,7 @@ use solana_sdk::{pubkey::Pubkey, signature::Keypair};
 
 use crate::{
     app::{theme, MevApe},
-    env::load_settings,
+    env::load_config,
     raydium_amm::{
         subscribe::auto_sniper_stream,
         swap::{
@@ -31,15 +31,16 @@ pub async fn wrap_sol_call() -> Result<(), Box<dyn Error>> {
     let sol_amount = sol_amount("Wrap Amount: ").await;
     // let wallet = private_key_env().await?;
 
-    let args = match load_settings().await {
+    let args = match load_config().await {
         Ok(args) => args,
         Err(e) => {
             error!("Error: {:?}", e);
             return Err(e.into());
         }
     };
-    let private_key = Keypair::from_bytes(&bs58::decode(args.payer_keypair).into_vec().unwrap())?;
-    let rpc_client = RpcClient::new(args.rpc_url.to_string());
+    let private_key =
+        Keypair::from_bytes(&bs58::decode(args.engine.payer_keypair).into_vec().unwrap())?;
+    let rpc_client = RpcClient::new(args.network.rpc_url.to_string());
 
     let _ = match wrap_sol(Arc::new(rpc_client), &private_key, sol_amount).await {
         Ok(_) => info!("Transaction Sent"),
@@ -74,7 +75,7 @@ pub async fn unwrap_sol_call() -> Result<(), Box<dyn Error>> {
 }
 
 pub async fn automatic_snipe(manual_snipe: bool) -> eyre::Result<()> {
-    let args = match load_settings().await {
+    let args = match load_config().await {
         Ok(args) => args,
         Err(e) => {
             error!("Error: {:?}", e);
@@ -82,18 +83,18 @@ pub async fn automatic_snipe(manual_snipe: bool) -> eyre::Result<()> {
         }
     };
 
-    if args.grpc_url.is_empty() {
+    if args.network.grpc_url.is_empty() {
         let _ = auto_sniper_stream(manual_snipe).await?;
         return Ok(());
     }
     let sol_amount = sol_amount("Snipe Amount:").await;
 
-    let mut token = Pubkey::default();
+    let mut token;
 
     let mut bundle_tip = 0;
     let mut priority_fee_value = 0;
 
-    if args.use_bundles {
+    if args.engine.use_bundles {
         priority_fee_value = priority_fee().await;
         bundle_tip = bundle_priority_tip().await;
     } else {
@@ -101,9 +102,9 @@ pub async fn automatic_snipe(manual_snipe: bool) -> eyre::Result<()> {
     }
 
     if manual_snipe {
-        token = token_env("Base Mint").await;
+        token = Some(token_env("Base Mint").await);
 
-        let (token, data) = mpl_token_metadata::accounts::Metadata::find_pda(&token);
+        let (token, data) = mpl_token_metadata::accounts::Metadata::find_pda(&token.unwrap());
         let metadata = match decode_metadata(&token).await {
             Ok(metadata) => Some(metadata),
             Err(e) => {
@@ -129,7 +130,7 @@ pub async fn automatic_snipe(manual_snipe: bool) -> eyre::Result<()> {
 
         info!("Listening for the Launch...")
     } else {
-        token = Pubkey::default();
+        token = None;
     }
 
     // let wallet = private_key_env().await?;
@@ -143,7 +144,7 @@ pub async fn automatic_snipe(manual_snipe: bool) -> eyre::Result<()> {
         sol_amount,
         fee: fees,
         // bundle_tip,
-        wallet: args.payer_keypair.clone(),
+        wallet: args.engine.payer_keypair.clone(),
     };
 
     let _ = match grpc_pair_sub(

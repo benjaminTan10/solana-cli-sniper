@@ -18,7 +18,7 @@ use std::{rc::Rc, str::FromStr, sync::Arc};
 
 use crate::{env::minter::anchor_cluster, raydium_cpmm::cpmm_builder::ClientConfig};
 
-use super::amm_instructions::RAYDIUM_CPMM;
+use super::cpmm_inxs::RAYDIUM_CPMM;
 
 pub fn create_and_init_mint_instr(
     config: &ClientConfig,

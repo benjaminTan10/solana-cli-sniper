@@ -30,7 +30,7 @@ use std::{convert::TryInto, sync::Arc};
 use std::{mem::size_of, str::FromStr};
 
 use crate::{
-    env::{load_settings, minter::load_minter_settings, EngineSettings},
+    env::{load_config, minter::load_minter_settings, EngineSettings, SettingsConfig},
     liquidity::utils::{tip_account, tip_txn},
     raydium_amm::subscribe::PoolKeysSniper,
 };
@@ -146,7 +146,7 @@ pub async fn swap_base_in(
     amount_in: u64,
     minimum_amount_out: u64,
     priority_fee: u64,
-    args: EngineSettings,
+    args: SettingsConfig,
 ) -> Result<Vec<Instruction>, ProgramError> {
     let data = AmmInstruction::SwapBaseIn(SwapInstructionBaseIn {
         amount_in,
@@ -165,7 +165,7 @@ pub async fn swap_base_in(
     instructions.push(unit_limit);
     instructions.push(compute_price);
 
-    if args.spam {
+    if args.trading.spam {
         instructions.push(
             spl_associated_token_account::instruction::create_associated_token_account(
                 &wallet_address,
@@ -601,8 +601,8 @@ pub async fn wrap_sol(
 /*------------------------------------------------ */
 
 pub async fn unwrap_sol(deployer: bool) -> Result<(), Box<dyn std::error::Error>> {
-    let engine = load_settings().await?;
-    let rpc_client = RpcClient::new(engine.rpc_url);
+    let engine = load_config().await?;
+    let rpc_client = RpcClient::new(engine.network.rpc_url);
 
     let mut keypairs: Vec<Keypair> = Vec::new();
 
@@ -613,7 +613,7 @@ pub async fn unwrap_sol(deployer: bool) -> Result<(), Box<dyn std::error::Error>
         keypairs.push(buyer_wallet);
         keypairs.push(deployer_wallet);
     } else {
-        let buyer_key = Keypair::from_base58_string(&engine.payer_keypair);
+        let buyer_key = Keypair::from_base58_string(&engine.engine.payer_keypair);
         keypairs.push(buyer_key);
     }
 
@@ -657,14 +657,18 @@ pub async fn unwrap_sol(deployer: bool) -> Result<(), Box<dyn std::error::Error>
     let transaction =
         VersionedTransaction::try_new(v0_msg, &keypairs.iter().collect::<Vec<&Keypair>>())?;
 
-    let mut client =
-        match get_searcher_client(&engine.block_engine_url, &Arc::new(auth_keypair())).await {
-            Ok(client) => client,
-            Err(e) => {
-                eprintln!("Error: {}", e);
-                panic!("Error: {}", e);
-            }
-        };
+    let mut client = match get_searcher_client(
+        &engine.network.block_engine_url,
+        &Arc::new(auth_keypair()),
+    )
+    .await
+    {
+        Ok(client) => client,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            panic!("Error: {}", e);
+        }
+    };
 
     let mut bundle_results_subscription = client
         .subscribe_bundle_results(SubscribeBundleResultsRequest {})

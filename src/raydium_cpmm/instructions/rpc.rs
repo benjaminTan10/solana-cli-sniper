@@ -22,7 +22,9 @@ use solana_sdk::{
 use std::{convert::Into, sync::Arc};
 
 use crate::{
-    env::EngineSettings, liquidity::utils::tip_account, raydium_amm::swap::swapper::auth_keypair,
+    env::{EngineSettings, SettingsConfig},
+    liquidity::utils::tip_account,
+    raydium_amm::swap::swapper::auth_keypair,
 };
 
 pub async fn simulate_transaction(
@@ -96,7 +98,7 @@ pub async fn transaction_handler(
     payer: Arc<Keypair>,
     swap_instructions: Vec<Instruction>,
     bundle_tip: u64,
-    args: &EngineSettings,
+    args: &SettingsConfig,
 ) -> eyre::Result<()> {
     let latest_blockhash = rpc_client.get_latest_blockhash().await?;
 
@@ -133,7 +135,7 @@ pub async fn transaction_handler(
 
     println!("Simulate result: {:?}", sim_result);
 
-    if args.use_bundles {
+    if args.engine.use_bundles {
         info!("Building Bundle");
 
         let tip_txn = VersionedTransaction::from(Transaction::new_signed_with_payer(
@@ -146,7 +148,7 @@ pub async fn transaction_handler(
         let bundle_txn = vec![transaction, tip_txn];
 
         let mut searcher_client =
-            get_searcher_client(&args.block_engine_url, &Arc::new(auth_keypair())).await?;
+            get_searcher_client(&args.network.block_engine_url, &Arc::new(auth_keypair())).await?;
 
         let mut bundle_results_subscription = searcher_client
             .subscribe_bundle_results(SubscribeBundleResultsRequest {})
@@ -176,9 +178,9 @@ pub async fn transaction_handler(
             ..Default::default()
         };
 
-        if args.spam {
+        if args.trading.spam {
             let mut counter = 0;
-            while counter < args.spam_count {
+            while counter < args.trading.spam_count {
                 let result = match rpc_client
                     .send_transaction_with_config(&transaction, config)
                     .await

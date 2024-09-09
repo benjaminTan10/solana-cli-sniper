@@ -13,7 +13,7 @@ use solana_sdk::{
 
 use crate::{
     app::theme,
-    env::{load_settings, minter::load_minter_settings},
+    env::{load_config, minter::load_minter_settings},
     raydium_amm::{
         bundles::swap_instructions::volume_swap_base_in,
         pool_searcher::amm_keys::pool_keys_fetcher,
@@ -44,7 +44,7 @@ pub async fn buy_amount(input: &str) -> Result<u64, Box<dyn Error>> {
 }
 
 pub async fn generate_volume() -> Result<(), Box<dyn Error>> {
-    let args = match load_settings().await {
+    let args = match load_config().await {
         Ok(args) => args,
         Err(e) => {
             error!("Error 1: {:?}", e);
@@ -52,7 +52,7 @@ pub async fn generate_volume() -> Result<(), Box<dyn Error>> {
         }
     };
 
-    let rpc_client = RpcClient::new(args.rpc_url.to_string());
+    let rpc_client = RpcClient::new(args.network.rpc_url.to_string());
     let data = load_minter_settings().await?;
 
     let lut_key = match Pubkey::from_str(&data.volume_lut_key) {
@@ -96,7 +96,7 @@ pub async fn generate_volume() -> Result<(), Box<dyn Error>> {
     //     serde_json::to_string_pretty(&pool_keys).unwrap()
     // );
     let wallet = Keypair::from_base58_string(&data.buyer_key);
-    let rpc_client = RpcClient::new(args.rpc_url.to_string());
+    let rpc_client = RpcClient::new(args.network.rpc_url.to_string());
 
     let mut rng = rand::rngs::StdRng::from_entropy();
     let buy_amount: u64 = rng.gen_range(min_amount..=max_amount);

@@ -1,0 +1,30 @@
+[user]
+username = "taimurey"
+license_key = "MEVARIK-Rd7XVb-44hTPV-E9o9yB-JXRthj"
+
+[network]
+block_engine_url = "https://ny.mainnet.block-engine.jito.wtf"
+pubsub_url = "wss://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
+rpc_url = "https://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
+grpc_url = "http://160.202.128.179:10000"
+regions = ["ny"]
+
+[engine]
+payer_keypair = ""
+subscribe_bundle_results = false
+use_bundles = true
+
+[trading]
+spam = false
+spam_count = 15
+slippage = false
+bundle_tip = 0.0
+copytrade_accounts = [
+    "5iywveQKkidqPDKt2CExJcWKex2EXz9kbGcYiZvhuXWs",
+    "EP7bbErAipyxFqibUDwkPNrwcsN7zNPoz7o5EoNQM9qd",
+    "AZ1wHjhG1v2r87HGKNPcH3sAouAPRVE7W3jpSMzP9Sje",
+    "3gpEqHucCshdReaJ6Heu9afEKT17KpCe5oafKVshBvhN",
+    "9yMwSPk9mrXSN7yDHUuZurAh1sjbJsfpUqjZ7SvVtdco",
+]
+loss_threshold_percentage = 50.0
+profit_threshold_percentage = 100.0

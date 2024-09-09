@@ -15,7 +15,7 @@ use spl_token::instruction::sync_native;
 use std::{str::FromStr, sync::Arc};
 
 use crate::{
-    env::{load_settings, minter::load_minter_settings},
+    env::{load_config, minter::load_minter_settings},
     instruction::instruction::{get_keys_for_market, load_amm_keys},
     liquidity::{option::wallet_gen::list_folders, pool_ixs::AMM_PROGRAM, swap_ixs::swap_ixs},
     raydium_amm::swap::{instructions::SOLC_MINT, swapper::auth_keypair},
@@ -29,7 +29,7 @@ pub async fn volume_wallets_buyer(out: bool) -> eyre::Result<()> {
     };
 
     let data = load_minter_settings().await?;
-    let engine = load_settings().await?;
+    let engine = load_config().await?;
 
     let pool_id = match Pubkey::from_str(&data.pool_id) {
         Ok(pool_id) => pool_id,
@@ -55,7 +55,7 @@ pub async fn volume_wallets_buyer(out: bool) -> eyre::Result<()> {
     };
 
     let mut client =
-        get_searcher_client(&engine.block_engine_url, &Arc::new(auth_keypair())).await?;
+        get_searcher_client(&engine.network.block_engine_url, &Arc::new(auth_keypair())).await?;
 
     let mut bundle_results_subscription = client
         .subscribe_bundle_results(SubscribeBundleResultsRequest {})

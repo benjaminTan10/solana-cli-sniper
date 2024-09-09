@@ -16,7 +16,7 @@ use std::time::Duration;
 use tokio::sync::mpsc::{self, Receiver};
 use tokio::time::{self, sleep};
 
-use crate::env::EngineSettings;
+use crate::env::{EngineSettings, SettingsConfig};
 use crate::liquidity::utils::tip_account;
 use crate::raydium_amm::subscribe::PoolKeysSniper;
 use crate::raydium_amm::swap::instructions::{swap_base_in, SwapDirection, SOLC_MINT};
@@ -35,7 +35,7 @@ pub async fn raydium_in(
     amount_in: u64,
     amount_out: u64,
     fees: PriorityTip,
-    args: EngineSettings,
+    args: SettingsConfig,
 ) -> eyre::Result<()> {
     let user_source_owner = wallet.pubkey();
     let rpc_client = {
@@ -43,7 +43,7 @@ pub async fn raydium_in(
         http_client.get("http_client").unwrap().clone()
     };
     let mut searcher_client =
-        get_searcher_client(&args.block_engine_url, &Arc::new(auth_keypair())).await?;
+        get_searcher_client(&args.network.block_engine_url, &Arc::new(auth_keypair())).await?;
 
     let tip_account = tip_account();
 
@@ -113,7 +113,7 @@ pub async fn raydium_in(
         }
     };
 
-    if args.use_bundles {
+    if args.engine.use_bundles {
         info!("Building Bundle");
 
         let tip_txn = VersionedTransaction::from(Transaction::new_signed_with_payer(
@@ -153,9 +153,9 @@ pub async fn raydium_in(
             ..Default::default()
         };
 
-        if args.spam {
+        if args.trading.spam {
             let mut counter = 0;
-            while counter < args.spam_count {
+            while counter < args.trading.spam_count {
                 let result = match rpc_client
                     .send_transaction_with_config(&transaction, config)
                     .await
@@ -319,7 +319,7 @@ pub async fn sell_tokens(
     pool_keys: PoolKeysSniper,
     wallet: Arc<Keypair>,
     fees: PriorityTip,
-    args: EngineSettings,
+    args: SettingsConfig,
 ) -> eyre::Result<()> {
     let rpc_client = {
         let http_client = HTTP_CLIENT.lock().unwrap();

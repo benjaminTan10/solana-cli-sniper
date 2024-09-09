@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    env::{utils::read_keys, EngineSettings},
+    env::{utils::read_keys, EngineSettings, SettingsConfig},
     liquidity::{pool_ixs::token_percentage, utils::tip_account},
     moonshot::menu::MoonShotDirection,
     raydium_amm::{swap::swapper::auth_keypair, volume_pinger::volume::buy_amount},
@@ -23,7 +23,7 @@ use spl_associated_token_account::get_associated_token_address;
 
 pub async fn moonshot_swap(
     wallet: &Arc<Keypair>,
-    args: EngineSettings,
+    args: SettingsConfig,
     direction: MoonShotDirection,
 ) -> eyre::Result<()> {
     let rpc_client = {
@@ -64,14 +64,14 @@ pub async fn moonshot_swap(
     info!("Tokens Amount: {}", amount);
 
     let mut bundle_tip = 0;
-    if args.use_bundles {
+    if args.engine.use_bundles {
         bundle_tip = bundle_priority_tip().await;
     }
 
     let user_source_owner = wallet.pubkey();
 
     let mut searcher_client =
-        get_searcher_client(&args.block_engine_url, &Arc::new(auth_keypair())).await?;
+        get_searcher_client(&args.network.block_engine_url, &Arc::new(auth_keypair())).await?;
 
     let tip_account = tip_account();
 

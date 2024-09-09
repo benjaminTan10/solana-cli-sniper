@@ -11,7 +11,7 @@ use yellowstone_grpc_proto::geyser::{SubscribeRequest, SubscribeUpdateTransactio
 
 use crate::{
     app::MevApe,
-    env::load_settings,
+    env::load_config,
     moonshot::instructions::instructions::TokenMintIxData,
     raydium_amm::{
         subscribe::auto_sniper_stream,
@@ -27,7 +27,7 @@ use crate::{
 pub const MOONSHOT_CONTRACT: &str = "MoonCVVNZFSYkqNXP6bxHLPL6QQJiMagDL3qcqUQTrG";
 
 pub async fn moonshot_sniper(manual_snipe: bool) -> eyre::Result<()> {
-    let args = match load_settings().await {
+    let args = match load_config().await {
         Ok(args) => args,
         Err(e) => {
             error!("Error: {:?}", e);
@@ -35,18 +35,18 @@ pub async fn moonshot_sniper(manual_snipe: bool) -> eyre::Result<()> {
         }
     };
 
-    if args.grpc_url.is_empty() {
+    if args.network.grpc_url.is_empty() {
         let _ = auto_sniper_stream(manual_snipe).await?;
         return Ok(());
     }
     let sol_amount = sol_amount("Snipe Amount:").await;
 
-    let mut token = Pubkey::default();
+    let mut token;
 
     let mut bundle_tip = 0;
     let mut priority_fee_value = 0;
 
-    if args.use_bundles {
+    if args.engine.use_bundles {
         priority_fee_value = priority_fee().await;
         bundle_tip = bundle_priority_tip().await;
     } else {
@@ -54,9 +54,9 @@ pub async fn moonshot_sniper(manual_snipe: bool) -> eyre::Result<()> {
     }
 
     if manual_snipe {
-        token = token_env("Base Mint").await;
+        token = Some(token_env("Base Mint").await);
 
-        let (token, data) = mpl_token_metadata::accounts::Metadata::find_pda(&token);
+        let (token, data) = mpl_token_metadata::accounts::Metadata::find_pda(&token.unwrap());
         let metadata = match decode_metadata(&token).await {
             Ok(metadata) => Some(metadata),
             Err(e) => {
@@ -82,7 +82,7 @@ pub async fn moonshot_sniper(manual_snipe: bool) -> eyre::Result<()> {
 
         info!("Listening for the Launch...")
     } else {
-        token = Pubkey::default();
+        token = None;
     }
 
     // let wallet = private_key_env().await?;
@@ -96,7 +96,7 @@ pub async fn moonshot_sniper(manual_snipe: bool) -> eyre::Result<()> {
         sol_amount,
         fee: fees,
         // bundle_tip,
-        wallet: args.payer_keypair.clone(),
+        wallet: args.engine.payer_keypair.clone(),
     };
 
     let _ = match grpc_pair_sub(
@@ -120,7 +120,6 @@ pub async fn moonshot_parser(
     rpc_client: Arc<RpcClient>,
     tx: SubscribeUpdateTransaction,
     manual_snipe: bool,
-    base_mint: Pubkey,
     mev_ape: Arc<MevApe>,
     mut subscribe_tx: tokio::sync::MutexGuard<
         '_,

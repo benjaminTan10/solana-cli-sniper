@@ -42,7 +42,7 @@ use tokio::{join, sync::mpsc::Receiver, time::interval};
 use tonic::{codegen::InterceptedService, transport::Channel, Response, Status};
 
 use crate::{
-    env::EngineSettings,
+    env::{EngineSettings, SettingsConfig},
     raydium_amm::{
         bundles::{
             mev_trades::{MEVBotSettings, POOL_KEYS},
@@ -730,7 +730,7 @@ async fn run_searcher_loop(
     }
 }
 
-pub async fn backrun_jito(args: EngineSettings, preference: Arc<MEVBotSettings>) -> Result<()> {
+pub async fn backrun_jito(args: SettingsConfig, preference: Arc<MEVBotSettings>) -> Result<()> {
     // let payer_keypair = Arc::new(Keypair::from_base58_string(&preference.wallet));
     // let auth_keypair = Arc::new(Keypair::from_bytes(&args.auth_keypair).unwrap());
     // // info!(
@@ -747,7 +747,7 @@ pub async fn backrun_jito(args: EngineSettings, preference: Arc<MEVBotSettings>)
     // tokio::spawn(slot_subscribe_loop(args.pubsub_url.clone(), slot_sender));
     // tokio::spawn(block_subscribe_loop(args.pubsub_url.clone(), block_sender));
     // tokio::spawn(pending_tx_loop(
-    //     args.block_engine_url.clone(),
+    //     args.network.block_engine_url.clone(),
     //     auth_keypair.clone(),
     //     pending_tx_sender,
     //     args.backrun_accounts.clone(),
@@ -755,17 +755,17 @@ pub async fn backrun_jito(args: EngineSettings, preference: Arc<MEVBotSettings>)
 
     // if args.subscribe_bundle_results {
     //     tokio::spawn(bundle_results_loop(
-    //         args.block_engine_url.clone(),
+    //         args.network.block_engine_url.clone(),
     //         auth_keypair.clone(),
     //         bundle_results_sender,
     //     ));
     // }
 
     // let result = run_searcher_loop(
-    //     args.block_engine_url,
+    //     args.network.block_engine_url,
     //     auth_keypair,
     //     &payer_keypair,
-    //     args.rpc_url,
+    //     args.network.rpc_url,
     //     args.regions,
     //     args.message,
     //     args.tip_program_id,

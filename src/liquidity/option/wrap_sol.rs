@@ -19,7 +19,7 @@ use spl_token::instruction::sync_native;
 
 use crate::{
     env::{
-        load_settings,
+        load_config,
         minter::{load_minter_settings, PoolDataSettings},
     },
     liquidity::{
@@ -210,7 +210,7 @@ pub async fn sol_wrap() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let settings = match load_settings().await {
+    let settings = match load_config().await {
         Ok(settings) => settings,
         Err(e) => {
             eprintln!("Error: {}", e);
@@ -240,7 +240,7 @@ pub async fn sol_wrap() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         let mut client =
-            get_searcher_client(&settings.block_engine_url, &Arc::new(auth_keypair())).await?;
+            get_searcher_client(&settings.network.block_engine_url, &Arc::new(auth_keypair())).await?;
 
         let mut bundle_results_subscription = client
             .subscribe_bundle_results(SubscribeBundleResultsRequest {})

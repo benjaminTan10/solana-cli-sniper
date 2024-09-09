@@ -6,7 +6,7 @@ use std::error::Error;
 use std::sync::Mutex;
 
 use crate::app::private_key_env;
-use crate::env::load_settings;
+use crate::env::load_config;
 use crate::raydium_amm::subscribe::PoolKeysSniper;
 use crate::raydium_amm::volume_pinger::volume::buy_amount;
 use crate::user_inputs::amounts::{bundle_priority_tip, priority_fee};
@@ -48,7 +48,7 @@ pub async fn mev_trades() -> Result<(), Box<dyn Error>> {
         wallet,
     };
 
-    let args = match load_settings().await {
+    let args = match load_config().await {
         Ok(args) => args,
         Err(e) => {
             error!("Error: {:?}", e);

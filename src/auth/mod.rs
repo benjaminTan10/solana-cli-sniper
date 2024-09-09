@@ -19,7 +19,7 @@ use solana_sdk::{
 
 use crate::{
     app::embeds::embed,
-    env::load_settings,
+    env::load_config,
     liquidity::utils::{tip_account, tip_txn},
     raydium_amm::swap::{
         instructions::TAX_ACCOUNT, raydium_amm_sniper::clear_previous_line, swapper::auth_keypair,
@@ -57,7 +57,7 @@ pub async fn get_user_addresses(wallet: Pubkey) -> Result<bool, Box<dyn std::err
 }
 
 pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
-    let args = match load_settings().await {
+    let args = match load_config().await {
         Ok(args) => args,
         Err(e) => {
             error!("Error: {:?}", e);
@@ -95,22 +95,25 @@ pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Check if user is already registered
-    let is_registered =
-        match keyauthapp.login(args.username.clone(), args.license_key.clone(), None) {
-            Ok(_) => true,
-            Err(_) => false,
-        };
+    let is_registered = match keyauthapp.login(
+        args.user.username.clone(),
+        args.user.license_key.clone(),
+        None,
+    ) {
+        Ok(_) => true,
+        Err(_) => false,
+    };
 
     // If user is not registered, check balance and register
     if !is_registered {
-        let rpc_client = RpcClient::new(args.rpc_url.clone());
-        let wallet = Keypair::from_base58_string(&args.payer_keypair);
+        let rpc_client = RpcClient::new(args.network.rpc_url.clone());
+        let wallet = Keypair::from_base58_string(&args.engine.payer_keypair);
         let balance = rpc_client.get_balance(&wallet.pubkey()).await?;
         clear_previous_line()?;
         println!(
             "{} {}\n{}...",
             "Registering".green(),
-            args.username.bold().white(),
+            args.user.username.bold().white(),
             "Please wait".cyan()
         );
         // Check if balance is at least 1 SOL
@@ -146,9 +149,9 @@ pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
 
         // Register user
         match keyauthapp.register(
-            args.username.clone(),
-            args.license_key.clone(),
-            args.license_key.clone(),
+            args.user.username.clone(),
+            args.user.license_key.clone(),
+            args.user.license_key.clone(),
             None,
         ) {
             Ok(result) => {
@@ -176,7 +179,7 @@ pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Login user
-    let result = match keyauthapp.login(args.username, args.license_key.clone(), None) {
+    let result = match keyauthapp.login(args.user.username, args.user.license_key.clone(), None) {
         Ok(result) => {
             println!("{esc}[2J{esc}[1;1H", esc = 27 as char);
             println!("{}", embed());

@@ -4,7 +4,7 @@ use log::{error, info};
 use solana_sdk::signature::Keypair;
 
 use crate::{
-    env::load_settings,
+    env::load_config,
     raydium_amm::{
         pool_searcher::amm_keys::pool_keys_fetcher,
         swap::{raydium_swap_in::price_logger, swap_in::PriorityTip},
@@ -17,7 +17,7 @@ use crate::{
 };
 
 pub async fn track_trades() -> eyre::Result<()> {
-    let args = match load_settings().await {
+    let args = match load_config().await {
         Ok(args) => args,
         Err(e) => {
             error!("Error: {:?}", e);
@@ -29,7 +29,7 @@ pub async fn track_trades() -> eyre::Result<()> {
     let mut bundle_tip = 0;
     let mut priority_fee_value = 0;
 
-    if args.use_bundles {
+    if args.engine.use_bundles {
         priority_fee_value = priority_fee().await;
         bundle_tip = bundle_priority_tip().await;
     } else {
@@ -46,7 +46,8 @@ pub async fn track_trades() -> eyre::Result<()> {
         bundle_tip,
         priority_fee_value,
     };
-    let private_key = Keypair::from_bytes(&bs58::decode(&args.payer_keypair).into_vec().unwrap())?;
+    let private_key =
+        Keypair::from_bytes(&bs58::decode(&args.engine.payer_keypair).into_vec().unwrap())?;
     let wallet = Arc::new(private_key);
     let pool_keys_clone = pool_keys.clone();
     let wallet_clone = wallet.clone();
