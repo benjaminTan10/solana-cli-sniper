@@ -1,9 +1,4 @@
-use std::{
-    fs::File,
-    io::{Read, Write},
-    str::FromStr,
-    sync::Arc,
-};
+use std::{fs::File, io::Write, str::FromStr, sync::Arc};
 
 mod volume_buyer;
 
@@ -19,7 +14,6 @@ use crate::{
         option::{
             sol_distribution::{atas_creation, distributor},
             wallet_gen::gen_wallet_save,
-            wrap_sol::sol_wrap,
         },
         utils::{tip_account, tip_txn},
     },
@@ -196,7 +190,7 @@ pub async fn volume_lut() -> eyre::Result<()> {
 
     info!("Subscribed to bundle results");
 
-    let bundle = match send_bundle_with_confirmation(
+    match send_bundle_with_confirmation(
         &txns,
         &connection,
         &mut search,
@@ -225,7 +219,7 @@ pub fn poolkeys_lut_2(
 ) -> eyre::Result<Instruction> {
     let buyer_wallet = Keypair::from_base58_string(&server_data.buyer_key);
 
-    let mut keys = vec![
+    let keys = vec![
         pool_keys.id,
         pool_keys.base_mint,
         pool_keys.quote_mint,

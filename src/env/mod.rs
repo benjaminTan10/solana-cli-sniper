@@ -7,7 +7,6 @@ use std::{
 use demand::Input;
 use log::info;
 use serde::{Deserialize, Serialize};
-use solana_program::pubkey::Pubkey;
 use toml;
 
 use crate::app::private_key_env;

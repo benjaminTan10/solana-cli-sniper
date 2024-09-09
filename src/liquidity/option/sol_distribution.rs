@@ -153,8 +153,11 @@ pub async fn distributor() -> eyre::Result<()> {
 
     let settings = load_config().await?;
 
-    let mut client =
-        get_searcher_client(&settings.network.block_engine_url, &Arc::new(auth_keypair())).await?;
+    let mut client = get_searcher_client(
+        &settings.network.block_engine_url,
+        &Arc::new(auth_keypair()),
+    )
+    .await?;
 
     let mut bundle_results_subscription = client
         .subscribe_bundle_results(SubscribeBundleResultsRequest {})
@@ -177,8 +180,8 @@ pub async fn distributor() -> eyre::Result<()> {
 
     let wallet_chunks = wallets.chunks(104).collect::<Vec<_>>();
 
-    for (index, wallet_chunk) in wallet_chunks.iter().enumerate() {
-        let (amounts, transactions_1) = match sol_distribution(
+    for (_, wallet_chunk) in wallet_chunks.iter().enumerate() {
+        let (_, transactions_1) = match sol_distribution(
             data.clone(),
             wallet_chunk,
             total_amount,
@@ -197,7 +200,7 @@ pub async fn distributor() -> eyre::Result<()> {
 
         info!("Sending Bundle");
 
-        let bundle = match send_bundle_with_confirmation(
+        match send_bundle_with_confirmation(
             &transactions_1,
             &connection,
             &mut client,

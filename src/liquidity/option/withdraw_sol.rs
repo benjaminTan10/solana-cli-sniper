@@ -49,14 +49,18 @@ pub async fn withdraw_sol() -> Result<(), Box<dyn Error + Send>> {
         }
     };
 
-    let mut client =
-        match get_searcher_client(&settings.network.block_engine_url, &Arc::new(auth_keypair())).await {
-            Ok(client) => client,
-            Err(e) => {
-                eprintln!("Error: {}", e);
-                panic!("Error: {}", e);
-            }
-        };
+    let mut client = match get_searcher_client(
+        &settings.network.block_engine_url,
+        &Arc::new(auth_keypair()),
+    )
+    .await
+    {
+        Ok(client) => client,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            panic!("Error: {}", e);
+        }
+    };
 
     let mut bundle_results_subscription = client
         .subscribe_bundle_results(SubscribeBundleResultsRequest {})
@@ -72,7 +76,7 @@ pub async fn withdraw_sol() -> Result<(), Box<dyn Error + Send>> {
         }
     };
 
-    let bundle = match send_bundle_with_confirmation(
+    match send_bundle_with_confirmation(
         &bundle_txn,
         &connection,
         &mut client,
@@ -81,7 +85,7 @@ pub async fn withdraw_sol() -> Result<(), Box<dyn Error + Send>> {
     .await
     {
         Ok(_) => {}
-        Err(e) => {
+        Err(_) => {
             return Ok(());
         }
     };

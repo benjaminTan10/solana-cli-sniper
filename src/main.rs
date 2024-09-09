@@ -1,6 +1,5 @@
 use chrono::Local;
 use colored::Colorize;
-use log::info;
 use pretty_env_logger::env_logger::fmt::Color;
 use std::io::Write;
 use Mevarik::{

@@ -19,7 +19,7 @@ pub async fn token_env(token_identifier: &str) -> Pubkey {
                 token_pubkey = pubkey;
                 break;
             }
-            Err(e) => {
+            Err(_) => {
                 error!("Invalid pubkey. Please try again.");
             }
         }

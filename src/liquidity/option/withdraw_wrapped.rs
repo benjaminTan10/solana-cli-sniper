@@ -1,18 +1,13 @@
-use std::{error::Error, str::FromStr, sync::Arc};
+use std::{error::Error, sync::Arc};
 
 use bincode::serialize;
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
-use solana_address_lookup_table_program::state::AddressLookupTable;
 use solana_sdk::{
-    address_lookup_table::AddressLookupTableAccount,
-    instruction::Instruction,
     message::{v0::Message, VersionedMessage},
     native_token::{lamports_to_sol, sol_to_lamports},
-    pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
-    system_instruction,
     transaction::VersionedTransaction,
 };
 use spl_associated_token_account::get_associated_token_address;
@@ -29,7 +24,6 @@ use crate::{
     },
     raydium_amm::swap::{instructions::SOLC_MINT, swapper::auth_keypair},
     rpc::HTTP_CLIENT,
-    user_inputs::amounts::bundle_priority_tip,
 };
 
 pub async fn withdraw_wrapped_sol() -> Result<(), Box<dyn Error + Send>> {
@@ -54,14 +48,18 @@ pub async fn withdraw_wrapped_sol() -> Result<(), Box<dyn Error + Send>> {
         }
     };
 
-    let mut client =
-        match get_searcher_client(&settings.network.block_engine_url, &Arc::new(auth_keypair())).await {
-            Ok(client) => client,
-            Err(e) => {
-                eprintln!("Error: {}", e);
-                panic!("Error: {}", e);
-            }
-        };
+    let mut client = match get_searcher_client(
+        &settings.network.block_engine_url,
+        &Arc::new(auth_keypair()),
+    )
+    .await
+    {
+        Ok(client) => client,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            panic!("Error: {}", e);
+        }
+    };
 
     let mut bundle_results_subscription = client
         .subscribe_bundle_results(SubscribeBundleResultsRequest {})
@@ -76,8 +74,7 @@ pub async fn withdraw_wrapped_sol() -> Result<(), Box<dyn Error + Send>> {
             panic!("Error: {}", e);
         }
     };
-
-    let bundle = match send_bundle_with_confirmation(
+    match send_bundle_with_confirmation(
         &bundle_txn,
         &connection,
         &mut client,
@@ -86,7 +83,7 @@ pub async fn withdraw_wrapped_sol() -> Result<(), Box<dyn Error + Send>> {
     .await
     {
         Ok(_) => {}
-        Err(e) => {
+        Err(_) => {
             return Ok(());
         }
     };
@@ -119,8 +116,6 @@ pub async fn withdraw_wsol(
 
     println!("Buyer Balance: {} SOL", lamports_to_sol(balance));
 
-    let mint = Pubkey::from_str(&pool_data.token_mint).unwrap();
-
     let recent_blockhash = match connection.get_latest_blockhash().await {
         Ok(recent_blockhash) => recent_blockhash,
         Err(e) => {
@@ -136,11 +131,8 @@ pub async fn withdraw_wsol(
         let mut current_instructions = Vec::new();
         let mut current_wallets = Vec::new();
 
-        for (i, wallet) in wallet_chunk.iter().enumerate() {
+        for (_, wallet) in wallet_chunk.iter().enumerate() {
             let user_token_source = get_associated_token_address(&wallet.pubkey(), &SOLC_MINT);
-
-            let destination_wallet =
-                get_associated_token_address(&buyer_wallet.pubkey(), &SOLC_MINT);
 
             let balance = match connection
                 .get_token_account_balance(&user_token_source)
