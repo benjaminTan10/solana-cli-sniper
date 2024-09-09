@@ -1510,7 +1510,7 @@ pub fn swap(
     other_amount_threshold: u64,
     out: bool,
 ) -> eyre::Result<Instruction> {
-    let mut swap_instruction;
+    let swap_instruction;
     if out {
         swap_instruction = swap_base_in(
             &amm_program,

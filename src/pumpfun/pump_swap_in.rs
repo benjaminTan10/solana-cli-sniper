@@ -4,7 +4,7 @@ use super::instructions::instructions::{
     generate_pump_buy_ix, generate_pump_sell_ix, PumpFunDirection,
 };
 use crate::{
-    env::{utils::read_keys, EngineSettings, SettingsConfig},
+    env::{utils::read_keys, SettingsConfig},
     liquidity::{pool_ixs::token_percentage, utils::tip_account},
     raydium_amm::{swap::swapper::auth_keypair, volume_pinger::volume::buy_amount},
     rpc::HTTP_CLIENT,
@@ -24,7 +24,6 @@ use solana_sdk::{
 use spl_associated_token_account::{
     get_associated_token_address, instruction::create_associated_token_account_idempotent,
 };
-use spl_token_client::token;
 
 pub async fn pump_swap(
     wallet: &Arc<Keypair>,

@@ -35,8 +35,7 @@ use yellowstone_grpc_proto::{
 use crate::{
     env::{
         load_config,
-        minter::{load_minter_settings, PoolDataSettings},
-        EngineSettings, SettingsConfig,
+        minter::{load_minter_settings, PoolDataSettings}, SettingsConfig,
     },
     plugins::yellowstone_plugin::lib::GeyserGrpcClient,
     raydium_amm::swap::instructions::TAX_ACCOUNT,

@@ -42,7 +42,7 @@ use tokio::{join, sync::mpsc::Receiver, time::interval};
 use tonic::{codegen::InterceptedService, transport::Channel, Response, Status};
 
 use crate::{
-    env::{EngineSettings, SettingsConfig},
+    env::SettingsConfig,
     raydium_amm::{
         bundles::{
             mev_trades::{MEVBotSettings, POOL_KEYS},

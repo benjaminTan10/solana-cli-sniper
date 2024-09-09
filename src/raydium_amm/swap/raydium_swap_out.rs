@@ -1,4 +1,3 @@
-use jito_protos::bundle::BundleResult;
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
 use log::{error, info};
@@ -12,11 +11,9 @@ use solana_sdk::{signature::Keypair, signer::Signer};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::mpsc::Receiver;
 
-use crate::env::{EngineSettings, SettingsConfig};
+use crate::env::SettingsConfig;
 use crate::liquidity::utils::tip_account;
-use crate::plugins::jito_plugin::lib::{send_bundles, BundledTransactions};
 use crate::raydium_amm::subscribe::PoolKeysSniper;
 use crate::raydium_amm::swap::instructions::{swap_base_out, SOLC_MINT};
 use crate::rpc::HTTP_CLIENT;

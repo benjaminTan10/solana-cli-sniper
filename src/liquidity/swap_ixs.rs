@@ -15,7 +15,7 @@ use spl_associated_token_account::{
 use crate::{
     env::minter::PoolDataSettings,
     instruction::instruction::{
-        get_keys_for_market, swap, AmmKeys, MarketPubkeys, PoolKeysSniper, SOL_MINT,
+        get_keys_for_market, swap, AmmKeys, MarketPubkeys, PoolKeysSniper,
     },
     rpc::HTTP_CLIENT,
 };

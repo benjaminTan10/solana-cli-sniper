@@ -3,10 +3,8 @@ use std::{str::FromStr, sync::Arc};
 use demand::Confirm;
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
-use solana_client::{rpc_config::RpcSendTransactionConfig, rpc_request::TokenAccountsFilter};
+use solana_client::rpc_request::TokenAccountsFilter;
 use solana_sdk::{
-    commitment_config::CommitmentConfig,
-    compute_budget::ComputeBudgetInstruction,
     instruction::Instruction,
     message::{v0::Message, VersionedMessage},
     native_token::sol_to_lamports,
@@ -27,10 +25,7 @@ use crate::{
         pool_ixs::{generate_pubkey, AMM_PROGRAM},
         utils::{tip_account, tip_txn},
     },
-    raydium_amm::{
-        pool_searcher::amm_keys::pool_keys_fetcher,
-        swap::{instructions::SOLC_MINT, swapper::auth_keypair},
-    },
+    raydium_amm::swap::{instructions::SOLC_MINT, swapper::auth_keypair},
     rpc::HTTP_CLIENT,
     user_inputs::tokens::token_env,
 };

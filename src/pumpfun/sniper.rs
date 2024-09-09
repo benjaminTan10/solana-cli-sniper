@@ -10,7 +10,7 @@ use yellowstone_grpc_proto::geyser::{SubscribeRequest, SubscribeUpdateTransactio
 
 use crate::{
     app::MevApe,
-    env::{load_config, EngineSettings, SettingsConfig},
+    env::{load_config, SettingsConfig},
     pumpfun::instructions::pumpfun_program::instructions::CreateIxData,
     raydium_amm::{
         subscribe::auto_sniper_stream,
@@ -122,7 +122,7 @@ pub async fn pumpfun_parser(
     manual_snipe: bool,
     base_mint: Option<Pubkey>,
     mev_ape: Arc<MevApe>,
-    mut subscribe_tx: tokio::sync::MutexGuard<
+    subscribe_tx: tokio::sync::MutexGuard<
         '_,
         impl Sink<SubscribeRequest, Error = SendError> + std::marker::Unpin,
     >,

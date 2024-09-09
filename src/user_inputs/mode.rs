@@ -5,7 +5,7 @@ use crossterm::style::Stylize;
 use demand::{DemandOption, Select};
 use log::{error, info};
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::{pubkey::Pubkey, signature::Keypair};
+use solana_sdk::signature::Keypair;
 
 use crate::{
     app::{theme, MevApe},
@@ -89,7 +89,7 @@ pub async fn automatic_snipe(manual_snipe: bool) -> eyre::Result<()> {
     }
     let sol_amount = sol_amount("Snipe Amount:").await;
 
-    let mut token;
+    let token;
 
     let mut bundle_tip = 0;
     let mut priority_fee_value = 0;

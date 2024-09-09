@@ -1,11 +1,9 @@
 use std::error::Error;
 
 use demand::{DemandOption, Select};
-use log::error;
 
 use crate::{
     app::{app, embeds::embed, theme},
-    auth::auth_verification,
     liquidity::{
         lut::extend_lut::lut_main,
         option::{

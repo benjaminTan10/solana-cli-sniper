@@ -1,10 +1,9 @@
 pub mod rand;
 
-use jito_protos::bundle::BundleResult;
 use log::info;
 use solana_sdk::signature::Keypair;
 use std::{error::Error, sync::Arc};
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::mpsc::Sender;
 
 pub async fn read_single_key(stop_tx: &mut tokio::sync::mpsc::Sender<()>) {
     // let mut stdin = std::io::stdin();
@@ -48,7 +47,7 @@ pub async fn read_single_key(stop_tx: &mut tokio::sync::mpsc::Sender<()>) {
 use console::{Key, Term};
 
 use crate::{
-    env::{EngineSettings, SettingsConfig},
+    env::SettingsConfig,
     raydium_amm::{
         subscribe::PoolKeysSniper,
         swap::{

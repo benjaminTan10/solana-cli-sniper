@@ -7,7 +7,7 @@ use solana_address_lookup_table_program::state::AddressLookupTable;
 use solana_sdk::{
     address_lookup_table::AddressLookupTableAccount,
     message::{v0::Message, VersionedMessage},
-    native_token::{lamports_to_sol, sol_to_lamports},
+    native_token::lamports_to_sol,
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
@@ -23,7 +23,7 @@ use crate::{
         utils::{tip_account, tip_txn},
     },
     raydium_amm::swap::{
-        instructions::{SOLC_MINT, TAX_ACCOUNT},
+        instructions::SOLC_MINT,
         swapper::auth_keypair,
     },
     rpc::HTTP_CLIENT,

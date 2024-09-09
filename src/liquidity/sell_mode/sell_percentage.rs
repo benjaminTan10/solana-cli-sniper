@@ -25,7 +25,7 @@ use crate::{
     liquidity::{
         option::wallet_gen::list_folders,
         pool_ixs::AMM_PROGRAM,
-        swap_ixs::{self, swap_ixs},
+        swap_ixs::{swap_ixs},
         utils::{tip_account, tip_txn},
     },
     raydium_amm::{

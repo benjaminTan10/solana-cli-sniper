@@ -3,13 +3,10 @@ use std::error::Error;
 use crate::{
     app::{app, embeds::embed, theme},
     env::vanity::vanity_main,
-    liquidity::{
-        option::{
+    liquidity::option::{
             sol_distribution::distributor, wallet_gen::gen_wallet_save, withdraw_sol::withdraw_sol,
             withdraw_wrapped::withdraw_wrapped_sol, wrap_sol::sol_wrap,
         },
-        sell_mode::sell_percentage::sell_specific,
-    },
     pumpfun::bundler::{
         multi_deployer::multi_wallet_token, pump_lut::pump_lut_main,
         pumpfun_deploy::one_pumpfun_deploy, sell_mode::pump_seller::pump_bundle_seller,

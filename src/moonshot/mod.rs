@@ -2,12 +2,11 @@ use std::{str::FromStr, sync::Arc};
 
 use instructions::accounts::CurveAccountAccount;
 use solana_program::pubkey;
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signature::Keypair, signer::Signer};
+use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer};
 use spl_associated_token_account::get_associated_token_address;
 
 use crate::{
-    moonshot::{self, instructions::instructions::MOONSHOT_TOKEN_LAUNCHPAD},
-    raydium_cpmm::instructions::rpc,
+    moonshot::{instructions::instructions::MOONSHOT_TOKEN_LAUNCHPAD},
     rpc::HTTP_CLIENT,
 };
 

@@ -10,10 +10,10 @@ use std::{
 
 use colorize::AnsiColor;
 use futures::{SinkExt, StreamExt};
-use log::{error, info, trace};
+use log::{error, info};
 use maplit::hashmap;
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::{pubkey::Pubkey, signature::Keypair};
+use solana_sdk::signature::Keypair;
 use yellowstone_grpc_proto::geyser::{
     subscribe_update::UpdateOneof, SubscribeRequest, SubscribeRequestFilterBlocksMeta,
     SubscribeRequestFilterTransactions,
@@ -22,11 +22,9 @@ use yellowstone_grpc_proto::geyser::{
 use crate::{
     app::MevApe,
     copytrade::copytrading_decoder::copy_trade_sub,
-    env::{EngineSettings, SettingsConfig},
-    moonshot::sniper::moonshot_parser,
+    env::SettingsConfig,
     plugins::yellowstone_plugin::lib::GeyserGrpcClient,
-    pumpfun::{migration_sniper::pumpfun_migration_snipe_parser, sniper::pumpfun_parser},
-    raydium_amm::swap::raydium_amm_sniper::{clear_previous_line, raydium_sniper_parser},
+    raydium_amm::swap::raydium_amm_sniper::clear_previous_line,
 };
 
 #[derive(PartialEq, Debug, Clone)]

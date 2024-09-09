@@ -8,7 +8,7 @@ use crate::{
     raydium_amm::swap::instructions::{SOLC_MINT, TAX_ACCOUNT},
     rpc::HTTP_CLIENT,
 };
-use demand::{Confirm, Input};
+use demand::Input;
 use log::info;
 use solana_sdk::{
     instruction::Instruction,

@@ -7,7 +7,7 @@ use solana_address_lookup_table_program::state::AddressLookupTable;
 use solana_sdk::{
     address_lookup_table::AddressLookupTableAccount,
     message::{v0::Message, VersionedMessage},
-    native_token::{lamports_to_sol, sol_to_lamports},
+    native_token::lamports_to_sol,
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
@@ -26,16 +26,16 @@ use crate::{
         bundler::{create_metadata::metadata_json, ix_accounts::token_create_ix},
         instructions::{
             instructions::{
-                calculate_buy_price, generate_pump_buy_ix, generate_pump_multi_buy_ix, GLOBAL_STATE,
+                calculate_buy_price, generate_pump_multi_buy_ix, GLOBAL_STATE,
             },
             pumpfun_program::{
-                accounts::{BondingCurve, GlobalAccount},
+                accounts::GlobalAccount,
                 instructions::CreateIxArgs,
             },
         },
     },
     raydium_amm::swap::{
-        instructions::{SOLC_MINT, TAX_ACCOUNT},
+        instructions::SOLC_MINT,
         swapper::auth_keypair,
     },
     rpc::HTTP_CLIENT,

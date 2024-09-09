@@ -1,18 +1,16 @@
 use std::{
     fs::{self, File},
     io::Write,
-    rc::Rc,
     sync::Arc,
 };
 
 use anchor_client::{Client, Cluster};
-use console::Key;
 use log::info;
 use serde::{Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
 
-use crate::{app::private_key_env, user_inputs::tokens::token_env};
+use crate::app::private_key_env;
 
 #[derive(Debug, Clone)]
 pub struct BackrunAccount {

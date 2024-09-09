@@ -30,7 +30,7 @@ use std::{convert::TryInto, sync::Arc};
 use std::{mem::size_of, str::FromStr};
 
 use crate::{
-    env::{load_config, minter::load_minter_settings, EngineSettings, SettingsConfig},
+    env::{load_config, minter::load_minter_settings, SettingsConfig},
     liquidity::utils::{tip_account, tip_txn},
     raydium_amm::subscribe::PoolKeysSniper,
 };

@@ -9,13 +9,13 @@ use std::{
     time::Instant,
 };
 
-use bip39::{Language, Mnemonic, MnemonicType};
+use bip39::Language;
 use clap::{value_parser, App, Arg, ArgMatches, Command};
 use rpassword::prompt_password;
 use solana_sdk::{
     derivation_path::DerivationPath,
     signature::{
-        keypair_from_seed, keypair_from_seed_and_derivation_path, write_keypair_file, Keypair,
+        write_keypair_file, Keypair,
     },
     signer::Signer,
 };

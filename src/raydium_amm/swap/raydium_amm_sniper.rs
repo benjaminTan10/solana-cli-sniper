@@ -89,7 +89,7 @@ pub async fn raydium_sniper_parser(
     manual_snipe: bool,
     base_mint: Option<Pubkey>,
     mev_ape: Arc<MevApe>,
-    mut subscribe_tx: tokio::sync::MutexGuard<
+    subscribe_tx: tokio::sync::MutexGuard<
         '_,
         impl Sink<SubscribeRequest, Error = SendError> + std::marker::Unpin,
     >,

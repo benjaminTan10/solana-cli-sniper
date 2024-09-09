@@ -1,23 +1,18 @@
 use std::sync::Arc;
 
 use crate::{
-    env::{utils::read_keys, EngineSettings, SettingsConfig},
+    env::{utils::read_keys, SettingsConfig},
     liquidity::{pool_ixs::token_percentage, utils::tip_account},
     moonshot::menu::MoonShotDirection,
     raydium_amm::{swap::swapper::auth_keypair, volume_pinger::volume::buy_amount},
     rpc::HTTP_CLIENT,
     user_inputs::{amounts::bundle_priority_tip, tokens::token_env},
 };
-use jito_protos::searcher::SubscribeBundleResultsRequest;
-use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
+use jito_searcher_client::get_searcher_client;
 use log::{error, info};
-use solana_client::rpc_config::RpcSendTransactionConfig;
-use solana_sdk::system_instruction::transfer;
 use solana_sdk::{
-    commitment_config::CommitmentLevel,
     signature::Keypair,
     signer::Signer,
-    transaction::{Transaction, VersionedTransaction},
 };
 use spl_associated_token_account::get_associated_token_address;
 
@@ -70,7 +65,7 @@ pub async fn moonshot_swap(
 
     let user_source_owner = wallet.pubkey();
 
-    let mut searcher_client =
+    let searcher_client =
         get_searcher_client(&args.network.block_engine_url, &Arc::new(auth_keypair())).await?;
 
     let tip_account = tip_account();

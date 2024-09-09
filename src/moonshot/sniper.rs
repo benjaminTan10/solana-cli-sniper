@@ -1,4 +1,4 @@
-use std::{env::args, sync::Arc};
+use std::sync::Arc;
 
 use borsh::BorshDeserialize;
 use colorize::AnsiColor;
@@ -6,7 +6,7 @@ use crossterm::style::Stylize;
 use futures::{channel::mpsc::SendError, Sink};
 use log::{error, info};
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::{pubkey::Pubkey, signature::Signature};
+use solana_sdk::pubkey::Pubkey;
 use yellowstone_grpc_proto::geyser::{SubscribeRequest, SubscribeUpdateTransaction};
 
 use crate::{
@@ -41,7 +41,7 @@ pub async fn moonshot_sniper(manual_snipe: bool) -> eyre::Result<()> {
     }
     let sol_amount = sol_amount("Snipe Amount:").await;
 
-    let mut token;
+    let token;
 
     let mut bundle_tip = 0;
     let mut priority_fee_value = 0;
@@ -121,7 +121,7 @@ pub async fn moonshot_parser(
     tx: SubscribeUpdateTransaction,
     manual_snipe: bool,
     mev_ape: Arc<MevApe>,
-    mut subscribe_tx: tokio::sync::MutexGuard<
+    subscribe_tx: tokio::sync::MutexGuard<
         '_,
         impl Sink<SubscribeRequest, Error = SendError> + std::marker::Unpin,
     >,

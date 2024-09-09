@@ -22,7 +22,7 @@ use solana_sdk::{
 use std::{convert::Into, sync::Arc};
 
 use crate::{
-    env::{EngineSettings, SettingsConfig},
+    env::SettingsConfig,
     liquidity::utils::tip_account,
     raydium_amm::swap::swapper::auth_keypair,
 };

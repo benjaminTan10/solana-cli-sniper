@@ -13,7 +13,6 @@ use crate::{
             SPL_MINT_LAYOUT,
         },
     },
-    rpc::HTTP_CLIENT,
 };
 
 pub async fn pool_keys_fetcher(id: Pubkey) -> eyre::Result<PoolKeysSniper> {

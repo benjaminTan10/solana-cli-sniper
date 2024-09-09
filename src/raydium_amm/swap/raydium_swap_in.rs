@@ -13,10 +13,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use tokio::sync::mpsc::{self, Receiver};
+use tokio::sync::mpsc::{self};
 use tokio::time::{self, sleep};
 
-use crate::env::{EngineSettings, SettingsConfig};
+use crate::env::SettingsConfig;
 use crate::liquidity::utils::tip_account;
 use crate::raydium_amm::subscribe::PoolKeysSniper;
 use crate::raydium_amm::swap::instructions::{swap_base_in, SwapDirection, SOLC_MINT};

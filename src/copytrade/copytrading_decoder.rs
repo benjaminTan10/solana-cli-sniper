@@ -13,10 +13,6 @@ use {
     log::{info, warn},
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_program::pubkey::Pubkey,
-    solana_sdk::{
-        instruction::Instruction, system_instruction::SystemInstruction, system_program,
-        system_transaction,
-    },
     spl_associated_token_account::get_associated_token_address,
     std::sync::Arc,
     yellowstone_grpc_proto::{
@@ -82,7 +78,7 @@ pub async fn copy_trade_sub(
     rpc_client: Arc<RpcClient>,
     tx: SubscribeUpdateTransaction,
     mev_ape: Arc<MevApe>,
-    mut subscribe_tx: tokio::sync::MutexGuard<
+    subscribe_tx: tokio::sync::MutexGuard<
         '_,
         impl Sink<SubscribeRequest, Error = SendError> + std::marker::Unpin,
     >,

@@ -1,8 +1,6 @@
-use crate::app::UserData;
-use crate::raydium_amm::manual_sniper::sniper_txn_in;
 use crate::raydium_amm::utils::parser::parse_signatures;
 use crate::raydium_amm::utils::utils::{market_authority, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT};
-use crate::rpc::{wss_key, HTTP_CLIENT};
+use crate::rpc::HTTP_CLIENT;
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

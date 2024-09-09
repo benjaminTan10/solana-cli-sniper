@@ -18,7 +18,6 @@ use spl_token::instruction::sync_native;
 
 use crate::{
     env::{load_config, minter::load_minter_settings},
-    liquidity::freeze_authority::freeze_sells,
     raydium_amm::swap::{
         instructions::{SOLC_MINT, TAX_ACCOUNT},
         swapper::auth_keypair,
@@ -28,7 +27,6 @@ use crate::{
 };
 
 use super::{
-    option::wallet_gen::list_folders,
     pool_27::PoolDeployResponse,
     pool_ixs::pool_ixs,
     swap_ixs::{load_pool_keys, swap_ixs},

@@ -16,9 +16,8 @@ use spl_token_2022::{
 use spl_token_client::{spl_token_2022, token::ExtensionInitializationParams};
 use std::{rc::Rc, str::FromStr, sync::Arc};
 
-use crate::{env::minter::anchor_cluster, raydium_cpmm::cpmm_builder::ClientConfig};
+use crate::raydium_cpmm::cpmm_builder::ClientConfig;
 
-use super::cpmm_inxs::RAYDIUM_CPMM;
 
 pub fn create_and_init_mint_instr(
     config: &ClientConfig,

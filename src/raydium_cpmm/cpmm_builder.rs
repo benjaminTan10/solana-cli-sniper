@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 use anyhow::{format_err, Result};
 use arrayref::array_ref;
-use clap::Parser;
 use serde::{Deserialize, Serialize};
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcTransactionConfig};
 use solana_sdk::{

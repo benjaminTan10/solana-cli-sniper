@@ -1,7 +1,7 @@
 use std::{str::FromStr, sync::Arc};
 
 use log::error;
-use solana_client::{nonblocking::rpc_client::RpcClient, rpc_request::TokenAccountsFilter};
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction,
     instruction::{AccountMeta, Instruction},

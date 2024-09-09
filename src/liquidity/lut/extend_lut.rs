@@ -3,11 +3,10 @@ use std::{str::FromStr, sync::Arc};
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
 use solana_address_lookup_table_program::instruction::extend_lookup_table;
-use solana_client::rpc_request::TokenAccountsFilter;
 use solana_sdk::{
     instruction::Instruction,
     message::{v0::Message, VersionedMessage},
-    native_token::{lamports_to_sol, sol_to_lamports},
+    native_token::sol_to_lamports,
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
@@ -20,7 +19,6 @@ use crate::{
     instruction::instruction::{get_amm_pda_keys, AmmKeys, MarketPubkeys, SOL_MINT},
     liquidity::{
         option::wallet_gen::load_wallets,
-        pool_ixs::{liq_amount, pool_ixs, token_percentage},
         swap_ixs::load_pool_keys,
         utils::{tip_account, tip_txn},
     },

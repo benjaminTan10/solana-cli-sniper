@@ -1,16 +1,10 @@
-use colorize::AnsiColor;
-use crossterm::style::Stylize;
 use log::{error, info};
 use subscription::copytrading_grpc;
 
 use crate::{
     app::MevApe,
     env::load_config,
-    raydium_amm::{
-        subscribe::auto_sniper_stream,
-        swap::{metadata::decode_metadata, swap_in::PriorityTip},
-    },
-    router::SniperRoute,
+    raydium_amm::swap::swap_in::PriorityTip,
     user_inputs::{
         amounts::{bundle_priority_tip, priority_fee, sol_amount},
         tokens::token_env,

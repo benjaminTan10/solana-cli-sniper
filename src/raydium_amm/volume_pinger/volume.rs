@@ -6,7 +6,7 @@ use rand::{Rng, SeedableRng};
 use solana_address_lookup_table_program::state::AddressLookupTable;
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
 use solana_sdk::{
-    address_lookup_table::AddressLookupTableAccount, address_lookup_table_account,
+    address_lookup_table::AddressLookupTableAccount,
     commitment_config::CommitmentLevel, native_token::sol_to_lamports, pubkey::Pubkey,
     signature::Keypair, signer::Signer, transaction::VersionedTransaction,
 };

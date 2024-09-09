@@ -11,10 +11,7 @@ use solana_sdk::{
 };
 use spl_associated_token_account::get_associated_token_address;
 
-use crate::pumpfun::instructions::pumpfun_program::{
-    accounts::GlobalAccount,
-    instructions::{buy_ix_with_program_id, BuyIxArgs, BuyKeys},
-};
+use crate::pumpfun::instructions::pumpfun_program::instructions::{buy_ix_with_program_id, BuyIxArgs, BuyKeys};
 
 use super::pumpfun_program::{
     accounts::BondingCurve,

@@ -10,7 +10,7 @@ use std::{
 
 use colorize::AnsiColor;
 use futures::{SinkExt, StreamExt};
-use log::{error, info, trace};
+use log::{error, info};
 use maplit::hashmap;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{pubkey::Pubkey, signature::Keypair};
@@ -21,7 +21,7 @@ use yellowstone_grpc_proto::geyser::{
 
 use crate::{
     app::MevApe,
-    env::{EngineSettings, SettingsConfig},
+    env::SettingsConfig,
     moonshot::sniper::moonshot_parser,
     plugins::yellowstone_plugin::lib::GeyserGrpcClient,
     pumpfun::{migration_sniper::pumpfun_migration_snipe_parser, sniper::pumpfun_parser},
