@@ -1,19 +1,23 @@
 use {
     crate::{
         app::MevApe,
+        instruction::instruction::{
+            AmmInstruction, InitializePoolAccounts, INITIALIZE_POOL_ACCOUNTS_LEN,
+        },
         raydium_amm::{
             sniper::utils::{market_authority, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT},
             subscribe::PoolKeysSniper,
             swap::raydium_amm_sniper::{sniper_txn_in_2, RAYDIUM_AMM_V4_PROGRAM_ID},
         },
+        router::SniperRoute,
     },
     chrono::{LocalResult, TimeZone, Utc},
     futures::{channel::mpsc::SendError, Sink},
     log::{error, info, warn},
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_program::pubkey::Pubkey,
-    solana_sdk::pubkey,
-    std::sync::Arc,
+    solana_sdk::{pubkey, system_program},
+    std::{str::FromStr, sync::Arc},
     yellowstone_grpc_proto::{
         geyser::SubscribeUpdateTransaction, prelude::SubscribeRequest,
         solana::storage::confirmed_block::CompiledInstruction,
@@ -28,7 +32,6 @@ pub async fn pumpfun_migration_snipe_parser(
     tx: SubscribeUpdateTransaction,
     manual_snipe: bool,
     base_mint: Option<Pubkey>,
-    mev_ape: Arc<MevApe>,
     subscribe_tx: tokio::sync::MutexGuard<
         '_,
         impl Sink<SubscribeRequest, Error = SendError> + std::marker::Unpin,
@@ -120,148 +123,78 @@ pub async fn pumpfun_migration_snipe_parser(
         })
         .collect();
 
-    let mut pool_keys = Vec::new();
+    let mut coin_args_amm: Option<crate::instruction::instruction::InitializeInstruction2> = None;
+    let mut raydium_accounts: Option<InitializePoolAccounts> = None;
+    let mut trade_route: Option<SniperRoute> = None;
 
-    for item in outer_instructions
-        .iter()
-        .cloned()
-        .chain(inner_instructions.iter().cloned())
-    {
-        if accounts[item.program_id_index as usize] != RAYDIUM_AMM_V4_PROGRAM_ID {
-            continue;
-        }
+    for (index, instructions) in outer_instructions.iter().enumerate() {
+        match AmmInstruction::unpack(&instructions.data) {
+            Ok(AmmInstruction::Initialize2(decode_new_coin)) => {
+                coin_args_amm = Some(decode_new_coin);
+                trade_route = Some(SniperRoute::RaydiumAMM);
 
-        if item.data[0] != 1 {
-            continue;
-        }
-        let key_index: Vec<u8> = item.accounts.iter().map(|b| *b).collect();
-
-        let account_keys = vec![
-            accounts[key_index[9] as usize],
-            accounts[key_index[8] as usize],
-            accounts[accounts.len() - 1],
-        ];
-
-        println!("Account Keys: {:#?}", account_keys);
-
-        let account_infos = match rpc_client.get_multiple_accounts(&account_keys).await {
-            Ok(a) => a,
+                if instructions.accounts.len() >= INITIALIZE_POOL_ACCOUNTS_LEN {
+                    raydium_accounts = Some(InitializePoolAccounts {
+                        spl_token: spl_token::id(),
+                        spl_associated_token_account: spl_associated_token_account::id(),
+                        system_program: system_program::id(),
+                        rent: Pubkey::from_str("SysvarRent111111111111111111111111111111111")?,
+                        amm_pool: accounts[instructions.accounts[4] as usize],
+                        amm_authority: accounts[instructions.accounts[5] as usize],
+                        amm_open_orders: accounts[instructions.accounts[6] as usize],
+                        amm_lp_mint: accounts[instructions.accounts[7] as usize],
+                        amm_coin_mint: accounts[instructions.accounts[8] as usize],
+                        amm_pc_mint: accounts[instructions.accounts[9] as usize],
+                        amm_coin_vault: accounts[instructions.accounts[10] as usize],
+                        amm_pc_vault: accounts[instructions.accounts[11] as usize],
+                        amm_target_orders: accounts[instructions.accounts[12] as usize],
+                        amm_config: accounts[instructions.accounts[13] as usize],
+                        create_fee_destination: accounts[instructions.accounts[14] as usize],
+                        market_program: Pubkey::from_str(
+                            "srmqPvymJeFKQ4zGQed1GFppgkRHL9kaELCbyksJtPX",
+                        )?,
+                        market: accounts[instructions.accounts[16] as usize],
+                        user_wallet: accounts[instructions.accounts[17] as usize],
+                        user_token_coin: accounts[instructions.accounts[18] as usize],
+                        user_token_pc: accounts[instructions.accounts[19] as usize],
+                        user_token_lp: accounts[instructions.accounts[20] as usize],
+                        // Additional fields from the previous RaydiumAmmAccounts
+                    });
+                }
+                break;
+            }
+            Ok(_) => continue, // Handle other variants if needed
             Err(e) => {
-                error!("Error: {:?}", e);
-                return Ok(());
+                println!("{e:#?}");
+                continue;
             }
-        };
-        let base_mint = &account_infos[0];
-        let quote_mint = &account_infos[1];
-        let mut market_info: Option<solana_sdk::account::Account> = None;
-
-        let base_mint_info = match base_mint {
-            Some(basemintinfo) => match SPL_MINT_LAYOUT::decode(&mut &basemintinfo.data[..]) {
-                Ok(basemintinfo) => basemintinfo,
-                Err(e) => {
-                    error!("Error: {:?}", e);
-                    return Ok(());
-                }
-            },
-            None => {
-                error!("Error: {:?}", "No Base Mint Info");
-                return Ok(());
-            }
-        };
-
-        let quote_mint_info = match quote_mint {
-            Some(quoteinfo) => match SPL_MINT_LAYOUT::decode(&mut &quoteinfo.data[..]) {
-                Ok(quoteinfo) => quoteinfo,
-                Err(e) => {
-                    error!("Error: {:?}", e);
-                    return Ok(());
-                }
-            },
-            None => {
-                error!("Error: {:?}", "No Quote Mint Info");
-                return Ok(());
-            }
-        };
-
-        if market_info.is_none() {
-            let info = match rpc_client.get_account(&accounts[accounts.len() - 1]).await {
-                Ok(marketinfo) => Some(marketinfo),
-                Err(e) => {
-                    error!("Error: {:?}", e);
-                    return Ok(());
-                }
-            };
-
-            market_info = info;
         }
+    }
 
-        let (market_account, market_info) = match market_info {
-            Some(marketinfo) => {
-                let decoded_marketinfo =
-                    match MARKET_STATE_LAYOUT_V3::decode(&mut &marketinfo.data[..]) {
-                        Ok(marketinfo) => marketinfo,
-                        Err(e) => {
-                            error!("Error: {:?}", e);
-                            return Ok(());
-                        }
-                    };
-                (marketinfo, decoded_marketinfo)
-            }
-            None => {
-                error!("Error: {:?}", "No Market Info");
-                return Ok(());
-            }
-        };
+    println!("{raydium_accounts:#?}");
 
-        pool_keys.push(PoolKeysSniper {
-            id: accounts[key_index[4] as usize],
-            base_mint: accounts[key_index[8] as usize],
-            quote_mint: accounts[key_index[9] as usize],
-            lp_mint: accounts[key_index[7] as usize],
-            base_decimals: base_mint_info.decimals,
-            quote_decimals: quote_mint_info.decimals,
-            lp_decimals: base_mint_info.decimals,
-            version: 4,
-            program_id: RAYDIUM_AMM_V4_PROGRAM_ID,
-            authority: accounts[key_index[5] as usize],
-            open_orders: accounts[key_index[6] as usize],
-            target_orders: accounts[key_index[12] as usize],
-            base_vault: accounts[key_index[10] as usize],
-            quote_vault: accounts[key_index[11] as usize],
-            withdraw_queue: Pubkey::default(),
-            lp_vault: Pubkey::default(),
-            market_version: 3,
-            market_program_id: market_account.owner,
-            market_id: accounts[key_index[16] as usize],
-            market_authority: market_authority(rpc_client.clone(), market_info.quoteVault).await,
-            market_base_vault: market_info.baseVault,
-            market_quote_vault: market_info.quoteVault,
-            market_bids: market_info.bids,
-            market_asks: market_info.asks,
-            market_event_queue: market_info.eventQueue,
-            lookup_table_account: Pubkey::default(),
-        });
-
-        println!("Pool Keys: {:#?}", pool_keys[0].base_mint.to_string());
-        break;
+    if raydium_accounts.is_none() {
+        return Ok(());
     }
 
     if base_mint.is_some() {
-        if pool_keys[0].base_mint != base_mint.unwrap() {
-            return Ok(());
+        if raydium_accounts.is_some() {
+            if raydium_accounts.unwrap().amm_coin_mint != base_mint.unwrap() {
+                return Ok(());
+            }
         }
     }
 
     let signature = bs58::encode(&info.signature).into_string();
-    println!(
-        "Transaction: {}\nPool: {:?}\nBaseMint: {}\nMaker: {}",
-        signature.to_string(),
-        pool_keys[0].id,
-        pool_keys[0].base_mint,
-        accounts[0]
-    );
+    // println!(
+    //     "Transaction: {}\nPool: {:?}\nBaseMint: {}\nMaker: {}",
+    //     signature.to_string(),
+    //     pool_keys[0].id,
+    //     pool_keys[0].base_mint,
+    //     accounts[0]
+    // );
 
-    let _ = sniper_txn_in_2(pool_keys[0].clone(), open_time, mev_ape, datetime).await;
+    // let _ = sniper_txn_in_2(pool_keys[0].clone(), open_time, Some(mev_ape), datetime).await;
 
     Ok(())
 }

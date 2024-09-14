@@ -1862,3 +1862,115 @@ pub struct Fees {
     /// denominator of the swap_fee
     pub swap_fee_denominator: u64,
 }
+
+pub const RAYDIUM_AMM_ACCOUNTS_LEN: usize = 18;
+
+#[derive(Debug, Clone)]
+pub struct RaydiumAmmAccounts {
+    pub spl_token: Pubkey,
+    pub amm_pool: Pubkey,
+    pub amm_authority: Pubkey,
+    pub amm_open_orders: Pubkey,
+    pub amm_target_orders: Pubkey,
+    pub amm_coin_vault: Pubkey,
+    pub amm_pc_vault: Pubkey,
+    pub market_program: Pubkey,
+    pub market: Pubkey,
+    pub market_bids: Pubkey,
+    pub market_asks: Pubkey,
+    pub market_event_queue: Pubkey,
+    pub market_coin_vault: Pubkey,
+    pub market_pc_vault: Pubkey,
+    pub market_vault_signer: Pubkey,
+    pub source_token_account: Pubkey,
+    pub destination_token_account: Pubkey,
+    pub user_source_owner: Pubkey,
+}
+
+impl RaydiumAmmAccounts {
+    pub fn from_account_metas(accounts: &[AccountMeta]) -> Option<Self> {
+        if accounts.len() < RAYDIUM_AMM_ACCOUNTS_LEN {
+            return None;
+        }
+
+        Some(Self {
+            spl_token: accounts[0].pubkey,
+            amm_pool: accounts[1].pubkey,
+            amm_authority: accounts[2].pubkey,
+            amm_open_orders: accounts[3].pubkey,
+            amm_target_orders: accounts[4].pubkey,
+            amm_coin_vault: accounts[5].pubkey,
+            amm_pc_vault: accounts[6].pubkey,
+            market_program: accounts[7].pubkey,
+            market: accounts[8].pubkey,
+            market_bids: accounts[9].pubkey,
+            market_asks: accounts[10].pubkey,
+            market_event_queue: accounts[11].pubkey,
+            market_coin_vault: accounts[12].pubkey,
+            market_pc_vault: accounts[13].pubkey,
+            market_vault_signer: accounts[14].pubkey,
+            source_token_account: accounts[15].pubkey,
+            destination_token_account: accounts[16].pubkey,
+            user_source_owner: accounts[17].pubkey,
+        })
+    }
+}
+
+pub const INITIALIZE_POOL_ACCOUNTS_LEN: usize = 21;
+
+#[derive(Debug, Clone)]
+pub struct InitializePoolAccounts {
+    pub spl_token: Pubkey,
+    pub spl_associated_token_account: Pubkey,
+    pub system_program: Pubkey,
+    pub rent: Pubkey,
+    pub amm_pool: Pubkey,
+    pub amm_authority: Pubkey,
+    pub amm_open_orders: Pubkey,
+    pub amm_lp_mint: Pubkey,
+    pub amm_coin_mint: Pubkey,
+    pub amm_pc_mint: Pubkey,
+    pub amm_coin_vault: Pubkey,
+    pub amm_pc_vault: Pubkey,
+    pub amm_target_orders: Pubkey,
+    pub amm_config: Pubkey,
+    pub create_fee_destination: Pubkey,
+    pub market_program: Pubkey,
+    pub market: Pubkey,
+    pub user_wallet: Pubkey,
+    pub user_token_coin: Pubkey,
+    pub user_token_pc: Pubkey,
+    pub user_token_lp: Pubkey,
+}
+
+impl InitializePoolAccounts {
+    pub fn from_account_metas(accounts: &[AccountMeta]) -> Option<Self> {
+        if accounts.len() < 21 {
+            return None;
+        }
+
+        Some(Self {
+            spl_token: accounts[0].pubkey,
+            spl_associated_token_account: accounts[1].pubkey,
+            system_program: accounts[2].pubkey,
+            rent: accounts[3].pubkey,
+            amm_pool: accounts[4].pubkey,
+            amm_authority: accounts[5].pubkey,
+            amm_open_orders: accounts[6].pubkey,
+            amm_lp_mint: accounts[7].pubkey,
+            amm_coin_mint: accounts[8].pubkey,
+            amm_pc_mint: accounts[9].pubkey,
+            amm_coin_vault: accounts[10].pubkey,
+            amm_pc_vault: accounts[11].pubkey,
+            amm_target_orders: accounts[12].pubkey,
+            amm_config: accounts[13].pubkey,
+            create_fee_destination: accounts[14].pubkey,
+            market_program: accounts[15].pubkey,
+            market: accounts[16].pubkey,
+            user_wallet: accounts[17].pubkey,
+            user_token_coin: accounts[18].pubkey,
+            user_token_pc: accounts[19].pubkey,
+            user_token_lp: accounts[20].pubkey,
+        })
+    }
+}

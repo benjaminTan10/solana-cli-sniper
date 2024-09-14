@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use log::{error, info};
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::signature::Keypair;
 
 use crate::{
@@ -37,8 +38,10 @@ pub async fn track_trades() -> eyre::Result<()> {
     }
     let token_out = token_env("Pool Address").await;
 
+    let rpc_client = Arc::new(RpcClient::new(args.clone().network.rpc_url));
+
     info!("Fetching pool keys...");
-    let pool_keys = pool_keys_fetcher(token_out).await?;
+    let pool_keys = pool_keys_fetcher(token_out, rpc_client).await?;
 
     let (mut stop_tx, mut stop_rx) = tokio::sync::mpsc::channel::<()>(100);
 
@@ -52,7 +55,7 @@ pub async fn track_trades() -> eyre::Result<()> {
     let pool_keys_clone = pool_keys.clone();
     let wallet_clone = wallet.clone();
     tokio::spawn(async move {
-        match read_single_key_impl(&mut stop_tx, pool_keys_clone, args, fees, &wallet_clone).await {
+        match read_single_key_impl(&mut stop_tx, pool_keys_clone).await {
             Ok(_) => {}
             Err(e) => {
                 error!("Error: {}", e);
@@ -60,6 +63,13 @@ pub async fn track_trades() -> eyre::Result<()> {
         };
     });
 
-    price_logger(&mut stop_rx, amount_in, pool_keys.clone(), wallet).await;
+    price_logger(
+        &mut stop_rx,
+        amount_in,
+        Some(pool_keys.clone()),
+        None,
+        crate::router::SniperRoute::RaydiumAMM,
+    )
+    .await;
     Ok(())
 }

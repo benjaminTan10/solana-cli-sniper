@@ -9,7 +9,6 @@ use solana_client::{
 };
 use solana_program::pubkey::Pubkey;
 
-
 #[allow(non_snake_case)]
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct LIQUIDITY_STATE_LAYOUT_V4 {
@@ -390,14 +389,25 @@ impl SPL_MINT_LAYOUT {
 // }
 
 pub async fn market_authority(rpc_client: Arc<RpcClient>, address: Pubkey) -> Pubkey {
-    let accounts = rpc_client.get_token_account(&address).await.unwrap();
-
-    let mut serumsigner = Pubkey::default();
-    if let Some(account) = accounts {
-        serumsigner = Pubkey::from_str(&account.owner).unwrap();
+    loop {
+        match rpc_client.get_token_account(&address).await {
+            Ok(accounts) => {
+                if let Some(account) = accounts {
+                    match Pubkey::from_str(&account.owner) {
+                        Ok(serumsigner) => return serumsigner,
+                        Err(e) => {
+                            continue;
+                        }
+                    }
+                } else {
+                    continue;
+                }
+            }
+            Err(e) => {
+                continue;
+            }
+        }
     }
-
-    serumsigner
 }
 
 pub async fn program_address(program_id: &Pubkey) -> eyre::Result<Pubkey> {

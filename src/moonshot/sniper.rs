@@ -100,7 +100,6 @@ pub async fn moonshot_sniper(manual_snipe: bool) -> eyre::Result<()> {
     };
 
     let _ = match grpc_pair_sub(
-        mev_ape,
         args,
         manual_snipe,
         token,
@@ -120,7 +119,6 @@ pub async fn moonshot_parser(
     rpc_client: Arc<RpcClient>,
     tx: SubscribeUpdateTransaction,
     manual_snipe: bool,
-    mev_ape: Arc<MevApe>,
     subscribe_tx: tokio::sync::MutexGuard<
         '_,
         impl Sink<SubscribeRequest, Error = SendError> + std::marker::Unpin,

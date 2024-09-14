@@ -35,10 +35,10 @@ pub enum SniperRoute {
     PumpFun,
     PumpFunMigration,
     MoonShot,
+    Jupiter,
 }
 
 pub async fn grpc_pair_sub(
-    mev_ape: MevApe,
     args: SettingsConfig,
     manual_snipe: bool,
     base_mint: Option<Pubkey>,
@@ -60,7 +60,8 @@ pub async fn grpc_pair_sub(
             }
             dots.push('.');
             count += 1;
-            clear_previous_line().unwrap();
+            clear_previous_line();
+
             info!("Connecting to the Port{}", dots.clone().red());
             thread::sleep(Duration::from_millis(500));
         }
@@ -73,10 +74,8 @@ pub async fn grpc_pair_sub(
 
     let mut client = GeyserGrpcClient::connect(endpoint, x_token, None)?;
     let (mut subscribe_tx, mut stream) = client.subscribe().await?;
-    let private_key = &mev_ape.wallet;
-    let secret_key = bs58::decode(private_key.clone()).into_vec()?;
 
-    clear_previous_line()?;
+    clear_previous_line();
     info!("Successfully connected to Geyser");
 
     // Stop the animation
@@ -85,7 +84,6 @@ pub async fn grpc_pair_sub(
     // Wait for the animation thread to finish
     handle.join().unwrap();
 
-    let wallet = Keypair::from_bytes(&secret_key)?;
     let commitment = 0;
     subscribe_tx
         .send(SubscribeRequest {
@@ -107,13 +105,11 @@ pub async fn grpc_pair_sub(
             ping: None,
         })
         .await?;
-    let mev_ape = Arc::new(mev_ape);
 
     let subscribe_tx = Arc::new(tokio::sync::Mutex::new(subscribe_tx));
 
     while let Some(message) = stream.next().await {
         let rpc_client = rpc_client.clone();
-        let mev_ape = Arc::clone(&mev_ape);
         let subscribe_tx = Arc::clone(&subscribe_tx);
         let args = args.clone();
         let route = route.clone();
@@ -129,7 +125,6 @@ pub async fn grpc_pair_sub(
                                 tx,
                                 manual_snipe,
                                 base_mint,
-                                mev_ape.clone(),
                                 subscribe_tx,
                             )
                             .await
@@ -146,7 +141,6 @@ pub async fn grpc_pair_sub(
                                 tx,
                                 manual_snipe,
                                 base_mint,
-                                mev_ape.clone(),
                                 subscribe_tx,
                             )
                             .await
@@ -163,7 +157,6 @@ pub async fn grpc_pair_sub(
                                 tx,
                                 manual_snipe,
                                 base_mint,
-                                mev_ape.clone(),
                                 subscribe_tx,
                             )
                             .await
@@ -178,7 +171,6 @@ pub async fn grpc_pair_sub(
                                 rpc_client.clone(),
                                 tx,
                                 manual_snipe,
-                                mev_ape.clone(),
                                 subscribe_tx,
                             )
                             .await

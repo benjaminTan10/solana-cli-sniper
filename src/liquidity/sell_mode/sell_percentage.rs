@@ -25,7 +25,7 @@ use crate::{
     liquidity::{
         option::wallet_gen::list_folders,
         pool_ixs::AMM_PROGRAM,
-        swap_ixs::{swap_ixs},
+        swap_ixs::swap_ixs,
         utils::{tip_account, tip_txn},
     },
     raydium_amm::{
@@ -133,7 +133,7 @@ pub async fn sell_specific(percentage: bool) -> eyre::Result<()> {
 
     let mut token_balance = Vec::new();
 
-    let pool_info = pool_keys_fetcher(pool_id).await?;
+    let pool_info = pool_keys_fetcher(pool_id, rpc_client.clone()).await?;
 
     for (chunk_index, wallet_chunk) in wallets_chunks.iter().enumerate() {
         let mut current_instructions = Vec::new();

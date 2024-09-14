@@ -4,13 +4,14 @@ use crate::{
     app::{app, embeds::embed, theme},
     env::vanity::vanity_main,
     liquidity::option::{
-            sol_distribution::distributor, wallet_gen::gen_wallet_save, withdraw_sol::withdraw_sol,
-            withdraw_wrapped::withdraw_wrapped_sol, wrap_sol::sol_wrap,
-        },
+        sol_distribution::distributor, wallet_gen::gen_wallet_save, withdraw_sol::withdraw_sol,
+        withdraw_wrapped::withdraw_wrapped_sol, wrap_sol::sol_wrap,
+    },
     pumpfun::bundler::{
         multi_deployer::multi_wallet_token, pump_lut::pump_lut_main,
         pumpfun_deploy::one_pumpfun_deploy, sell_mode::pump_seller::pump_bundle_seller,
     },
+    utils::terminal::clear_screen,
 };
 use colored::Colorize;
 use demand::{DemandOption, Select};
@@ -113,7 +114,7 @@ pub async fn pump_bundler() -> Result<(), Box<dyn Error>> {
         }
         "Main Menu" => {
             //clear terminal
-            println!("{esc}[2J{esc}[1;1H", esc = 27 as char);
+            clear_screen();
             //clear the previous line
             println!("{}", embed());
             let _ = app(false).await;
@@ -123,7 +124,7 @@ pub async fn pump_bundler() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    // println!("{esc}[2J{esc}[1;1H", esc = 27 as char);
+    // clear_screen();
     //clear the previous line
     println!("{}", embed());
     let _ = pump_bundler().await;

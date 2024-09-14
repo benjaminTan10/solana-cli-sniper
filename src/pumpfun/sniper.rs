@@ -107,7 +107,7 @@ pub async fn pumpfun_sniper(manual_snipe: bool, route: SniperRoute) -> eyre::Res
         RAYDIUM_AMM_FEE_COLLECTOR
     };
 
-    let _ = match grpc_pair_sub(mev_ape, args, manual_snipe, token, contract.into(), route).await {
+    let _ = match grpc_pair_sub(args, manual_snipe, token, contract.into(), route).await {
         Ok(_) => info!("Transaction Sent"),
         Err(e) => error!("{}", e),
     };
@@ -121,7 +121,6 @@ pub async fn pumpfun_parser(
     tx: SubscribeUpdateTransaction,
     manual_snipe: bool,
     base_mint: Option<Pubkey>,
-    mev_ape: Arc<MevApe>,
     subscribe_tx: tokio::sync::MutexGuard<
         '_,
         impl Sink<SubscribeRequest, Error = SendError> + std::marker::Unpin,
@@ -191,8 +190,6 @@ pub async fn pumpfun_parser(
         accounts[0],
         accounts[1]
     );
-
-    let wallet = Keypair::from_base58_string(&mev_ape.wallet);
 
     // match pump_swap(&Arc::new(wallet), args, PumpFunDirection::Buy).await {
     //     Ok(s) => s,

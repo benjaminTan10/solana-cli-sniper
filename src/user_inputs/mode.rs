@@ -5,10 +5,10 @@ use crossterm::style::Stylize;
 use demand::{DemandOption, Select};
 use log::{error, info};
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::signature::Keypair;
+use solana_sdk::{native_token::lamports_to_sol, signature::Keypair};
 
 use crate::{
-    app::{theme, MevApe},
+    app::{config_init::update_config_field, theme, MevApe},
     env::load_config,
     raydium_amm::{
         subscribe::auto_sniper_stream,
@@ -89,17 +89,9 @@ pub async fn automatic_snipe(manual_snipe: bool) -> eyre::Result<()> {
     }
     let sol_amount = sol_amount("Snipe Amount:").await;
 
+    update_config_field(|c| &mut c.trading.buy_amount, lamports_to_sol(sol_amount)).await?;
+
     let token;
-
-    let mut bundle_tip = 0;
-    let mut priority_fee_value = 0;
-
-    if args.engine.use_bundles {
-        priority_fee_value = priority_fee().await;
-        bundle_tip = bundle_priority_tip().await;
-    } else {
-        priority_fee_value = priority_fee().await;
-    }
 
     if manual_snipe {
         token = Some(token_env("Base Mint").await);
@@ -133,22 +125,7 @@ pub async fn automatic_snipe(manual_snipe: bool) -> eyre::Result<()> {
         token = None;
     }
 
-    // let wallet = private_key_env().await?;
-
-    let fees = PriorityTip {
-        priority_fee_value,
-        bundle_tip,
-    };
-
-    let mev_ape = MevApe {
-        sol_amount,
-        fee: fees,
-        // bundle_tip,
-        wallet: args.engine.payer_keypair.clone(),
-    };
-
     let _ = match grpc_pair_sub(
-        mev_ape,
         args,
         manual_snipe,
         token,

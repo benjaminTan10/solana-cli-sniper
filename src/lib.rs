@@ -3,6 +3,7 @@ pub mod auth;
 pub mod copytrade;
 pub mod env;
 pub mod instruction;
+pub mod jupiter;
 pub mod liquidity;
 pub mod moonshot;
 pub mod plugins;

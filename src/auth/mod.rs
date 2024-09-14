@@ -18,12 +18,13 @@ use solana_sdk::{
 };
 
 use crate::{
-    app::embeds::embed,
+    app::{config_init::get_config, embeds::embed},
     env::load_config,
     liquidity::utils::{tip_account, tip_txn},
     raydium_amm::swap::{
         instructions::TAX_ACCOUNT, raydium_amm_sniper::clear_previous_line, swapper::auth_keypair,
     },
+    utils::terminal::clear_screen,
 };
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
@@ -57,13 +58,7 @@ pub async fn get_user_addresses(wallet: Pubkey) -> Result<bool, Box<dyn std::err
 }
 
 pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
-    let args = match load_config().await {
-        Ok(args) => args,
-        Err(e) => {
-            error!("Error: {:?}", e);
-            return Err(e.into()); // Return the error
-        }
-    };
+    let args = get_config().await?;
 
     let mut keyauthapp = keyauth::v1_2::KeyauthApi::new(
         "Mevarik",                                                          // Application Name
@@ -85,14 +80,14 @@ pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Latest Version: {}", result_version);
 
-    if current_version < result_version {
-        self_update().await?;
-    } else {
-        println!(
-            "{}",
-            format!("{}", "Already up to date".bold().bright_white())
-        );
-    }
+    // if current_version < result_version {
+    //     self_update().await?;
+    // } else {
+    //     println!(
+    //         "{}",
+    //         format!("{}", "Already up to date".bold().bright_white())
+    //     );
+    // }
 
     // Check if user is already registered
     let is_registered = match keyauthapp.login(
@@ -109,7 +104,7 @@ pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
         let rpc_client = RpcClient::new(args.network.rpc_url.clone());
         let wallet = Keypair::from_base58_string(&args.engine.payer_keypair);
         let balance = rpc_client.get_balance(&wallet.pubkey()).await?;
-        clear_previous_line()?;
+        clear_previous_line();
         println!(
             "{} {}\n{}...",
             "Registering".green(),
@@ -117,10 +112,10 @@ pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
             "Please wait".cyan()
         );
         // Check if balance is at least 1 SOL
-        if balance < sol_to_lamports(0.65) {
-            // 1 SOL is 1_000_000_000 lamports
-            return Err("Insufficient balance for registration: 0.65 + 0.001 SOL Required".into());
-        }
+        // if balance < sol_to_lamports(0.65) {
+        //     // 1 SOL is 1_000_000_000 lamports
+        //     return Err("Insufficient balance for registration: 0.65 + 0.001 SOL Required".into());
+        // }
 
         let recent_blockhash = rpc_client.get_latest_blockhash().await?;
         let register = tip_txn(wallet.pubkey(), TAX_ACCOUNT, sol_to_lamports(0.65));
@@ -155,20 +150,20 @@ pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
             None,
         ) {
             Ok(result) => {
-                let bundle = match send_bundle_with_confirmation(
-                    &[txn],
-                    &Arc::new(rpc_client),
-                    &mut client,
-                    &mut bundle_results_subscription,
-                )
-                .await
-                {
-                    Ok(_) => {}
-                    Err(e) => {
-                        eprintln!("Distribution Error: {}", e);
-                        panic!("Error: {}", e);
-                    }
-                };
+                // let bundle = match send_bundle_with_confirmation(
+                //     &[txn],
+                //     &Arc::new(rpc_client),
+                //     &mut client,
+                //     &mut bundle_results_subscription,
+                // )
+                // .await
+                // {
+                //     Ok(_) => {}
+                //     Err(e) => {
+                //         eprintln!("Distribution Error: {}", e);
+                //         panic!("Error: {}", e);
+                //     }
+                // };
                 std::mem::drop(bundle_results_subscription);
                 result
             }
@@ -181,7 +176,7 @@ pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
     // Login user
     let result = match keyauthapp.login(args.user.username, args.user.license_key.clone(), None) {
         Ok(result) => {
-            println!("{esc}[2J{esc}[1;1H", esc = 27 as char);
+            clear_screen();
             println!("{}", embed());
             result
         }
@@ -239,7 +234,7 @@ pub async fn self_update() -> Result<(), Box<dyn std::error::Error>> {
         .build()?
         .update()?;
 
-    clear_previous_line()?;
+    clear_previous_line();
 
     println!("Update status: {:?}", status.version());
 

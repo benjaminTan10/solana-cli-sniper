@@ -1,11 +1,15 @@
+pub mod config_init;
 pub mod embeds;
 pub mod wallets;
+
 use async_recursion::async_recursion;
 use jito_searcher_client::get_searcher_client;
+use solana_sdk::native_token::sol_to_lamports;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
 use std::error::Error;
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::time::sleep;
 
@@ -24,6 +28,7 @@ use crate::liquidity::option::withdraw_sol::{deployer_details, folder_deployer_d
 use crate::moonshot::menu::moonshot_menu;
 use crate::pumpfun::bundler::menu::pump_bundler;
 use crate::pumpfun::pump::pump_main;
+use crate::pumpfun::token_data::bonding_curve_fetcher;
 use crate::raydium_amm::bundles::mev_trades::mev_trades;
 use crate::raydium_amm::swap::swap_in::{swap_in, swap_out, PriorityTip};
 use crate::raydium_amm::swap::swapper::auth_keypair;
@@ -31,6 +36,7 @@ use crate::raydium_amm::swap::trades::track_trades;
 use crate::raydium_cpmm::menu::raydium_cpmm;
 use crate::rpc::rpc_key;
 use crate::user_inputs::mode::{automatic_snipe, unwrap_sol_call, wrap_sol_call};
+use crate::utils::terminal::clear_screen;
 use crate::volume_bot::volume_menu;
 
 use self::wallets::wallet_logger;
@@ -154,6 +160,12 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
             let _ = moonshot_menu().await;
         }
         "PumpFun" => {
+            // let _ = bonding_curve_fetcher(
+            //     Pubkey::from_str("FN36g6QyqYk47fyn5DCypTrH9SkAEthpg1862B7Tpump").unwrap(),
+            //     539629793752 as u64,
+            //     false,
+            // )
+            // .await;
             let _ = pump_main().await;
         }
         "CopyTrade" => {
@@ -188,7 +200,7 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
 
     sleep(tokio::time::Duration::from_secs(3)).await;
     //clear the terminal
-    println!("{esc}[2J{esc}[1;1H", esc = 27 as char);
+    clear_screen();
     println!("{}", embed());
     let _ = app(false).await;
 

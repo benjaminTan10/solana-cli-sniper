@@ -1,5 +1,5 @@
 use std::{
-    ops::{Add, Mul},
+    ops::{Add, Mul, Sub},
     sync::Arc,
 };
 
@@ -11,7 +11,9 @@ use solana_sdk::{
 };
 use spl_associated_token_account::get_associated_token_address;
 
-use crate::pumpfun::instructions::pumpfun_program::instructions::{buy_ix_with_program_id, BuyIxArgs, BuyKeys};
+use crate::pumpfun::instructions::pumpfun_program::instructions::{
+    buy_ix_with_program_id, BuyIxArgs, BuyKeys,
+};
 
 use super::pumpfun_program::{
     accounts::BondingCurve,
@@ -206,18 +208,16 @@ pub fn calculate_sell_price(
 
     // Calculate the product of virtual reserves
     let product = virtual_sol_reserves.mul(virtual_token_reserves);
-    // Update the virtual token reserves with the new amount of tokens added
-    let new_token_reserves = virtual_token_reserves.add(token_amount);
+    // Update the virtual token reserves with the new amount of tokens removed
+    let new_token_reserves = virtual_token_reserves.sub(token_amount);
     // Calculate the new SOL amount based on the new virtual token reserves
-    let new_sol_amount = product.checked_div(new_token_reserves).unwrap() + 1;
-    // Determine the number of SOL to be given out
-    let sol_amount = virtual_sol_reserves - new_sol_amount;
-    // Ensure the SOL amount does not exceed the real SOL reserves
-    let sol_amount = std::cmp::min(sol_amount, real_sol_reserves);
+    let new_sol_amount = product.checked_div(new_token_reserves).unwrap();
+    // Determine the amount of SOL to be given out
+    let sol_amount = new_sol_amount - virtual_sol_reserves;
 
-    // Update the real SOL reserves by subtracting the SOL amount to be given out
+    // Update the reserves
     let new_reserves = (
-        new_sol_amount,                 // Updated virtual SOL reserves
+        virtual_sol_reserves,           // Virtual SOL reserves remain the same
         new_token_reserves,             // Updated virtual token reserves
         real_sol_reserves - sol_amount, // Updated real SOL reserves
     );

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use log::{error, info};
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{bs58, signature::Keypair};
 
 use crate::{
@@ -41,8 +42,10 @@ pub async fn swap_in() -> Result<(), Box<dyn std::error::Error>> {
     let private_key =
         Keypair::from_bytes(&bs58::decode(&args.engine.payer_keypair).into_vec().unwrap())?;
 
+    let rpc_client = Arc::new(RpcClient::new(args.clone().network.rpc_url));
+
     info!("Fetching pool keys...");
-    let pool_keys = pool_keys_fetcher(token_out).await?;
+    let pool_keys = pool_keys_fetcher(token_out, rpc_client).await?;
 
     let fees = PriorityTip {
         bundle_tip,
@@ -51,8 +54,7 @@ pub async fn swap_in() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("---------------------------------------------------");
 
-    let _swap = match raydium_in(&Arc::new(private_key), pool_keys, sol_amount, 0, fees, args).await
-    {
+    let _swap = match raydium_in(pool_keys, sol_amount.into(), 0).await {
         Ok(_) => {}
         Err(e) => error!("{}", e),
     };
@@ -77,14 +79,7 @@ pub async fn swap_out() -> Result<(), Box<dyn std::error::Error>> {
 
     let token_out = token_env("Pool Address").await;
     let sol_amount = amount_percentage().await;
-    let mut bundle_tip = 0;
-    let mut priority_fee_value = 0;
-    if args.engine.use_bundles {
-        priority_fee_value = priority_fee().await;
-        bundle_tip = bundle_priority_tip().await;
-    } else {
-        priority_fee_value = priority_fee().await;
-    }
+
     let private_key =
         Keypair::from_bytes(&bs58::decode(&args.engine.payer_keypair).into_vec().unwrap())?;
     let rpc_client = {
@@ -92,16 +87,9 @@ pub async fn swap_out() -> Result<(), Box<dyn std::error::Error>> {
         http_client.get("http_client").unwrap().clone()
     };
 
-    let pool_keys = pool_keys_fetcher(token_out).await?;
+    let pool_keys = pool_keys_fetcher(token_out, rpc_client).await?;
 
-    let fees = PriorityTip {
-        bundle_tip,
-        priority_fee_value,
-    };
-
-    let swap = match raydium_txn_backrun(&Arc::new(private_key), pool_keys, sol_amount, fees, args)
-        .await
-    {
+    let swap = match raydium_txn_backrun(pool_keys, sol_amount).await {
         Ok(_) => {}
         Err(e) => error!("{}", e),
     };

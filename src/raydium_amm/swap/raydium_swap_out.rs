@@ -5,6 +5,7 @@ use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_client::rpc_request::TokenAccountsFilter;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::commitment_config::CommitmentLevel;
+use solana_sdk::native_token::sol_to_lamports;
 use solana_sdk::system_instruction::transfer;
 use solana_sdk::transaction::{Transaction, VersionedTransaction};
 use solana_sdk::{signature::Keypair, signer::Signer};
@@ -12,6 +13,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::app::config_init::get_config;
 use crate::env::SettingsConfig;
 use crate::liquidity::utils::tip_account;
 use crate::raydium_amm::subscribe::PoolKeysSniper;
@@ -21,13 +23,10 @@ use crate::rpc::HTTP_CLIENT;
 use super::swap_in::PriorityTip;
 use super::swapper::auth_keypair;
 
-pub async fn raydium_txn_backrun(
-    wallet: &Arc<Keypair>,
-    pool_keys: PoolKeysSniper,
-    token_amount: u64,
-    fees: PriorityTip,
-    args: SettingsConfig,
-) -> eyre::Result<()> {
+pub async fn raydium_txn_backrun(pool_keys: PoolKeysSniper, token_amount: u64) -> eyre::Result<()> {
+    let config = get_config().await?;
+
+    let wallet = Keypair::from_base58_string(&config.engine.payer_keypair);
     let start = Instant::now();
     let mut token_balance = 0;
     let rpc_client = {
@@ -83,19 +82,20 @@ pub async fn raydium_txn_backrun(
 
     info!("Tokens: {:?}", token_balance);
 
-    let _ = raydium_out(wallet, pool_keys.clone(), token_amount, 1, fees, args).await?;
+    let _ = raydium_out(pool_keys.clone(), token_amount, 1).await?;
 
     Ok(())
 }
 
 pub async fn raydium_out(
-    wallet: &Arc<Keypair>,
     pool_keys: PoolKeysSniper,
     amount_in: u64,
     amount_out: u64,
-    fees: PriorityTip,
-    args: SettingsConfig,
 ) -> eyre::Result<()> {
+    let config = get_config().await?;
+
+    let wallet = Keypair::from_base58_string(&config.engine.payer_keypair);
+
     info!("Building Bundle...");
 
     let user_source_owner = wallet.pubkey();
@@ -104,7 +104,7 @@ pub async fn raydium_out(
         http_client.get("http_client").unwrap().clone()
     };
     let mut searcher_client =
-        get_searcher_client(&args.network.block_engine_url, &Arc::new(auth_keypair())).await?;
+        get_searcher_client(&config.network.block_engine_url, &Arc::new(auth_keypair())).await?;
 
     let tip_account = tip_account();
 
@@ -137,14 +137,13 @@ pub async fn raydium_out(
         &pool_keys.base_mint,
         amount_in,
         amount_out,
-        fees.priority_fee_value,
+        sol_to_lamports(config.trading.priority_fee),
     )
     .await?;
 
-    let config = CommitmentLevel::Finalized;
     let (latest_blockhash, _) = rpc_client
         .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
-            commitment: config,
+            commitment: CommitmentLevel::Finalized,
         })
         .await?;
 
@@ -172,11 +171,15 @@ pub async fn raydium_out(
         }
     };
 
-    if args.engine.use_bundles {
+    if config.engine.use_bundles {
         info!("Building Bundle");
 
         let tip_txn = VersionedTransaction::from(Transaction::new_signed_with_payer(
-            &[transfer(&wallet.pubkey(), &tip_account, fees.bundle_tip)],
+            &[transfer(
+                &wallet.pubkey(),
+                &tip_account,
+                sol_to_lamports(config.trading.bundle_tip),
+            )],
             Some(&wallet.pubkey()),
             &[&wallet],
             rpc_client.get_latest_blockhash().await.unwrap(),
@@ -212,16 +215,16 @@ pub async fn raydium_out(
         info!("Fetching Bundle Result...");
     } else {
         info!("Sending Transaction");
-        let config = RpcSendTransactionConfig {
+        let transaction_flight = RpcSendTransactionConfig {
             skip_preflight: true,
             ..Default::default()
         };
 
-        if args.trading.spam {
+        if config.trading.spam {
             let mut counter = 0;
-            while counter < args.trading.spam_count {
+            while counter < config.trading.spam_count {
                 let result = match rpc_client
-                    .send_transaction_with_config(&transaction, config)
+                    .send_transaction_with_config(&transaction, transaction_flight)
                     .await
                 {
                     Ok(x) => x,
@@ -236,7 +239,7 @@ pub async fn raydium_out(
             }
         } else {
             let result = match rpc_client
-                .send_transaction_with_config(&transaction, config)
+                .send_transaction_with_config(&transaction, transaction_flight)
                 .await
             {
                 Ok(x) => x,

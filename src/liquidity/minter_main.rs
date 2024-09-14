@@ -15,6 +15,7 @@ use crate::{
         remove_liq::remover::remove_liquidity,
         sell_mode::sell_percentage::sell_specific,
     },
+    utils::terminal::clear_screen,
 };
 
 use super::option::wallet_gen::gen_wallet_save;
@@ -102,7 +103,7 @@ pub async fn raydium_creator() -> Result<(), Box<dyn Error>> {
         }
         "Main Menu" => {
             //clear terminal
-            println!("{esc}[2J{esc}[1;1H", esc = 27 as char);
+            clear_screen();
             //clear the previous line
             println!("{}", embed());
             let _ = app(false).await;
@@ -112,7 +113,7 @@ pub async fn raydium_creator() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    // println!("{esc}[2J{esc}[1;1H", esc = 27 as char);
+    // clear_screen();
     //clear the previous line
     println!("{}", embed());
     let _ = raydium_creator().await;

@@ -138,7 +138,7 @@ pub async fn volume_lut() -> eyre::Result<()> {
     // let amm_keys = load_amm_keys(&connection, &AMM_PROGRAM, &pool_id).await?;
     // let market_keys = load_pool_keys(pool_id, amm_keys).await?;
 
-    let pool_keys = pool_keys_fetcher(pool_id).await?;
+    let pool_keys = pool_keys_fetcher(pool_id, connection.clone()).await?;
 
     let mut pool_ex_lut = poolkeys_lut_2(pool_keys, lut_key, data.clone())?;
 

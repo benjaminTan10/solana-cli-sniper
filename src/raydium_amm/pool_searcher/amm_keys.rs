@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_client::nonblocking::rpc_client::{self, RpcClient};
 use solana_program::pubkey::Pubkey;
 
 use crate::{
@@ -15,18 +15,10 @@ use crate::{
     },
 };
 
-pub async fn pool_keys_fetcher(id: Pubkey) -> eyre::Result<PoolKeysSniper> {
-    // let http_client = HTTP_CLIENT.lock().unwrap();
-    // let rpc_client = http_client.get("http_client").unwrap();
-    let args = match load_config().await {
-        Ok(args) => args,
-        Err(e) => {
-            eprintln!("Error: {}", e);
-            panic!("Error: {}", e);
-        }
-    };
-
-    let rpc_client = Arc::new(RpcClient::new(args.network.rpc_url));
+pub async fn pool_keys_fetcher(
+    id: Pubkey,
+    rpc_client: Arc<RpcClient>,
+) -> eyre::Result<PoolKeysSniper> {
     let mut retries = 0;
     let max_retries = 1000;
     let mut account = None;
@@ -99,4 +91,26 @@ pub async fn pool_keys_fetcher(id: Pubkey) -> eyre::Result<PoolKeysSniper> {
     };
 
     Ok(pool_keys)
+}
+
+pub async fn get_market_accounts(
+    rpc_client: Arc<RpcClient>,
+    market: Pubkey,
+) -> eyre::Result<MARKET_STATE_LAYOUT_V3> {
+    loop {
+        match rpc_client.get_account(&market).await {
+            Ok(market_account) => {
+                let market_data = market_account.data;
+                match MARKET_STATE_LAYOUT_V3::decode(&mut &market_data[..]) {
+                    Ok(market_info) => return Ok(market_info),
+                    Err(e) => {
+                        continue;
+                    }
+                }
+            }
+            Err(e) => {
+                continue;
+            }
+        }
+    }
 }

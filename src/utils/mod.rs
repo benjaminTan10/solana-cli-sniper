@@ -1,4 +1,6 @@
 pub mod rand;
+pub mod terminal;
+pub mod transaction;
 
 use log::info;
 use solana_sdk::signature::Keypair;
@@ -60,9 +62,6 @@ use crate::{
 pub async fn read_single_key_impl(
     stop_tx: &mut Sender<()>,
     pool_keys: PoolKeysSniper,
-    args: SettingsConfig,
-    fees: PriorityTip,
-    wallet: &Arc<Keypair>,
 ) -> Result<(), Box<dyn Error + Send>> {
     let term = Term::stdout();
 
@@ -71,7 +70,7 @@ pub async fn read_single_key_impl(
             Key::Char('1') => {
                 let _ = stop_tx.send(()).await;
                 info!("Selling 100% of tokens");
-                let _ = match raydium_txn_backrun(wallet, pool_keys, 100, fees, args).await {
+                let _ = match raydium_txn_backrun(pool_keys, 100).await {
                     Ok(_) => {}
                     Err(e) => {
                         info!("Error: {}", e);
@@ -82,7 +81,7 @@ pub async fn read_single_key_impl(
             Key::Char('2') => {
                 let _ = stop_tx.send(()).await;
                 info!("Selling 75% of tokens");
-                let _ = match sell_tokens(75, pool_keys, wallet.clone(), fees, args).await {
+                let _ = match sell_tokens(75, pool_keys).await {
                     Ok(_) => {}
                     Err(e) => {
                         info!("Error: {}", e);
@@ -93,7 +92,7 @@ pub async fn read_single_key_impl(
             Key::Char('3') => {
                 let _ = stop_tx.send(()).await;
                 info!("Selling 50% of tokens");
-                let _ = match sell_tokens(50, pool_keys, wallet.clone(), fees, args).await {
+                let _ = match sell_tokens(50, pool_keys).await {
                     Ok(_) => {}
                     Err(e) => {
                         info!("Error: {}", e);
@@ -104,7 +103,7 @@ pub async fn read_single_key_impl(
             Key::Char('4') => {
                 let _ = stop_tx.send(()).await;
                 info!("Selling 25% of tokens");
-                let _ = match sell_tokens(25, pool_keys, wallet.clone(), fees, args).await {
+                let _ = match sell_tokens(25, pool_keys).await {
                     Ok(_) => {}
                     Err(e) => {
                         info!("Error: {}", e);

@@ -48,10 +48,12 @@ pub struct EngineSettings {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TradingSettings {
+    pub buy_amount: f64,
+    pub priority_fee: f64,
+    pub bundle_tip: f64,
+    pub slippage: bool,
     pub spam: bool,
     pub spam_count: i32,
-    pub slippage: bool,
-    pub bundle_tip: f64,
     pub copytrade_accounts: Vec<String>,
     pub loss_threshold_percentage: f64,
     pub profit_threshold_percentage: f64,
@@ -82,9 +84,11 @@ pub async fn load_config() -> eyre::Result<SettingsConfig> {
                 use_bundles: true,
             },
             trading: TradingSettings {
+                buy_amount: 0.00001,
                 spam: false,
                 spam_count: 15,
                 slippage: false,
+                priority_fee: 0.0,
                 bundle_tip: 0.0,
                 copytrade_accounts: vec![],
                 loss_threshold_percentage: 50.0,
@@ -121,13 +125,15 @@ pub async fn load_config() -> eyre::Result<SettingsConfig> {
                 use_bundles: true,
             },
             trading: TradingSettings {
+                buy_amount: 0.00001,
+                priority_fee: 0.0,
+                bundle_tip: 0.0,
                 spam: false,
                 spam_count: 15,
                 slippage: false,
-                bundle_tip: 0.0,
-                copytrade_accounts: vec![],
                 loss_threshold_percentage: 50.0,
                 profit_threshold_percentage: 100.0,
+                copytrade_accounts: vec![],
             },
         };
         let default_toml = toml::to_string(&default_config).unwrap();
