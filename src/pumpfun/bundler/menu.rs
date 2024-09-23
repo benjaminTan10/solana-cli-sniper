@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use crate::{
-    app::{app, embeds::embed, theme},
+    app::{embeds::embed, theme},
     env::vanity::vanity_main,
     liquidity::option::{
         sol_distribution::distributor, wallet_gen::gen_wallet_save, withdraw_sol::withdraw_sol,
@@ -117,7 +117,7 @@ pub async fn pump_bundler() -> Result<(), Box<dyn Error>> {
             clear_screen();
             //clear the previous line
             println!("{}", embed());
-            let _ = app(false).await;
+            let _ = main_menu(false).await;
         }
         _ => {
             // Handle unexpected option here

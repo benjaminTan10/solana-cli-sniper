@@ -6,7 +6,7 @@ use spl_associated_token_account::get_associated_token_address_with_program_id;
 use spl_token_client::spl_token_2022;
 
 use crate::{
-    app::{app, theme},
+    app::theme,
     env::load_config,
     raydium_amm::volume_pinger::volume::buy_amount,
     rpc::HTTP_CLIENT,
@@ -24,36 +24,36 @@ pub enum RaydiumCPMMDirection {
     SellTokens,
 }
 
-pub async fn raydium_cpmm() -> Result<(), Box<dyn Error + Send>> {
-    let theme = theme();
-    let ms = Select::new("Raydium CPMM")
-        .description("Select the Mode")
-        .theme(&theme)
-        .filterable(true)
-        .option(DemandOption::new("BuyTokens").label("▪ Swap SOL to Tokens"))
-        .option(DemandOption::new("SellTokens").label("▪ Swap Tokens to SOL"))
-        .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
+// pub async fn raydium_cpmm() -> Result<(), Box<dyn Error + Send>> {
+//     let theme = theme();
+//     let ms = Select::new("Raydium CPMM")
+//         .description("Select the Mode")
+//         .theme(&theme)
+//         .filterable(true)
+//         .option(DemandOption::new("BuyTokens").label("▪ Swap SOL to Tokens"))
+//         .option(DemandOption::new("SellTokens").label("▪ Swap Tokens to SOL"))
+//         .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
 
-    let selected_option = ms.run().expect("error running select");
+//     let selected_option = ms.run().expect("error running select");
 
-    match selected_option {
-        "BuyTokens" => {
-            let _ = cpmm_swap_builder(RaydiumCPMMDirection::BuyTokens).await;
-        }
-        "SellTokens" => {
-            let _ = cpmm_swap_builder(RaydiumCPMMDirection::SellTokens).await;
-        }
-        "Main Menu" => {
-            let _ = app(false).await;
-        }
+//     match selected_option {
+//         "BuyTokens" => {
+//             let _ = cpmm_swap_builder(RaydiumCPMMDirection::BuyTokens).await;
+//         }
+//         "SellTokens" => {
+//             let _ = cpmm_swap_builder(RaydiumCPMMDirection::SellTokens).await;
+//         }
+//         "Main Menu" => {
+//             let _ = main_menu(false).await;
+//         }
 
-        _ => {
-            // Handle unexpected option here
-        }
-    }
+//         _ => {
+//             // Handle unexpected option here
+//         }
+//     }
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 pub async fn cpmm_swap_builder(direction: RaydiumCPMMDirection) -> eyre::Result<()> {
     let args = match load_config().await {

@@ -9,8 +9,8 @@ use {
         app::{config_init::get_config, MevApe},
         env::load_config,
         instruction::instruction::{
-            get_keys_for_market, AmmInstruction, InitializePoolAccounts,
-            INITIALIZE_POOL_ACCOUNTS_LEN,
+            get_keys_for_market, AmmInstruction, InitializePoolAccounts, SerumMarketAccounts,
+            INITIALIZE_POOL_ACCOUNTS_LEN, SERUM_ACCOUNTS_LEN,
         },
         liquidity::utils::tip_account,
         raydium_amm::{
@@ -22,7 +22,7 @@ use {
         },
         router::SniperRoute,
         rpc::HTTP_CLIENT,
-        utils::read_single_key_impl,
+        utils::{read_single_key_impl, transaction_history::get_transaction_history},
     },
     chrono::{DateTime, LocalResult, TimeZone, Utc},
     colorize::AnsiColor,
@@ -31,7 +31,9 @@ use {
     futures::{channel::mpsc::SendError, Sink},
     jito_protos::searcher::SubscribeBundleResultsRequest,
     jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation},
-    log::{error, info, warn},
+    log::{debug, error, info, warn},
+    once_cell::sync::Lazy,
+    serum_dex::instruction::{InitializeMarketInstruction, MarketInstruction},
     solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig},
     solana_program::pubkey::Pubkey,
     solana_sdk::{
@@ -43,11 +45,16 @@ use {
         system_program,
         transaction::{Transaction, VersionedTransaction},
     },
-    spl_token::state::Mint,
+    spl_token::{
+        instruction::{initialize_account, TokenInstruction},
+        state::Mint,
+    },
     std::{
+        collections::HashMap,
+        fs,
         io::{self, Write},
         str::FromStr,
-        sync::Arc,
+        sync::{Arc, Mutex},
         thread,
         time::{Duration, SystemTime, UNIX_EPOCH},
     },
@@ -116,6 +123,7 @@ pub async fn raydium_sniper_parser(
     tx: SubscribeUpdateTransaction,
     manual_snipe: bool,
     base_mint: Option<Pubkey>,
+    route: SniperRoute,
     subscribe_tx: tokio::sync::MutexGuard<
         '_,
         impl Sink<SubscribeRequest, Error = SendError> + std::marker::Unpin,
@@ -244,7 +252,6 @@ pub async fn raydium_sniper_parser(
             }
             Ok(_) => continue, // Handle other variants if needed
             Err(e) => {
-                println!("{e:#?}");
                 continue;
             }
         }
@@ -289,7 +296,7 @@ pub async fn raydium_sniper_parser(
         return Ok(());
     }
 
-    let _ = sniper_txn_in_2(accounts.clone(), open_time, datetime).await;
+    let _ = sniper_txn_in_2(accounts.clone(), open_time, datetime, route).await;
 
     Ok(())
 }
@@ -298,6 +305,7 @@ pub async fn sniper_txn_in_2(
     pool_keys: InitializePoolAccounts,
     sleep_duration: u64,
     datetime: chrono::DateTime<Utc>,
+    route: SniperRoute,
 ) -> eyre::Result<()> {
     let accounts = pool_keys.clone();
     tokio::spawn(async move {
@@ -309,7 +317,7 @@ pub async fn sniper_txn_in_2(
     let sleep_duration = calculate_sleep_duration(sleep_duration).await;
     sleep(sleep_duration).await;
 
-    let _ = match raydium_snipe_launch(pool_keys, None, 1).await {
+    let _ = match raydium_snipe_launch(pool_keys, None, 1, route).await {
         Ok(tx) => tx,
         Err(e) => {
             error!("Error: {:?}", e);
@@ -369,6 +377,7 @@ pub async fn raydium_snipe_launch(
     pool_keys: InitializePoolAccounts,
     init_amount_in: Option<u64>,
     amount_out: u64,
+    route: SniperRoute,
 ) -> eyre::Result<()> {
     let config = get_config().await?;
 
@@ -394,112 +403,174 @@ pub async fn raydium_snipe_launch(
         pool_keys.clone().amm_coin_mint
     };
 
-    let (market, market_vault_signer) = fetch_market_data(rpc_client.clone(), &pool_keys).await?;
-
-    let swap_instructions = swap_base_in(
-        &RAYDIUM_AMM_V4_PROGRAM_ID,
-        &pool_keys.amm_pool,
-        &pool_keys.amm_authority,
-        &pool_keys.amm_open_orders,
-        &pool_keys.amm_target_orders,
-        &pool_keys.amm_coin_vault,
-        &pool_keys.amm_pc_vault,
-        &pool_keys.market_program,
-        &pool_keys.market,
-        &market.bids,
-        &market.asks,
-        &market.eventQueue,
-        &market.baseVault,
-        &market.quoteVault,
-        &market_vault_signer,
-        &user_source_owner,
-        &user_source_owner,
-        &user_source_owner,
-        &token_address,
-        amount_in.clone(),
-        amount_out,
-        sol_to_lamports(config.trading.priority_fee),
-        config.clone(),
-    )
-    .await?;
-
-    let (latest_blockhash, _) = rpc_client
-        .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
-            commitment: solana_sdk::commitment_config::CommitmentLevel::Finalized,
-        })
-        .await?;
-
-    let message = match solana_program::message::v0::Message::try_compile(
-        &user_source_owner,
-        &swap_instructions,
-        &[],
-        latest_blockhash,
-    ) {
-        Ok(x) => x,
+    let route_data = match process_route(route, rpc_client.clone(), &pool_keys).await {
+        Ok(keys) => keys,
         Err(e) => {
-            println!("Error: {:?}", e);
+            println!("Error: {e}");
             return Ok(());
         }
     };
 
-    let transaction = match VersionedTransaction::try_new(
-        solana_program::message::VersionedMessage::V0(message),
-        &[&wallet],
-    ) {
-        Ok(x) => x,
-        Err(e) => {
-            println!("Error: {:?}", e);
-            return Ok(());
-        }
-    };
+    if let Some(route_data) = route_data {
+        let (market, market_vault_signer) = match &route_data {
+            RouteData::RaydiumAMM {
+                market_vault_signer,
+                market,
+            } => {
+                let market_struct = MarketAccounts {
+                    market: pool_keys.market,
+                    bids: market.bids,
+                    asks: market.asks,
+                    event_q: market.eventQueue,
+                    base_vault: market.baseVault,
+                    quote_vault: market.quoteMint,
+                };
+                (market_struct, market_vault_signer)
+            }
+            RouteData::PumpFunMigration {
+                market_accounts,
+                serum_vault_signer: _, // Ignore the default value
+            } => {
+                let map = GLOBAL_INITIALIZE_ACCOUNT_MAP.lock().unwrap();
+                let serum_vault_signer = map
+                    .get(&market_accounts.coin_vault)
+                    .or_else(|| map.get(&market_accounts.pc_vault))
+                    .cloned()
+                    .unwrap_or_default();
 
-    if config.engine.use_bundles {
-        info!("Building Bundle");
-
-        let tip_txn = VersionedTransaction::from(Transaction::new_signed_with_payer(
-            &[transfer(
-                &wallet.pubkey(),
-                &tip_account,
-                sol_to_lamports(config.trading.bundle_tip),
-            )],
-            Some(&wallet.pubkey()),
-            &[&wallet],
-            rpc_client.get_latest_blockhash().await.unwrap(),
-        ));
-
-        let bundle_txn = vec![transaction, tip_txn];
-
-        let mut bundle_results_subscription = searcher_client
-            .subscribe_bundle_results(SubscribeBundleResultsRequest {})
-            .await
-            .expect("subscribe to bundle results")
-            .into_inner();
-
-        let bundle = match send_bundle_with_confirmation(
-            &bundle_txn,
-            &rpc_client,
-            &mut searcher_client,
-            &mut bundle_results_subscription,
-        )
-        .await
-        {
-            Ok(_) => {}
-            Err(e) => {
-                panic!("Error: {}", e);
+                let market_struct = MarketAccounts {
+                    market: market_accounts.market_account,
+                    bids: market_accounts.bids,
+                    asks: market_accounts.asks,
+                    event_q: market_accounts.event_q,
+                    base_vault: market_accounts.coin_vault,
+                    quote_vault: market_accounts.pc_vault,
+                };
+                (market_struct, &serum_vault_signer.clone())
             }
         };
 
-        std::mem::drop(bundle_results_subscription);
-    } else {
-        info!("Sending Transaction");
-        let transaction_flight = RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..Default::default()
+        println!("Keys: {market:#?}\n{market_vault_signer:#?}");
+
+        let swap_instructions = swap_base_in(
+            &RAYDIUM_AMM_V4_PROGRAM_ID,
+            &pool_keys.amm_pool,
+            &pool_keys.amm_authority,
+            &pool_keys.amm_open_orders,
+            &pool_keys.amm_target_orders,
+            &pool_keys.amm_coin_vault,
+            &pool_keys.amm_pc_vault,
+            &pool_keys.market_program,
+            &pool_keys.market,
+            &market.bids,
+            &market.asks,
+            &market.event_q,
+            &market.base_vault,
+            &market.quote_vault,
+            &market_vault_signer,
+            &user_source_owner,
+            &user_source_owner,
+            &user_source_owner,
+            &token_address,
+            amount_in.clone(),
+            amount_out,
+            sol_to_lamports(config.trading.priority_fee),
+            config.clone(),
+        )
+        .await?;
+
+        let (latest_blockhash, _) = rpc_client
+            .get_latest_blockhash_with_commitment(solana_sdk::commitment_config::CommitmentConfig {
+                commitment: solana_sdk::commitment_config::CommitmentLevel::Finalized,
+            })
+            .await?;
+
+        let message = match solana_program::message::v0::Message::try_compile(
+            &user_source_owner,
+            &swap_instructions,
+            &[],
+            latest_blockhash,
+        ) {
+            Ok(x) => x,
+            Err(e) => {
+                println!("Error: {:?}", e);
+                return Ok(());
+            }
         };
 
-        if config.trading.spam {
-            let mut counter = 0;
-            while counter < config.trading.spam_count {
+        let transaction = match VersionedTransaction::try_new(
+            solana_program::message::VersionedMessage::V0(message),
+            &[&wallet],
+        ) {
+            Ok(x) => x,
+            Err(e) => {
+                println!("Error: {:?}", e);
+                return Ok(());
+            }
+        };
+
+        if config.engine.use_bundles {
+            info!("Building Bundle");
+
+            let tip_txn = VersionedTransaction::from(Transaction::new_signed_with_payer(
+                &[transfer(
+                    &wallet.pubkey(),
+                    &tip_account,
+                    sol_to_lamports(config.trading.bundle_tip),
+                )],
+                Some(&wallet.pubkey()),
+                &[&wallet],
+                rpc_client.get_latest_blockhash().await.unwrap(),
+            ));
+
+            let bundle_txn = vec![transaction, tip_txn];
+
+            let mut bundle_results_subscription = searcher_client
+                .subscribe_bundle_results(SubscribeBundleResultsRequest {})
+                .await
+                .expect("subscribe to bundle results")
+                .into_inner();
+
+            let bundle = match send_bundle_with_confirmation(
+                &bundle_txn,
+                &rpc_client,
+                &mut searcher_client,
+                &mut bundle_results_subscription,
+            )
+            .await
+            {
+                Ok(_) => {}
+                Err(e) => {
+                    panic!("Error: {}", e);
+                }
+            };
+
+            std::mem::drop(bundle_results_subscription);
+        } else {
+            info!("Sending Transaction");
+            let transaction_flight = RpcSendTransactionConfig {
+                skip_preflight: true,
+                ..Default::default()
+            };
+
+            if config.trading.spam {
+                let mut counter = 0;
+                while counter < config.trading.spam_count {
+                    let result = match rpc_client
+                        .send_transaction_with_config(&transaction, transaction_flight)
+                        .await
+                    {
+                        Ok(x) => x,
+                        Err(e) => {
+                            error!("Error: {:?}", e);
+                            return Ok(());
+                        }
+                    };
+
+                    info!("Transaction Sent {:?}", result);
+                    counter += 1;
+                }
+            } else {
                 let result = match rpc_client
                     .send_transaction_with_config(&transaction, transaction_flight)
                     .await
@@ -512,61 +583,47 @@ pub async fn raydium_snipe_launch(
                 };
 
                 info!("Transaction Sent {:?}", result);
-                counter += 1;
             }
-        } else {
-            let result = match rpc_client
-                .send_transaction_with_config(&transaction, transaction_flight)
-                .await
-            {
-                Ok(x) => x,
-                Err(e) => {
-                    error!("Error: {:?}", e);
-                    return Ok(());
-                }
-            };
-
-            info!("Transaction Sent {:?}", result);
         }
-    }
 
-    let pool_keys = match fetch_pool_keys_with_retry(
-        pool_keys.amm_pool,
-        Arc::clone(&rpc_client),
-        10,
-        Duration::from_secs(1),
-    )
-    .await
-    {
-        Ok(keys) => keys,
-        Err(e) => {
-            return Err(e.into());
-        }
-    };
+        let pool_keys = match fetch_pool_keys_with_retry(
+            pool_keys.amm_pool,
+            Arc::clone(&rpc_client),
+            10,
+            Duration::from_secs(1),
+        )
+        .await
+        {
+            Ok(keys) => keys,
+            Err(e) => {
+                return Err(e.into());
+            }
+        };
 
-    let (mut stop_tx, mut stop_rx) = tokio::sync::mpsc::channel::<()>(100);
+        let (mut stop_tx, mut stop_rx) = tokio::sync::mpsc::channel::<()>(100);
 
-    let pool_keys_clone = pool_keys.clone();
+        let pool_keys_clone = pool_keys.clone();
 
-    let handle = thread::spawn(move || {
-        let runtime = tokio::runtime::Runtime::new().unwrap();
-        runtime.block_on(async {
-            read_single_key_impl(&mut stop_tx, pool_keys_clone)
-                .await
-                .unwrap();
+        let handle = thread::spawn(move || {
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            runtime.block_on(async {
+                read_single_key_impl(&mut stop_tx, pool_keys_clone)
+                    .await
+                    .unwrap();
+            });
         });
-    });
 
-    price_logger(
-        &mut stop_rx,
-        amount_in,
-        Some(pool_keys),
-        None,
-        SniperRoute::RaydiumAMM,
-    )
-    .await;
+        price_logger(
+            &mut stop_rx,
+            amount_in,
+            Some(pool_keys),
+            None,
+            SniperRoute::RaydiumAMM,
+        )
+        .await;
 
-    handle.join().unwrap();
+        handle.join().unwrap();
+    }
     Ok(())
 }
 
@@ -607,3 +664,200 @@ async fn fetch_pool_keys_with_retry(
         }
     }
 }
+
+enum RouteData {
+    RaydiumAMM {
+        market: MARKET_STATE_LAYOUT_V3,
+        market_vault_signer: Pubkey,
+    },
+    PumpFunMigration {
+        market_accounts: SerumMarketAccounts,
+        serum_vault_signer: Pubkey,
+    },
+}
+
+async fn process_route(
+    route: SniperRoute,
+    rpc_client: Arc<RpcClient>,
+    pool_keys: &InitializePoolAccounts,
+) -> eyre::Result<Option<RouteData>> {
+    println!("processing");
+    match route {
+        SniperRoute::RaydiumAMM => {
+            let (market, market_vault_signer) =
+                fetch_market_data(rpc_client.clone(), pool_keys).await?;
+            Ok(Some(RouteData::RaydiumAMM {
+                market,
+                market_vault_signer,
+            }))
+        }
+        SniperRoute::PumpFunMigration => {
+            info!("Starting PumpFunMigration route processing");
+            let history = get_transaction_history();
+
+            let mut market_accounts = None;
+
+            for (i, txns) in history.iter().enumerate() {
+                debug!("Processing transaction {}", i);
+                let info = txns.transaction.clone().unwrap_or_default();
+                let accounts = info
+                    .transaction
+                    .clone()
+                    .unwrap_or_default()
+                    .message
+                    .unwrap_or_default()
+                    .account_keys
+                    .iter()
+                    .map(|i| {
+                        let mut array = [0; 32];
+                        let bytes = &i[..array.len()];
+                        array.copy_from_slice(bytes);
+                        Pubkey::new_from_array(array)
+                    })
+                    .collect::<Vec<Pubkey>>();
+
+                let outer_instructions = {
+                    let transaction = info.transaction.unwrap_or_default();
+                    let message = transaction.message.unwrap_or_default();
+                    message.instructions.iter().cloned().collect::<Vec<_>>()
+                };
+
+                debug!(
+                    "Found {} instructions in transaction",
+                    outer_instructions.len()
+                );
+
+                for (j, instructions) in outer_instructions.iter().enumerate() {
+                    if let Some(MarketInstruction::InitializeMarket(decode_new_coin)) =
+                        MarketInstruction::unpack(&instructions.data)
+                    {
+                        debug!("Found InitializeMarket instruction at index {}", j);
+                        if instructions.accounts.len() >= SERUM_ACCOUNTS_LEN {
+                            info!("Initializing market accounts");
+                            market_accounts = Some(SerumMarketAccounts {
+                                market_account: accounts[instructions.accounts[0] as usize],
+                                req_q: accounts[instructions.accounts[1] as usize],
+                                event_q: accounts[instructions.accounts[2] as usize],
+                                bids: accounts[instructions.accounts[3] as usize],
+                                asks: accounts[instructions.accounts[4] as usize],
+                                coin_vault: accounts[instructions.accounts[5] as usize],
+                                pc_vault: accounts[instructions.accounts[6] as usize],
+                                coin_mint: accounts[instructions.accounts[7] as usize],
+                                pc_mint: accounts[instructions.accounts[8] as usize],
+                                rent_sysvar: accounts[instructions.accounts[9] as usize],
+                            });
+                        } else {
+                            warn!(
+                                "InitializeMarket instruction found but with insufficient accounts"
+                            );
+                        }
+                    } else if let Ok(TokenInstruction::InitializeAccount) =
+                        TokenInstruction::unpack(&instructions.data)
+                    {
+                        debug!("Found InitializeAccount instruction at index {}", j);
+                        let instruction_accounts: Vec<Pubkey> = instructions
+                            .accounts
+                            .iter()
+                            .map(|account_index| accounts[*account_index as usize])
+                            .collect();
+
+                        if let Some(init_account_accounts) =
+                            InitializeInitAccounts::unpack(&instruction_accounts)
+                        {
+                            // Check if the mint isn't equal to SOLC_MINT
+                            if init_account_accounts.mint_pubkey != SOLC_MINT {
+                                info!(
+                                    "Initializing account with mint: {:?}",
+                                    init_account_accounts.mint_pubkey
+                                );
+                                let mut map = GLOBAL_INITIALIZE_ACCOUNT_MAP.lock().unwrap();
+                                map.clear(); // Clear previous entry
+                                map.insert(
+                                    init_account_accounts.mint_pubkey,
+                                    init_account_accounts.owner_pubkey,
+                                );
+                                debug!("Updated GLOBAL_INITIALIZE_ACCOUNT_MAP");
+                            } else {
+                                debug!("Skipping initialization for SOLC_MINT account");
+                            }
+                        } else {
+                            warn!("Failed to unpack InitializeInitAccounts");
+                        }
+                    }
+                }
+
+                // Only break if we have found both market_accounts and at least one initialize account
+                if market_accounts.is_some()
+                    && !GLOBAL_INITIALIZE_ACCOUNT_MAP.lock().unwrap().is_empty()
+                {
+                    info!("Found market accounts and initialized accounts. Breaking transaction loop.");
+                    break;
+                }
+            }
+
+            match market_accounts {
+                Some(accounts) => {
+                    info!("PumpFunMigration route processing completed successfully");
+                    Ok(Some(RouteData::PumpFunMigration {
+                        market_accounts: accounts,
+                        serum_vault_signer: Pubkey::default(), // Use a default value here
+                    }))
+                }
+                None => {
+                    warn!("PumpFunMigration route processing completed without finding market accounts");
+                    Ok(None)
+                }
+            }
+        }
+        SniperRoute::RaydiumCPMM => {
+            // Implement RaydiumCPMM logic here
+            Ok(None) // Placeholder, replace with actual implementation
+        }
+        SniperRoute::PumpFun => {
+            // Implement PumpFun logic here
+            Ok(None) // Placeholder, replace with actual implementation
+        }
+        SniperRoute::MoonShot => {
+            // Implement MoonShot logic here
+            Ok(None) // Placeholder, replace with actual implementation
+        }
+        SniperRoute::Jupiter => Ok(None),
+    }
+}
+
+#[derive(Debug)]
+pub struct MarketAccounts {
+    pub market: Pubkey,
+    pub bids: Pubkey,
+    pub asks: Pubkey,
+    pub event_q: Pubkey,
+    pub base_vault: Pubkey,
+    pub quote_vault: Pubkey,
+}
+
+#[derive(Clone, Debug)]
+struct InitializeInitAccounts {
+    account_pubkey: Pubkey,
+    mint_pubkey: Pubkey,
+    owner_pubkey: Pubkey,
+    sysvar: Pubkey,
+}
+
+impl InitializeInitAccounts {
+    fn unpack(accounts: &[Pubkey]) -> Option<Self> {
+        if accounts.len() >= 4 {
+            Some(Self {
+                account_pubkey: accounts[0],
+                mint_pubkey: accounts[1],
+                owner_pubkey: accounts[2],
+                sysvar: accounts[3],
+            })
+        } else {
+            None
+        }
+    }
+}
+
+// Global HashMap to store only one address
+static GLOBAL_INITIALIZE_ACCOUNT_MAP: Lazy<Mutex<HashMap<Pubkey, Pubkey>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));

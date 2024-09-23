@@ -21,23 +21,17 @@ use termcolor::{Color, ColorSpec};
 use crate::app::embeds::embed;
 use crate::copytrade::copytrade;
 use crate::env::load_config;
-use crate::liquidity::freeze_authority::freeze_sells;
-use crate::liquidity::minter_main::raydium_creator;
 use crate::liquidity::option::wallet_gen::list_folders;
 use crate::liquidity::option::withdraw_sol::{deployer_details, folder_deployer_details};
-use crate::moonshot::menu::moonshot_menu;
-use crate::pumpfun::bundler::menu::pump_bundler;
 use crate::pumpfun::pump::pump_main;
 use crate::pumpfun::token_data::bonding_curve_fetcher;
 use crate::raydium_amm::bundles::mev_trades::mev_trades;
 use crate::raydium_amm::swap::swap_in::{swap_in, swap_out, PriorityTip};
 use crate::raydium_amm::swap::swapper::auth_keypair;
 use crate::raydium_amm::swap::trades::track_trades;
-use crate::raydium_cpmm::menu::raydium_cpmm;
 use crate::rpc::rpc_key;
 use crate::user_inputs::mode::{automatic_snipe, unwrap_sol_call, wrap_sol_call};
 use crate::utils::terminal::clear_screen;
-use crate::volume_bot::volume_menu;
 
 use self::wallets::wallet_logger;
 
@@ -97,7 +91,7 @@ pub fn theme() -> Theme {
 }
 
 #[async_recursion]
-pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>> {
+pub async fn main_menu(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>> {
     let args = match load_config().await {
         Ok(args) => args,
         Err(e) => {
@@ -120,13 +114,9 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
         .option(DemandOption::new("PumpFun").label("▪ PumpFun Mode"))
         .option(DemandOption::new("CopyTrade").label("▪ CopyTrade Mode"))
         // .option(DemandOption::new("MoonShot").label("▪ MoonShot Mode"))
-        // .option(DemandOption::new("RayAMMBundlerMode").label("▪ Raydium Bundler Mode"))
-        // .option(DemandOption::new("PumpBundlerMode").label("▪ PumpFun Bundler Mode"))
         .option(DemandOption::new("Wrap Sol Mode").label("📦 Wrap SOL"))
         .option(DemandOption::new("Unwrap Sol Mode").label("🪤  Unwrap SOL"))
         .option(DemandOption::new("Wallet Details").label("🍄 Wallet Details"));
-    // .option(DemandOption::new("Generate Volume").label("▪ Volume Mode"))
-    // .option(DemandOption::new("Freeze Authority").label("❄️  Freeze Authority"))
     // .option(DemandOption::new("deployerdetails").label("🧨 Deployer Wallet Details"))
     // .option(DemandOption::new("folder_deployerdetails").label("🗃️  Folder Wallet Details"))
 
@@ -140,25 +130,10 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
             let _ = unwrap_sol_call().await;
         }
 
-        "Freeze Authority" => {
-            let search =
-                get_searcher_client(&args.network.block_engine_url, &Arc::new(auth_keypair()))
-                    .await
-                    .unwrap();
-            let (_, wallet) = list_folders().await.unwrap();
-            let wallets: Vec<Pubkey> = wallet.iter().map(|item| item.pubkey()).collect();
-
-            let _ = freeze_sells(Arc::new(wallets), search).await;
-        }
         "RaydiumAMM" => {
             let _ = raydium_amm_mode().await;
         }
-        "RaydiumCPMM" => {
-            let _ = raydium_cpmm().await;
-        }
-        "MoonShot" => {
-            let _ = moonshot_menu().await;
-        }
+
         "PumpFun" => {
             // let _ = bonding_curve_fetcher(
             //     Pubkey::from_str("FN36g6QyqYk47fyn5DCypTrH9SkAEthpg1862B7Tpump").unwrap(),
@@ -171,15 +146,7 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
         "CopyTrade" => {
             let _ = copytrade().await;
         }
-        "RayAMMBundlerMode" => {
-            let _ = raydium_creator().await;
-        }
-        "PumpBundlerMode" => {
-            let _ = pump_bundler().await;
-        }
-        "Generate Volume" => {
-            let _ = volume_menu().await;
-        }
+
         "MEV Trades" => {
             let _ = mev_trades().await;
         }
@@ -202,7 +169,7 @@ pub async fn app(mainmenu: bool) -> Result<(), Box<dyn std::error::Error + Send>
     //clear the terminal
     clear_screen();
     println!("{}", embed());
-    let _ = app(false).await;
+    let _ = main_menu(false).await;
 
     Ok(())
 }
@@ -240,7 +207,7 @@ pub async fn raydium_amm_mode() -> Result<(), Box<dyn Error + Send>> {
             let _ = automatic_snipe(false).await;
         }
         "Main Menu" => {
-            let _ = app(false).await;
+            let _ = main_menu(false).await;
         }
 
         _ => {

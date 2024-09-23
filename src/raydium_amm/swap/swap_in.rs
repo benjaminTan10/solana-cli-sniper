@@ -16,7 +16,7 @@ use crate::{
 
 use super::{raydium_swap_in::raydium_in, raydium_swap_out::raydium_txn_backrun};
 
-pub async fn swap_in() -> Result<(), Box<dyn std::error::Error>> {
+pub async fn swap_in() -> eyre::Result<()> {
     let args = match load_config().await {
         Ok(args) => args,
         Err(e) => {
@@ -68,7 +68,7 @@ pub struct PriorityTip {
     pub priority_fee_value: u64,
 }
 
-pub async fn swap_out() -> Result<(), Box<dyn std::error::Error>> {
+pub async fn swap_out() -> eyre::Result<()> {
     let args = match load_config().await {
         Ok(args) => args,
         Err(e) => {

@@ -27,7 +27,7 @@ use super::{
     tokens::token_env,
 };
 
-pub async fn wrap_sol_call() -> Result<(), Box<dyn Error>> {
+pub async fn wrap_sol_call() -> eyre::Result<()> {
     let sol_amount = sol_amount("Wrap Amount: ").await;
     // let wallet = private_key_env().await?;
 
@@ -50,7 +50,7 @@ pub async fn wrap_sol_call() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub async fn unwrap_sol_call() -> Result<(), Box<dyn Error>> {
+pub async fn unwrap_sol_call() -> eyre::Result<()> {
     let theme = theme();
     let ms = Select::new("Unwrap Wallet")
         .description("Select the Wallet to Unwrap")

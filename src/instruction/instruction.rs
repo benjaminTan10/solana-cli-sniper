@@ -4,7 +4,7 @@
 #![allow(deprecated)]
 
 // use crate::instruction::state::{AmmParams, Fees, LastOrderDistance, SimulateParams};
-use arrayref::array_ref;
+use arrayref::{array_ref, array_refs};
 use serde::{Deserialize, Serialize};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::{
@@ -1974,3 +1974,81 @@ impl InitializePoolAccounts {
         })
     }
 }
+
+#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
+pub enum MarketInstruction {
+    /// 0. `[writable]` the market to initialize
+    /// 1. `[writable]` zeroed out request queue
+    /// 2. `[writable]` zeroed out event queue
+    /// 3. `[writable]` zeroed out bids
+    /// 4. `[writable]` zeroed out asks
+    /// 5. `[writable]` spl-token account for the coin currency
+    /// 6. `[writable]` spl-token account for the price currency
+    /// 7. `[]` coin currency Mint
+    /// 8. `[]` price currency Mint
+    /// 9. `[]` the rent sysvar
+    /// 10. `[]` open orders market authority (optional)
+    /// 11. `[]` prune authority (optional, requires open orders market authority)
+    /// 12. `[]` crank authority (optional, requires prune authority)
+    InitializeMarket(InitializeMarketInstruction),
+}
+
+#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
+pub struct InitializeMarketInstruction {
+    // In the matching engine, all prices and balances are integers.
+    // This only works if the smallest representable quantity of the coin
+    // is at least a few orders of magnitude larger than the smallest representable
+    // quantity of the price currency. The internal representation also relies on
+    // on the assumption that every order will have a (quantity x price) value that
+    // fits into a u64.
+    //
+    // If these assumptions are problematic, rejigger the lot sizes.
+    pub coin_lot_size: u64,
+    pub pc_lot_size: u64,
+    pub fee_rate_bps: u16,
+    pub vault_signer_nonce: u64,
+    pub pc_dust_threshold: u64,
+}
+
+impl MarketInstruction {
+    pub fn unpack(versioned_bytes: &[u8]) -> Option<Self> {
+        if versioned_bytes.len() < 5 || versioned_bytes.len() > 5 + 8 + 54 * 8 {
+            return None;
+        }
+        let (&[version], &discrim, data) = array_refs![versioned_bytes, 1, 4; ..;];
+        if version != 0 {
+            return None;
+        }
+        let discrim = u32::from_le_bytes(discrim);
+        Some(match (discrim, data.len()) {
+            (0, 34) => MarketInstruction::InitializeMarket({
+                let data_array = array_ref![data, 0, 34];
+                let fields = array_refs![data_array, 8, 8, 2, 8, 8];
+                InitializeMarketInstruction {
+                    coin_lot_size: u64::from_le_bytes(*fields.0),
+                    pc_lot_size: u64::from_le_bytes(*fields.1),
+                    fee_rate_bps: u16::from_le_bytes(*fields.2),
+                    vault_signer_nonce: u64::from_le_bytes(*fields.3),
+                    pc_dust_threshold: u64::from_le_bytes(*fields.4),
+                }
+            }),
+            _ => return None,
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SerumMarketAccounts {
+    pub market_account: Pubkey,
+    pub req_q: Pubkey,
+    pub event_q: Pubkey,
+    pub bids: Pubkey,
+    pub asks: Pubkey,
+    pub coin_vault: Pubkey,
+    pub pc_vault: Pubkey,
+    pub coin_mint: Pubkey,
+    pub pc_mint: Pubkey,
+    pub rent_sysvar: Pubkey,
+}
+
+pub const SERUM_ACCOUNTS_LEN: usize = 10;

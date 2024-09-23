@@ -5,11 +5,11 @@ use crossterm::style::Stylize;
 use futures::{channel::mpsc::SendError, Sink};
 use log::{error, info};
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::{pubkey::Pubkey, signature::Keypair};
+use solana_sdk::{native_token::lamports_to_sol, pubkey::Pubkey, signature::Keypair};
 use yellowstone_grpc_proto::geyser::{SubscribeRequest, SubscribeUpdateTransaction};
 
 use crate::{
-    app::MevApe,
+    app::{config_init::update_config_field, MevApe},
     env::{load_config, SettingsConfig},
     pumpfun::instructions::pumpfun_program::instructions::CreateIxData,
     raydium_amm::{
@@ -27,6 +27,7 @@ use crate::{
 };
 
 pub const PUMPFUN_CONTRACT: &str = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
+pub const PUMPFUN_MIGRATION: &str = "39azUYFWPz3VHgKCf3VChUwbpURdCHRxjWVowf5jUJjg";
 
 pub async fn pumpfun_sniper(manual_snipe: bool, route: SniperRoute) -> eyre::Result<()> {
     let args = match load_config().await {
@@ -43,17 +44,9 @@ pub async fn pumpfun_sniper(manual_snipe: bool, route: SniperRoute) -> eyre::Res
     }
     let sol_amount = sol_amount("Snipe Amount:").await;
 
+    update_config_field(|c| &mut c.trading.buy_amount, lamports_to_sol(sol_amount)).await?;
+
     let token;
-
-    let mut bundle_tip = 0;
-    let priority_fee_value;
-
-    if args.engine.use_bundles {
-        priority_fee_value = priority_fee().await;
-        bundle_tip = bundle_priority_tip().await;
-    } else {
-        priority_fee_value = priority_fee().await;
-    }
 
     if manual_snipe {
         token = Some(token_env("Base Mint").await);
@@ -87,22 +80,12 @@ pub async fn pumpfun_sniper(manual_snipe: bool, route: SniperRoute) -> eyre::Res
         token = None;
     }
 
-    // let wallet = private_key_env().await?;
-
-    let fees = PriorityTip {
-        priority_fee_value,
-        bundle_tip,
-    };
-
-    let mev_ape = MevApe {
-        sol_amount,
-        fee: fees,
-        // bundle_tip,
-        wallet: args.engine.payer_keypair.clone(),
-    };
-
     let contract = if route == SniperRoute::PumpFun {
         PUMPFUN_CONTRACT
+    } else if route == SniperRoute::RaydiumAMM {
+        RAYDIUM_AMM_FEE_COLLECTOR
+    } else if route == SniperRoute::PumpFunMigration {
+        PUMPFUN_MIGRATION
     } else {
         RAYDIUM_AMM_FEE_COLLECTOR
     };

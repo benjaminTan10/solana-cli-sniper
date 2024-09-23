@@ -3,7 +3,7 @@ use std::error::Error;
 use demand::{DemandOption, Select};
 
 use crate::{
-    app::{app, embeds::embed, theme},
+    app::{main_menu, embeds::embed, theme},
     liquidity::{
         lut::extend_lut::lut_main,
         option::{
@@ -106,7 +106,7 @@ pub async fn raydium_creator() -> Result<(), Box<dyn Error>> {
             clear_screen();
             //clear the previous line
             println!("{}", embed());
-            let _ = app(false).await;
+            let _ = main_menu(false).await;
         }
         _ => {
             // Handle unexpected option here

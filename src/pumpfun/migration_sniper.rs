@@ -7,16 +7,21 @@ use {
         raydium_amm::{
             sniper::utils::{market_authority, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT},
             subscribe::PoolKeysSniper,
-            swap::raydium_amm_sniper::{sniper_txn_in_2, RAYDIUM_AMM_V4_PROGRAM_ID},
+            swap::{
+                instructions::SOLC_MINT,
+                raydium_amm_sniper::{sniper_txn_in_2, RAYDIUM_AMM_V4_PROGRAM_ID},
+            },
         },
         router::SniperRoute,
+        utils::transaction_history::add_transaction_to_history,
     },
     chrono::{LocalResult, TimeZone, Utc},
     futures::{channel::mpsc::SendError, Sink},
     log::{error, info, warn},
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_program::pubkey::Pubkey,
-    solana_sdk::{pubkey, system_program},
+    solana_sdk::{program_pack::Pack, pubkey, system_program},
+    spl_token::state::Mint,
     std::{str::FromStr, sync::Arc},
     yellowstone_grpc_proto::{
         geyser::SubscribeUpdateTransaction, prelude::SubscribeRequest,
@@ -32,6 +37,7 @@ pub async fn pumpfun_migration_snipe_parser(
     tx: SubscribeUpdateTransaction,
     manual_snipe: bool,
     base_mint: Option<Pubkey>,
+    route: SniperRoute,
     subscribe_tx: tokio::sync::MutexGuard<
         '_,
         impl Sink<SubscribeRequest, Error = SendError> + std::marker::Unpin,
@@ -60,9 +66,7 @@ pub async fn pumpfun_migration_snipe_parser(
         instructions.cloned().collect::<Vec<_>>()
     };
 
-    if accounts[0] != PUMPFUN_MIGRATION_SIGNER {
-        return Ok(());
-    }
+    add_transaction_to_history(tx);
 
     let meta = info.meta.unwrap_or_default();
 
@@ -73,8 +77,6 @@ pub async fn pumpfun_migration_snipe_parser(
         .clone()
         .and_then(|s| s.split("open_time: ").nth(1))
         .and_then(|s| s.split(',').next());
-
-    info!("Account Keys: {:#?}", accounts);
 
     let open_time = match open_time_split {
         Some(time_str) => match time_str.parse::<u64>() {
@@ -97,6 +99,8 @@ pub async fn pumpfun_migration_snipe_parser(
             0
         }
     };
+
+    info!("Account Keys: {:#?}", accounts);
 
     let datetime = match Utc.timestamp_opt(open_time_i64, 0) {
         LocalResult::Single(datetime) => datetime,
@@ -171,30 +175,46 @@ pub async fn pumpfun_migration_snipe_parser(
         }
     }
 
+    println!("{coin_args_amm:#?}");
     println!("{raydium_accounts:#?}");
 
-    if raydium_accounts.is_none() {
-        return Ok(());
+    let mut accounts = match raydium_accounts {
+        Some(accounts) => accounts,
+        None => return Ok(()),
+    };
+
+    if accounts.amm_coin_mint != SOLC_MINT {
+        std::mem::swap(&mut accounts.amm_coin_mint, &mut accounts.amm_pc_mint);
     }
 
-    if base_mint.is_some() {
-        if raydium_accounts.is_some() {
-            if raydium_accounts.unwrap().amm_coin_mint != base_mint.unwrap() {
-                return Ok(());
-            }
+    if let Some(base) = base_mint {
+        println!("base_mint: {:?}", base);
+        println!("accounts.amm_coin_mint: {:?}", accounts.amm_coin_mint);
+        println!("accounts.amm_pc_mint: {:?}", accounts.amm_pc_mint);
+
+        if accounts.amm_coin_mint == base || accounts.amm_pc_mint == base {
+            println!("Base mint matches one of the AMM mints, continuing execution");
+            // Function continues...
+        } else {
+            println!("Base mint doesn't match either AMM mint, returning early");
+            return Ok(());
         }
     }
 
-    let signature = bs58::encode(&info.signature).into_string();
-    // println!(
-    //     "Transaction: {}\nPool: {:?}\nBaseMint: {}\nMaker: {}",
-    //     signature.to_string(),
-    //     pool_keys[0].id,
-    //     pool_keys[0].base_mint,
-    //     accounts[0]
-    // );
+    // Rest of the function remains the same...
 
-    // let _ = sniper_txn_in_2(pool_keys[0].clone(), open_time, Some(mev_ape), datetime).await;
+    let freeze_check = rpc_client.get_account_data(&accounts.amm_pc_mint).await?;
+
+    let freeze_check = Mint::unpack(&freeze_check)
+        .map_err(|e| format!("Failed to unpack Mint: {}", e))
+        .unwrap();
+
+    if freeze_check.freeze_authority.is_some() {
+        info!("Freeze Authority set, skipping transaction");
+        return Ok(());
+    }
+
+    let _ = sniper_txn_in_2(accounts.clone(), open_time, datetime, route).await;
 
     Ok(())
 }

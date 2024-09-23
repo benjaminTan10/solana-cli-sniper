@@ -3,8 +3,10 @@ use colored::Colorize;
 use log::info;
 use pretty_env_logger::env_logger::fmt::Color;
 use std::io::Write;
+use std::sync::{Arc, Mutex};
+use Mevarik::app::main_menu;
 use Mevarik::{
-    app::{app, config_init::initialize_global_config, embeds::embed},
+    app::{config_init::initialize_global_config, embeds::embed},
     env::utils::read_keys,
     utils::terminal::clear_screen,
 };
@@ -38,27 +40,30 @@ async fn main() {
         })
         .init();
 
+    // let mut terminal = ratatui::init();
+    // let result = Mevarik::screen::dimensions::run(&mut terminal).await;
+    // ratatui::restore();
+    // result.unwrap()
     clear_screen();
     println!("{}", embed());
 
     initialize_global_config().await.unwrap();
-    info!("Authenticating...");
 
-    let _ = match Mevarik::auth::auth_verification().await {
-        Ok(_) => {
-            clear_screen();
+    // info!("Authenticating...");
+    // let _ = match Mevarik::auth::auth_verification().await {
+    //     Ok(_) => {
+    //         clear_screen();
 
-            println!("{}", embed());
-            println!("{}", "Authentication Successful".bold().green());
-        }
-        Err(e) => {
-            log::error!("Error: {}", e);
-            let _ = read_keys().await;
-            return;
-        }
-    };
+    //         println!("{}", embed());
+    //         println!("{}", "Authentication Successful".bold().green());
+    //     }
+    //     Err(e) => {
+    //         log::error!("Error: {}", e);
+    //         let _ = read_keys().await;
+    //         return;
+    //     }
+    // };
 
-    let _ = app(true).await;
-
+    let _ = main_menu(true).await;
     let _ = read_keys().await;
 }

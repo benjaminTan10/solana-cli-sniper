@@ -4,7 +4,7 @@ use demand::{DemandOption, Select};
 use solana_sdk::signature::Keypair;
 
 use crate::{
-    app::{app, theme},
+    app::{main_menu, theme},
     env::load_config,
 };
 
@@ -48,7 +48,7 @@ pub async fn pump_main() -> Result<(), Box<dyn Error + Send>> {
             let _ = pump_swap_out().await;
         }
         "Main Menu" => {
-            let _ = app(false).await;
+            let _ = main_menu(false).await;
         }
         _ => {}
     }

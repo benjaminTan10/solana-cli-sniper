@@ -3,11 +3,7 @@ use std::{error::Error, sync::Arc};
 use demand::{DemandOption, Select};
 use solana_sdk::signature::Keypair;
 
-use crate::{
-    app::{app, theme},
-    env::load_config,
-    user_inputs::tokens::token_env,
-};
+use crate::{app::theme, env::load_config, user_inputs::tokens::token_env};
 
 use super::{generate_moonshot_buy_ix, sniper::moonshot_sniper};
 
@@ -17,37 +13,37 @@ pub enum MoonShotDirection {
     Sell,
 }
 
-pub async fn moonshot_menu() -> Result<(), Box<dyn Error + Send>> {
-    let theme = theme();
-    let ms = Select::new("Moonshot Menu")
-        .description("Select an Option")
-        .theme(&theme)
-        .filterable(true)
-        .option(DemandOption::new("MoonShotSniper").label("▪ Snipe Incoming Coins"))
-        .option(DemandOption::new("BuyTokens").label("▪ Buy Tokens"))
-        .option(DemandOption::new("SellTokens").label("▪ Sell Tokens"))
-        .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
+// pub async fn moonshot_menu() -> Result<(), Box<dyn Error + Send>> {
+//     let theme = theme();
+//     let ms = Select::new("Moonshot Menu")
+//         .description("Select an Option")
+//         .theme(&theme)
+//         .filterable(true)
+//         .option(DemandOption::new("MoonShotSniper").label("▪ Snipe Incoming Coins"))
+//         .option(DemandOption::new("BuyTokens").label("▪ Buy Tokens"))
+//         .option(DemandOption::new("SellTokens").label("▪ Sell Tokens"))
+//         .option(DemandOption::new("Main Menu").label(" ↪  Main Menu"));
 
-    let selected_option = ms.run().expect("error running select");
+//     let selected_option = ms.run().expect("error running select");
 
-    match selected_option {
-        "MoonShotSniper" => {
-            let _ = moonshot_sniper(false).await;
-        }
-        "BuyTokens" => {
-            let _ = moonshot_swap_handler(MoonShotDirection::Buy).await;
-        }
-        "SellTokens" => {
-            let _ = moonshot_swap_handler(MoonShotDirection::Sell).await;
-        }
-        "Main Menu" => {
-            let _ = app(false).await;
-        }
-        _ => {}
-    }
+//     match selected_option {
+//         "MoonShotSniper" => {
+//             let _ = moonshot_sniper(false).await;
+//         }
+//         "BuyTokens" => {
+//             let _ = moonshot_swap_handler(MoonShotDirection::Buy).await;
+//         }
+//         "SellTokens" => {
+//             let _ = moonshot_swap_handler(MoonShotDirection::Sell).await;
+//         }
+//         "Main Menu" => {
+//             let _ = main_menu(false).await;
+//         }
+//         _ => {}
+//     }
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 pub async fn moonshot_swap_handler(dir: MoonShotDirection) -> Result<(), Box<dyn Error + Send>> {
     let args = match load_config().await {

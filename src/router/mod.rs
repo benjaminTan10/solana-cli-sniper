@@ -125,6 +125,7 @@ pub async fn grpc_pair_sub(
                                 tx,
                                 manual_snipe,
                                 base_mint,
+                                route,
                                 subscribe_tx,
                             )
                             .await
@@ -141,6 +142,7 @@ pub async fn grpc_pair_sub(
                                 tx,
                                 manual_snipe,
                                 base_mint,
+                                route,
                                 subscribe_tx,
                             )
                             .await

@@ -1,6 +1,7 @@
 pub mod rand;
 pub mod terminal;
 pub mod transaction;
+pub mod transaction_history;
 
 use log::info;
 use solana_sdk::signature::Keypair;
