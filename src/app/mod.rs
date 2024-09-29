@@ -117,49 +117,29 @@ pub async fn main_menu(mainmenu: bool) -> Result<(), Box<dyn std::error::Error +
         .option(DemandOption::new("Wrap Sol Mode").label("📦 Wrap SOL"))
         .option(DemandOption::new("Unwrap Sol Mode").label("🪤  Unwrap SOL"))
         .option(DemandOption::new("Wallet Details").label("🍄 Wallet Details"));
-    // .option(DemandOption::new("deployerdetails").label("🧨 Deployer Wallet Details"))
-    // .option(DemandOption::new("folder_deployerdetails").label("🗃️  Folder Wallet Details"))
 
     let selected_option = ms.run().expect("error running select");
 
     match selected_option {
+        "RaydiumAMM" => {
+            let _ = raydium_amm_mode().await;
+        }
+
+        "PumpFun" => {
+            let _ = pump_main().await;
+        }
+        "CopyTrade" => {
+            let _ = copytrade().await;
+        }
         "Wrap Sol Mode" => {
             let _ = wrap_sol_call().await;
         }
         "Unwrap Sol Mode" => {
             let _ = unwrap_sol_call().await;
         }
-
-        "RaydiumAMM" => {
-            let _ = raydium_amm_mode().await;
-        }
-
-        "PumpFun" => {
-            // let _ = bonding_curve_fetcher(
-            //     Pubkey::from_str("FN36g6QyqYk47fyn5DCypTrH9SkAEthpg1862B7Tpump").unwrap(),
-            //     539629793752 as u64,
-            //     false,
-            // )
-            // .await;
-            let _ = pump_main().await;
-        }
-        "CopyTrade" => {
-            let _ = copytrade().await;
-        }
-
-        "MEV Trades" => {
-            let _ = mev_trades().await;
-        }
         "Wallet Details" => {
             let _ = wallet_logger().await;
         }
-        "deployerdetails" => {
-            let _ = deployer_details().await;
-        }
-        "folder_deployerdetails" => {
-            let _ = folder_deployer_details().await;
-        }
-
         _ => {
             // Handle unexpected option here
         }
@@ -168,7 +148,7 @@ pub async fn main_menu(mainmenu: bool) -> Result<(), Box<dyn std::error::Error +
     sleep(tokio::time::Duration::from_secs(3)).await;
     //clear the terminal
     clear_screen();
-    println!("{}", embed());
+    embed();
     let _ = main_menu(false).await;
 
     Ok(())

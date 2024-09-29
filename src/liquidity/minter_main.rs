@@ -3,7 +3,7 @@ use std::error::Error;
 use demand::{DemandOption, Select};
 
 use crate::{
-    app::{main_menu, embeds::embed, theme},
+    app::{embeds::embed, main_menu, theme},
     liquidity::{
         lut::extend_lut::lut_main,
         option::{
@@ -105,7 +105,7 @@ pub async fn raydium_creator() -> Result<(), Box<dyn Error>> {
             //clear terminal
             clear_screen();
             //clear the previous line
-            println!("{}", embed());
+            embed();
             let _ = main_menu(false).await;
         }
         _ => {
@@ -115,7 +115,7 @@ pub async fn raydium_creator() -> Result<(), Box<dyn Error>> {
 
     // clear_screen();
     //clear the previous line
-    println!("{}", embed());
+    embed();
     let _ = raydium_creator().await;
 
     Ok(())

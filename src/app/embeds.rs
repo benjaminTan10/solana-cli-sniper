@@ -8,7 +8,7 @@ pub struct License {
     pub error: String,
 }
 
-pub fn embed() -> String {
+pub fn embed() {
     let string = format!(
         r"
 
@@ -21,7 +21,7 @@ pub fn embed() -> String {
                 "
     );
 
-    string
+    println!("{string}");
 }
 
 pub async fn license_checker() -> Result<(), Box<dyn std::error::Error>> {

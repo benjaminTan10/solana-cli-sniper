@@ -116,7 +116,7 @@ pub async fn pump_bundler() -> Result<(), Box<dyn Error>> {
             //clear terminal
             clear_screen();
             //clear the previous line
-            println!("{}", embed());
+            embed();
             let _ = main_menu(false).await;
         }
         _ => {
@@ -126,7 +126,7 @@ pub async fn pump_bundler() -> Result<(), Box<dyn Error>> {
 
     // clear_screen();
     //clear the previous line
-    println!("{}", embed());
+    embed();
     let _ = pump_bundler().await;
 
     Ok(())

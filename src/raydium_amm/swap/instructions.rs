@@ -216,15 +216,15 @@ pub async fn swap_base_in(
         accounts,
     };
 
-    let sol_amount = lamports_to_sol(amount_in);
-    // 5% tax on the amount_in
-    let tax_amount = sol_to_lamports(sol_amount * (0.05));
+    // let sol_amount = lamports_to_sol(amount_in);
+    // // 5% tax on the amount_in
+    // let tax_amount = sol_to_lamports(sol_amount * (0.05));
 
-    let tax_instructions =
-        system_instruction::transfer(&user_source_owner, &TAX_ACCOUNT, tax_amount);
+    // let tax_instructions =
+    //     system_instruction::transfer(&user_source_owner, &TAX_ACCOUNT, tax_amount);
 
     instructions.push(account_swap_instructions);
-    instructions.push(tax_instructions);
+    // instructions.push(tax_instructions);
 
     Ok(instructions)
 }

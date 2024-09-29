@@ -177,7 +177,7 @@ pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
     let result = match keyauthapp.login(args.user.username, args.user.license_key.clone(), None) {
         Ok(result) => {
             clear_screen();
-            println!("{}", embed());
+            embed();
             result
         }
         Err(e) => {

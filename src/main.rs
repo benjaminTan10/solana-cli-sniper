@@ -45,24 +45,24 @@ async fn main() {
     // ratatui::restore();
     // result.unwrap()
     clear_screen();
-    println!("{}", embed());
+    embed();
 
     initialize_global_config().await.unwrap();
 
-    // info!("Authenticating...");
-    // let _ = match Mevarik::auth::auth_verification().await {
-    //     Ok(_) => {
-    //         clear_screen();
+    info!("Authenticating...");
+    let _ = match Mevarik::auth::auth_verification().await {
+        Ok(_) => {
+            clear_screen();
 
-    //         println!("{}", embed());
-    //         println!("{}", "Authentication Successful".bold().green());
-    //     }
-    //     Err(e) => {
-    //         log::error!("Error: {}", e);
-    //         let _ = read_keys().await;
-    //         return;
-    //     }
-    // };
+            embed();
+            println!("{}", "Authentication Successful".bold().green());
+        }
+        Err(e) => {
+            log::error!("Error: {}", e);
+            let _ = read_keys().await;
+            return;
+        }
+    };
 
     let _ = main_menu(true).await;
     let _ = read_keys().await;
