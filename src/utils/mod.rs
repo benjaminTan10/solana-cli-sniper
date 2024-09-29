@@ -4,8 +4,7 @@ pub mod transaction;
 pub mod transaction_history;
 
 use log::info;
-use solana_sdk::signature::Keypair;
-use std::{error::Error, sync::Arc};
+use std::error::Error;
 use tokio::sync::mpsc::Sender;
 
 pub async fn read_single_key(stop_tx: &mut tokio::sync::mpsc::Sender<()>) {
@@ -49,16 +48,12 @@ pub async fn read_single_key(stop_tx: &mut tokio::sync::mpsc::Sender<()>) {
 
 use console::{Key, Term};
 
-use crate::{
-    env::SettingsConfig,
-    raydium_amm::{
+use crate::raydium_amm::{
         subscribe::PoolKeysSniper,
         swap::{
             raydium_swap_in::sell_tokens, raydium_swap_out::raydium_txn_backrun,
-            swap_in::PriorityTip,
         },
-    },
-};
+    };
 
 pub async fn read_single_key_impl(
     stop_tx: &mut Sender<()>,

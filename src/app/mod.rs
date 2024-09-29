@@ -3,14 +3,8 @@ pub mod embeds;
 pub mod wallets;
 
 use async_recursion::async_recursion;
-use jito_searcher_client::get_searcher_client;
-use solana_sdk::native_token::sol_to_lamports;
-use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
-use solana_sdk::signer::Signer;
 use std::error::Error;
-use std::str::FromStr;
-use std::sync::Arc;
 use tokio::time::sleep;
 
 use demand::{DemandOption, Input, Select, Theme};
@@ -21,13 +15,8 @@ use termcolor::{Color, ColorSpec};
 use crate::app::embeds::embed;
 use crate::copytrade::copytrade;
 use crate::env::load_config;
-use crate::liquidity::option::wallet_gen::list_folders;
-use crate::liquidity::option::withdraw_sol::{deployer_details, folder_deployer_details};
 use crate::pumpfun::pump::pump_main;
-use crate::pumpfun::token_data::bonding_curve_fetcher;
-use crate::raydium_amm::bundles::mev_trades::mev_trades;
 use crate::raydium_amm::swap::swap_in::{swap_in, swap_out, PriorityTip};
-use crate::raydium_amm::swap::swapper::auth_keypair;
 use crate::raydium_amm::swap::trades::track_trades;
 use crate::rpc::rpc_key;
 use crate::user_inputs::mode::{automatic_snipe, unwrap_sol_call, wrap_sol_call};

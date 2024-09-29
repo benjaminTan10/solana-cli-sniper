@@ -8,7 +8,7 @@ use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{native_token::lamports_to_sol, signature::Keypair};
 
 use crate::{
-    app::{config_init::update_config_field, theme, MevApe},
+    app::{config_init::update_config_field, theme},
     env::load_config,
     raydium_amm::{
         subscribe::auto_sniper_stream,
@@ -16,14 +16,13 @@ use crate::{
             instructions::{unwrap_sol, wrap_sol},
             metadata::decode_metadata,
             raydium_amm_sniper::RAYDIUM_AMM_FEE_COLLECTOR,
-            swap_in::PriorityTip,
         },
     },
     router::{grpc_pair_sub, SniperRoute},
 };
 
 use super::{
-    amounts::{bundle_priority_tip, priority_fee, sol_amount},
+    amounts::sol_amount,
     tokens::token_env,
 };
 

@@ -3,7 +3,7 @@ use {
         app::config_init::get_config,
         pumpfun::instructions::{
             instructions::{
-                calculate_buy_price, calculate_sell_price, get_bonding_curve, PUMP_PROGRAM,
+                calculate_sell_price, get_bonding_curve, PUMP_PROGRAM,
             },
             pumpfun_program::accounts::BondingCurve,
         },
@@ -20,12 +20,11 @@ use {
     borsh::BorshDeserialize,
     log::{error, info},
     solana_client::{
-        nonblocking::rpc_client::{self, RpcClient},
+        nonblocking::rpc_client::{RpcClient},
         rpc_request::TokenAccountsFilter,
     },
     solana_program::pubkey::Pubkey,
     solana_sdk::{native_token::lamports_to_sol, signature::Keypair, signer::Signer},
-    spl_associated_token_account::get_associated_token_address,
     std::{str::FromStr, sync::Arc, time::Duration},
     tokio::{sync::mpsc, time::sleep},
 };

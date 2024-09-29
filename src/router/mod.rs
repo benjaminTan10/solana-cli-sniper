@@ -13,14 +13,13 @@ use futures::{SinkExt, StreamExt};
 use log::{error, info};
 use maplit::hashmap;
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::{pubkey::Pubkey, signature::Keypair};
+use solana_sdk::pubkey::Pubkey;
 use yellowstone_grpc_proto::geyser::{
     subscribe_update::UpdateOneof, SubscribeRequest, SubscribeRequestFilterBlocksMeta,
     SubscribeRequestFilterTransactions,
 };
 
 use crate::{
-    app::MevApe,
     env::SettingsConfig,
     moonshot::sniper::moonshot_parser,
     plugins::yellowstone_plugin::lib::GeyserGrpcClient,

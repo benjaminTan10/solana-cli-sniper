@@ -5,23 +5,22 @@ use crossterm::style::Stylize;
 use futures::{channel::mpsc::SendError, Sink};
 use log::{error, info};
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::{native_token::lamports_to_sol, pubkey::Pubkey, signature::Keypair};
+use solana_sdk::{native_token::lamports_to_sol, pubkey::Pubkey};
 use yellowstone_grpc_proto::geyser::{SubscribeRequest, SubscribeUpdateTransaction};
 
 use crate::{
-    app::{config_init::update_config_field, MevApe},
+    app::config_init::update_config_field,
     env::{load_config, SettingsConfig},
     pumpfun::instructions::pumpfun_program::instructions::CreateIxData,
     raydium_amm::{
         subscribe::auto_sniper_stream,
         swap::{
             metadata::decode_metadata, raydium_amm_sniper::RAYDIUM_AMM_FEE_COLLECTOR,
-            swap_in::PriorityTip,
         },
     },
     router::{grpc_pair_sub, SniperRoute},
     user_inputs::{
-        amounts::{bundle_priority_tip, priority_fee, sol_amount},
+        amounts::sol_amount,
         tokens::token_env,
     },
 };

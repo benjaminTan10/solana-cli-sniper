@@ -1,23 +1,18 @@
 use {
     crate::{
-        app::MevApe,
         instruction::instruction::{
             AmmInstruction, InitializePoolAccounts, INITIALIZE_POOL_ACCOUNTS_LEN,
         },
-        raydium_amm::{
-            sniper::utils::{market_authority, MARKET_STATE_LAYOUT_V3, SPL_MINT_LAYOUT},
-            subscribe::PoolKeysSniper,
-            swap::{
+        raydium_amm::swap::{
                 instructions::SOLC_MINT,
-                raydium_amm_sniper::{sniper_txn_in_2, RAYDIUM_AMM_V4_PROGRAM_ID},
+                raydium_amm_sniper::sniper_txn_in_2,
             },
-        },
         router::SniperRoute,
         utils::transaction_history::add_transaction_to_history,
     },
     chrono::{LocalResult, TimeZone, Utc},
     futures::{channel::mpsc::SendError, Sink},
-    log::{error, info, warn},
+    log::{info, warn},
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_program::pubkey::Pubkey,
     solana_sdk::{program_pack::Pack, pubkey, system_program},

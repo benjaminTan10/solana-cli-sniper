@@ -17,7 +17,7 @@ use solana_sdk::{
     commitment_config::CommitmentConfig,
     compute_budget::ComputeBudgetInstruction,
     message::{v0::Message, VersionedMessage},
-    native_token::{lamports_to_sol, sol_to_lamports},
+    native_token::sol_to_lamports,
     pubkey,
     signature::Keypair,
     signer::Signer,

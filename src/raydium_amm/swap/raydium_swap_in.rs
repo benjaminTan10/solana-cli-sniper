@@ -1,7 +1,6 @@
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
 use log::{error, info};
-use num_traits::Zero;
 use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_client::rpc_request::TokenAccountsFilter;
 use solana_program::pubkey::Pubkey;
@@ -18,10 +17,7 @@ use tokio::sync::mpsc::{self};
 use tokio::time::{self, sleep};
 
 use crate::app::config_init::get_config;
-use crate::env::SettingsConfig;
-use crate::instruction::instruction::InitializePoolAccounts;
 use crate::liquidity::utils::tip_account;
-use crate::pumpfun::instructions::instructions::calculate_sell_price;
 use crate::pumpfun::token_data::bonding_curve_fetcher;
 use crate::raydium_amm::subscribe::PoolKeysSniper;
 use crate::raydium_amm::swap::instructions::{swap_base_in, SwapDirection, SOLC_MINT};
@@ -33,7 +29,6 @@ use crate::utils::read_single_key_impl;
 
 use super::instructions::token_price_data;
 use super::raydium_swap_out::raydium_out;
-use super::swap_in::PriorityTip;
 
 pub async fn raydium_in(
     pool_keys: PoolKeysSniper,

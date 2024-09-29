@@ -1,19 +1,16 @@
 use std::sync::Arc;
 
-use solana_client::nonblocking::rpc_client::{self, RpcClient};
+use solana_client::nonblocking::rpc_client::{RpcClient};
 use solana_program::pubkey::Pubkey;
 
-use crate::{
-    env::load_config,
-    raydium_amm::{
+use crate::raydium_amm::{
         subscribe::PoolKeysSniper,
         swap::instructions::SOLC_MINT,
         utils::utils::{
             market_authority, program_address, LIQUIDITY_STATE_LAYOUT_V4, MARKET_STATE_LAYOUT_V3,
             SPL_MINT_LAYOUT,
         },
-    },
-};
+    };
 
 pub async fn pool_keys_fetcher(
     id: Pubkey,

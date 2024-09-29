@@ -1,12 +1,10 @@
-use std::{error::Error, sync::Arc};
+use std::sync::Arc;
 
-use demand::{DemandOption, Select};
 use solana_sdk::{signature::Keypair, signer::Signer};
 use spl_associated_token_account::get_associated_token_address_with_program_id;
 use spl_token_client::spl_token_2022;
 
 use crate::{
-    app::theme,
     env::load_config,
     raydium_amm::volume_pinger::volume::buy_amount,
     rpc::HTTP_CLIENT,

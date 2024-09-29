@@ -1,11 +1,10 @@
 use std::{error::Error, sync::Arc};
 
-use demand::{DemandOption, Select};
 use solana_sdk::signature::Keypair;
 
-use crate::{app::theme, env::load_config, user_inputs::tokens::token_env};
+use crate::{env::load_config, user_inputs::tokens::token_env};
 
-use super::{generate_moonshot_buy_ix, sniper::moonshot_sniper};
+use super::generate_moonshot_buy_ix;
 
 #[derive(PartialEq)]
 pub enum MoonShotDirection {

@@ -14,13 +14,11 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::app::config_init::get_config;
-use crate::env::SettingsConfig;
 use crate::liquidity::utils::tip_account;
 use crate::raydium_amm::subscribe::PoolKeysSniper;
 use crate::raydium_amm::swap::instructions::{swap_base_out, SOLC_MINT};
 use crate::rpc::HTTP_CLIENT;
 
-use super::swap_in::PriorityTip;
 use super::swapper::auth_keypair;
 
 pub async fn raydium_txn_backrun(pool_keys: PoolKeysSniper, token_amount: u64) -> eyre::Result<()> {

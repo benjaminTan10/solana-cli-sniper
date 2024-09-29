@@ -2,8 +2,7 @@ use std::sync::Arc;
 
 use colored::Colorize;
 use jito_protos::searcher::SubscribeBundleResultsRequest;
-use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
-use log::error;
+use jito_searcher_client::get_searcher_client;
 use mongodb::{Client, Collection};
 use self_update::cargo_crate_version;
 use semver::Version;
@@ -19,7 +18,6 @@ use solana_sdk::{
 
 use crate::{
     app::{config_init::get_config, embeds::embed},
-    env::load_config,
     liquidity::utils::{tip_account, tip_txn},
     raydium_amm::swap::{
         instructions::TAX_ACCOUNT, raydium_amm_sniper::clear_previous_line, swapper::auth_keypair,
@@ -136,7 +134,7 @@ pub async fn auth_verification() -> Result<(), Box<dyn std::error::Error>> {
         )
         .await?;
 
-        let mut bundle_results_subscription = client
+        let bundle_results_subscription = client
             .subscribe_bundle_results(SubscribeBundleResultsRequest {})
             .await
             .expect("subscribe to bundle results")

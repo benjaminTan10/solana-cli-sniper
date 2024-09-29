@@ -1,21 +1,19 @@
 use {
     super::{
         instructions::swap_base_in,
-        raydium_swap_in::{price_logger, raydium_in},
-        swap_in::PriorityTip,
+        raydium_swap_in::price_logger,
         swapper::auth_keypair,
     },
     crate::{
-        app::{config_init::get_config, MevApe},
-        env::load_config,
+        app::config_init::get_config,
         instruction::instruction::{
-            get_keys_for_market, AmmInstruction, InitializePoolAccounts, SerumMarketAccounts,
+            AmmInstruction, InitializePoolAccounts, SerumMarketAccounts,
             INITIALIZE_POOL_ACCOUNTS_LEN, SERUM_ACCOUNTS_LEN,
         },
         liquidity::utils::tip_account,
         raydium_amm::{
             pool_searcher::amm_keys::{get_market_accounts, pool_keys_fetcher},
-            sniper::utils::{market_authority, SPL_MINT_LAYOUT},
+            sniper::utils::market_authority,
             subscribe::PoolKeysSniper,
             swap::{instructions::SOLC_MINT, metadata::decode_metadata},
             utils::utils::MARKET_STATE_LAYOUT_V3,
@@ -33,7 +31,7 @@ use {
     jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation},
     log::{debug, error, info, warn},
     once_cell::sync::Lazy,
-    serum_dex::instruction::{InitializeMarketInstruction, MarketInstruction},
+    serum_dex::instruction::MarketInstruction,
     solana_client::{nonblocking::rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig},
     solana_program::pubkey::Pubkey,
     solana_sdk::{
@@ -46,12 +44,11 @@ use {
         transaction::{Transaction, VersionedTransaction},
     },
     spl_token::{
-        instruction::{initialize_account, TokenInstruction},
+        instruction::TokenInstruction,
         state::Mint,
     },
     std::{
         collections::HashMap,
-        fs,
         io::{self, Write},
         str::FromStr,
         sync::{Arc, Mutex},

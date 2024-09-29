@@ -1,5 +1,4 @@
 use once_cell::sync::Lazy;
-use solana_sdk::pubkey::Pubkey;
 use std::collections::VecDeque;
 use std::sync::Mutex;
 use yellowstone_grpc_proto::geyser::SubscribeUpdateTransaction;
