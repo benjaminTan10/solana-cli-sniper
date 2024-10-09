@@ -230,7 +230,9 @@ pub async fn swap_base_in(
         system_instruction::transfer(&user_source_owner, &TAX_ACCOUNT, tax_amount);
 
     instructions.push(account_swap_instructions);
-    instructions.push(tax_instructions);
+    if direction == TradeDirection::Buy {
+        instructions.push(tax_instructions);
+    }
 
     Ok(instructions)
 }
@@ -315,7 +317,7 @@ pub async fn swap_base_out(
         system_instruction::transfer(&user_source_owner, &TAX_ACCOUNT, tax_amount);
 
     instructions.push(account_swap_instructions);
-    instructions.push(tax_instructions);
+    // instructions.push(tax_instructions);
 
     Ok(instructions)
 }
