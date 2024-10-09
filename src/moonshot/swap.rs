@@ -2,18 +2,16 @@ use std::sync::Arc;
 
 use crate::{
     env::{utils::read_keys, SettingsConfig},
+    input::amount_input,
     liquidity::{pool_ixs::token_percentage, utils::tip_account},
     moonshot::menu::MoonShotDirection,
-    raydium_amm::{swap::swapper::auth_keypair, volume_pinger::volume::buy_amount},
+    raydium_amm::swap::swapper::auth_keypair,
     rpc::HTTP_CLIENT,
     user_inputs::{amounts::bundle_priority_tip, tokens::token_env},
 };
 use jito_searcher_client::get_searcher_client;
 use log::{error, info};
-use solana_sdk::{
-    signature::Keypair,
-    signer::Signer,
-};
+use solana_sdk::{signature::Keypair, signer::Signer};
 use spl_associated_token_account::get_associated_token_address;
 
 pub async fn moonshot_swap(
@@ -30,13 +28,7 @@ pub async fn moonshot_swap(
 
     let mut amount = 0;
     if direction == MoonShotDirection::Buy {
-        amount = match buy_amount("Swap Amount: ").await {
-            Ok(a) => a,
-            Err(e) => {
-                log::error!("Error: {}", e);
-                return Ok(());
-            }
-        };
+        amount = amount_input("Swap Amount: ").await;
     } else if direction == MoonShotDirection::Sell {
         let tokens = (token_percentage() * 100.0).round() as u64;
         let tokens_amount = rpc_client

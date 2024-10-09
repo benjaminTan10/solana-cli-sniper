@@ -39,10 +39,6 @@ async fn main() {
         })
         .init();
 
-    // let mut terminal = ratatui::init();
-    // let result = Mevarik::screen::dimensions::run(&mut terminal).await;
-    // ratatui::restore();
-    // result.unwrap()
     clear_screen();
     embed();
 

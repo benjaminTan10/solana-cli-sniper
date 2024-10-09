@@ -1,9 +1,5 @@
 use {
-    super::{
-        instructions::swap_base_in,
-        raydium_swap_in::price_logger,
-        swapper::auth_keypair,
-    },
+    super::{instructions::swap_base_in, raydium_swap_in::price_logger, swapper::auth_keypair},
     crate::{
         app::config_init::get_config,
         instruction::instruction::{
@@ -15,7 +11,9 @@ use {
             pool_searcher::amm_keys::{get_market_accounts, pool_keys_fetcher},
             sniper::utils::market_authority,
             subscribe::PoolKeysSniper,
-            swap::{instructions::SOLC_MINT, metadata::decode_metadata},
+            swap::{
+                instructions::SOLC_MINT, metadata::decode_metadata, raydium_swap_in::TradeDirection,
+            },
             utils::utils::MARKET_STATE_LAYOUT_V3,
         },
         router::SniperRoute,
@@ -43,10 +41,7 @@ use {
         system_program,
         transaction::{Transaction, VersionedTransaction},
     },
-    spl_token::{
-        instruction::TokenInstruction,
-        state::Mint,
-    },
+    spl_token::{instruction::TokenInstruction, state::Mint},
     std::{
         collections::HashMap,
         io::{self, Write},
@@ -467,12 +462,10 @@ pub async fn raydium_snipe_launch(
             &market_vault_signer,
             &user_source_owner,
             &user_source_owner,
-            &user_source_owner,
             &token_address,
             amount_in.clone(),
             amount_out,
-            sol_to_lamports(config.trading.priority_fee),
-            config.clone(),
+            TradeDirection::Buy,
         )
         .await?;
 
@@ -604,9 +597,22 @@ pub async fn raydium_snipe_launch(
         let handle = thread::spawn(move || {
             let runtime = tokio::runtime::Runtime::new().unwrap();
             runtime.block_on(async {
-                read_single_key_impl(&mut stop_tx, pool_keys_clone)
-                    .await
-                    .unwrap();
+                match read_single_key_impl(
+                    &rpc_client,
+                    &mut stop_tx,
+                    pool_keys_clone,
+                    get_config().await.unwrap(),
+                    &Arc::new(Keypair::from_base58_string(
+                        &get_config().await.unwrap().engine.payer_keypair,
+                    )),
+                )
+                .await
+                {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("Error: {}", e);
+                    }
+                };
             });
         });
 
@@ -648,7 +654,7 @@ async fn fetch_pool_keys_with_retry(
 ) -> eyre::Result<PoolKeysSniper> {
     let mut attempts = 0;
     loop {
-        match pool_keys_fetcher(amm_pool, rpc_client.clone()).await {
+        match pool_keys_fetcher(amm_pool).await {
             Ok(keys) => return Ok(keys),
             Err(e) => {
                 attempts += 1;

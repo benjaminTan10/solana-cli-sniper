@@ -4,7 +4,9 @@ pub mod transaction;
 pub mod transaction_history;
 
 use log::info;
-use std::error::Error;
+use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_sdk::signature::Keypair;
+use std::{error::Error, sync::Arc};
 use tokio::sync::mpsc::Sender;
 
 pub async fn read_single_key(stop_tx: &mut tokio::sync::mpsc::Sender<()>) {
@@ -48,16 +50,20 @@ pub async fn read_single_key(stop_tx: &mut tokio::sync::mpsc::Sender<()>) {
 
 use console::{Key, Term};
 
-use crate::raydium_amm::{
+use crate::{
+    env::SettingsConfig,
+    raydium_amm::{
         subscribe::PoolKeysSniper,
-        swap::{
-            raydium_swap_in::sell_tokens, raydium_swap_out::raydium_txn_backrun,
-        },
-    };
+        swap::{raydium_swap_in::sell_tokens, raydium_swap_out::raydium_txn_backrun},
+    },
+};
 
 pub async fn read_single_key_impl(
+    rpc_client: &Arc<RpcClient>,
     stop_tx: &mut Sender<()>,
     pool_keys: PoolKeysSniper,
+    args: SettingsConfig,
+    wallet: &Arc<Keypair>,
 ) -> Result<(), Box<dyn Error + Send>> {
     let term = Term::stdout();
 
@@ -66,7 +72,7 @@ pub async fn read_single_key_impl(
             Key::Char('1') => {
                 let _ = stop_tx.send(()).await;
                 info!("Selling 100% of tokens");
-                let _ = match raydium_txn_backrun(pool_keys, 100).await {
+                let _ = match raydium_txn_backrun(rpc_client, wallet, pool_keys, 100).await {
                     Ok(_) => {}
                     Err(e) => {
                         info!("Error: {}", e);
@@ -77,7 +83,7 @@ pub async fn read_single_key_impl(
             Key::Char('2') => {
                 let _ = stop_tx.send(()).await;
                 info!("Selling 75% of tokens");
-                let _ = match sell_tokens(75, pool_keys).await {
+                let _ = match sell_tokens(pool_keys).await {
                     Ok(_) => {}
                     Err(e) => {
                         info!("Error: {}", e);
@@ -88,7 +94,7 @@ pub async fn read_single_key_impl(
             Key::Char('3') => {
                 let _ = stop_tx.send(()).await;
                 info!("Selling 50% of tokens");
-                let _ = match sell_tokens(50, pool_keys).await {
+                let _ = match sell_tokens(pool_keys).await {
                     Ok(_) => {}
                     Err(e) => {
                         info!("Error: {}", e);
@@ -99,7 +105,7 @@ pub async fn read_single_key_impl(
             Key::Char('4') => {
                 let _ = stop_tx.send(()).await;
                 info!("Selling 25% of tokens");
-                let _ = match sell_tokens(25, pool_keys).await {
+                let _ = match sell_tokens(pool_keys).await {
                     Ok(_) => {}
                     Err(e) => {
                         info!("Error: {}", e);

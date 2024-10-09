@@ -17,7 +17,7 @@ use solana_sdk::{
     commitment_config::CommitmentConfig,
     compute_budget::ComputeBudgetInstruction,
     message::{v0::Message, VersionedMessage},
-    native_token::sol_to_lamports,
+    native_token::{lamports_to_sol, sol_to_lamports},
     pubkey,
     signature::Keypair,
     signer::Signer,
@@ -30,12 +30,13 @@ use std::{convert::TryInto, sync::Arc};
 use std::{mem::size_of, str::FromStr};
 
 use crate::{
+    app::config_init::get_config,
     env::{load_config, minter::load_minter_settings, SettingsConfig},
     liquidity::utils::{tip_account, tip_txn},
     raydium_amm::subscribe::PoolKeysSniper,
 };
 
-use super::swapper::auth_keypair;
+use super::{raydium_swap_in::TradeDirection, swapper::auth_keypair};
 
 /// Instructions supported by the AmmInfo program.
 #[repr(C)]
@@ -139,43 +140,47 @@ pub async fn swap_base_in(
     market_coin_vault: &Pubkey,
     market_pc_vault: &Pubkey,
     market_vault_signer: &Pubkey,
-    user_token_source: &Pubkey,
     user_source_owner: &Pubkey,
     wallet_address: &Pubkey,
     base_mint: &Pubkey,
     amount_in: u64,
     minimum_amount_out: u64,
-    priority_fee: u64,
-    args: SettingsConfig,
+    direction: TradeDirection,
 ) -> Result<Vec<Instruction>, ProgramError> {
+    let config = get_config().await.unwrap();
+
     let data = AmmInstruction::SwapBaseIn(SwapInstructionBaseIn {
         amount_in,
         minimum_amount_out,
     })
     .pack()?;
 
-    let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(80000);
-    let compute_price = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
+    let source_token_account = if direction == TradeDirection::Buy {
+        get_associated_token_address(wallet_address, &SOLC_MINT)
+    } else {
+        get_associated_token_address(wallet_address, base_mint)
+    };
 
-    let source_token_account = get_associated_token_address(wallet_address, &SOLC_MINT);
-    let destination_token_account = get_associated_token_address(wallet_address, base_mint);
+    let destination_token_account = if direction == TradeDirection::Buy {
+        get_associated_token_address(wallet_address, base_mint)
+    } else {
+        get_associated_token_address(wallet_address, &SOLC_MINT)
+    };
 
     let mut instructions = Vec::new();
 
-    instructions.push(unit_limit);
-    instructions.push(compute_price);
-
-    if args.trading.spam {
-        instructions.push(
-            spl_associated_token_account::instruction::create_associated_token_account(
-                &wallet_address,
-                &wallet_address,
-                base_mint,
-                &spl_token::id(),
-            ),
-        );
-    } else {
-        instructions.push(
+    if direction == TradeDirection::Buy {
+        if config.trading.spam {
+            instructions.push(
+                spl_associated_token_account::instruction::create_associated_token_account(
+                    &wallet_address,
+                    &wallet_address,
+                    base_mint,
+                    &spl_token::id(),
+                ),
+            );
+        } else {
+            instructions.push(
             spl_associated_token_account::instruction::create_associated_token_account_idempotent(
                 &wallet_address,
                 &wallet_address,
@@ -183,6 +188,7 @@ pub async fn swap_base_in(
                 &spl_token::id(),
             ),
         );
+        }
     }
 
     let accounts = vec![
@@ -216,15 +222,15 @@ pub async fn swap_base_in(
         accounts,
     };
 
-    // let sol_amount = lamports_to_sol(amount_in);
-    // // 5% tax on the amount_in
-    // let tax_amount = sol_to_lamports(sol_amount * (0.05));
+    let sol_amount = lamports_to_sol(amount_in);
+    // 5% tax on the amount_in
+    let tax_amount = sol_to_lamports(sol_amount * (0.05));
 
-    // let tax_instructions =
-    //     system_instruction::transfer(&user_source_owner, &TAX_ACCOUNT, tax_amount);
+    let tax_instructions =
+        system_instruction::transfer(&user_source_owner, &TAX_ACCOUNT, tax_amount);
 
     instructions.push(account_swap_instructions);
-    // instructions.push(tax_instructions);
+    instructions.push(tax_instructions);
 
     Ok(instructions)
 }
@@ -301,15 +307,15 @@ pub async fn swap_base_out(
     };
 
     // 2% tax on the amount_in
-    // let sol_amount = lamports_to_sol(amount_in);
+    let sol_amount = lamports_to_sol(amount_in);
     // 5% tax on the amount_in
-    // let tax_amount = sol_to_lamports(sol_amount * (0.01));
+    let tax_amount = sol_to_lamports(sol_amount * (0.01));
 
-    // let tax_instructions =
-    //     system_instruction::transfer(&user_source_owner, &TAX_ACCOUNT, tax_amount);
+    let tax_instructions =
+        system_instruction::transfer(&user_source_owner, &TAX_ACCOUNT, tax_amount);
 
     instructions.push(account_swap_instructions);
-    // instructions.push(tax_instructions);
+    instructions.push(tax_instructions);
 
     Ok(instructions)
 }

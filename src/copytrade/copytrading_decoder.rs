@@ -1,12 +1,16 @@
+use crate::{
+    jupiter::swap::jup_swap, raydium_amm::copytrade_amm_builder::copytrade_raydium_amm_builder,
+};
 use {
     crate::{
         app::config_init::get_config,
         instruction::instruction::{AmmInstruction, RaydiumAmmAccounts, RAYDIUM_AMM_ACCOUNTS_LEN},
         jupiter::interface::{RouteIxData, RouteKeys, ROUTE_IX_ACCOUNTS_LEN},
-        pumpfun::instructions::{
-            instructions::{calculate_buy_price, get_bonding_curve},
-            pumpfun_program::{
+        pumpfun::{
+            executor::pump_tracker,
+            pump_interface::{
                 accounts::BondingCurve,
+                builder::{calculate_buy_price, get_bonding_curve},
                 instructions::{
                     buy_ix_with_program_id, BuyIxArgs, BuyIxData, BuyKeys, BUY_IX_ACCOUNTS_LEN,
                 },
@@ -26,7 +30,9 @@ use {
         native_token::sol_to_lamports, program_pack::Pack, signature::Keypair, signer::Signer,
         transaction::VersionedTransaction,
     },
-    spl_associated_token_account::get_associated_token_address,
+    spl_associated_token_account::{
+        get_associated_token_address, instruction::create_associated_token_account_idempotent,
+    },
     spl_token::state::Mint,
     std::{str::FromStr, sync::Arc},
     yellowstone_grpc_proto::{
@@ -34,7 +40,6 @@ use {
         solana::storage::confirmed_block::CompiledInstruction,
     },
 };
-
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct Args {
     /// Service endpoint
@@ -236,12 +241,14 @@ pub async fn copy_trade_sub(
         .as_ref()
         .map_or(false, |route| *route == SniperRoute::RaydiumAMM)
     {
-        let pool_keys = match pool_keys_fetcher(accounts[3], rpc_client.clone()).await {
+        let pool_keys = match pool_keys_fetcher(accounts[3]).await {
             Ok(result) => result,
             Err(e) => {
                 return Ok(());
             }
         };
+
+        let config = get_config().await?;
 
         let decoded_transfers: Vec<Option<(Pubkey, Pubkey, u64)>> = inner_instructions
             .iter()
@@ -272,12 +279,17 @@ pub async fn copy_trade_sub(
                 return Ok(());
             }
 
+            let inputs = Arc::new(MevApe {
+                sol_amount: sol_to_lamports(config.trading.buy_amount),
+                wallet: config.engine.payer_keypair,
+            });
+
             // println!("----------------------------------------");
             // println!("hash: {}", signature_base58);
             // println!("{raydium_accounts:#?}");
             // println!("Freeze Check: {:#?}", freeze_check);
 
-            // let _ = sniper_txn_in_2(pool_keys, 0, None, datetime).await;
+            let _ = copytrade_raydium_amm_builder(pool_keys, 0, inputs, datetime).await;
         } else {
             return Ok(());
         }
@@ -329,6 +341,13 @@ pub async fn copy_trade_sub(
                 max_sol_cost: sol_to_lamports(settings_config.trading.buy_amount) + fee_bps,
             };
 
+            let create_account = create_associated_token_account_idempotent(
+                &wallet.pubkey(),
+                &wallet.pubkey(),
+                &buy_keys.unwrap().mint,
+                &spl_token::id(),
+            );
+
             let buy_ix = buy_ix_with_program_id(PUMPFUN_PROGRAM, buy_keys.unwrap(), args)?;
 
             let config = solana_sdk::commitment_config::CommitmentLevel::Finalized;
@@ -340,7 +359,7 @@ pub async fn copy_trade_sub(
 
             let message = match solana_program::message::v0::Message::try_compile(
                 &wallet.pubkey(),
-                &[buy_ix],
+                &[create_account, buy_ix],
                 &[],
                 latest_blockhash,
             ) {
@@ -362,16 +381,26 @@ pub async fn copy_trade_sub(
                 }
             };
 
-            send_transaction(settings_config, transaction).await?;
+            send_transaction(settings_config.clone(), transaction).await?;
+
+            let _ = pump_tracker(
+                sol_to_lamports(settings_config.trading.buy_amount),
+                buy_keys.unwrap().mint,
+            )
+            .await?;
         }
     } else if trade_route
         .as_ref()
         .map_or(false, |route| *route == SniperRoute::Jupiter)
     {
-        println!("----------------------------------------");
-        println!("hash: {}", signature_base58);
-        println!("jup: {jup_event:#?}");
-        println!("{jup_route_keys:#?}");
+        if jup_route_keys.is_some() {
+            match jup_swap(jup_route_keys.unwrap()).await {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("{e:#?}");
+                }
+            }
+        }
     }
 
     Ok(())
@@ -390,4 +419,10 @@ fn decode_transfer(
     }
 
     None
+}
+
+#[derive(Debug)]
+pub struct MevApe {
+    pub sol_amount: u64,
+    pub wallet: String,
 }

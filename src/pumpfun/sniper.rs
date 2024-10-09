@@ -2,27 +2,27 @@ use std::sync::Arc;
 
 use colorize::AnsiColor;
 use crossterm::style::Stylize;
-use futures::{channel::mpsc::SendError, Sink};
 use log::{error, info};
-use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::{native_token::lamports_to_sol, pubkey::Pubkey};
-use yellowstone_grpc_proto::geyser::{SubscribeRequest, SubscribeUpdateTransaction};
+use solana_sdk::{
+    native_token::{lamports_to_sol, sol_to_lamports},
+    pubkey::Pubkey,
+    signature::Keypair,
+};
+use yellowstone_grpc_proto::geyser::SubscribeUpdateTransaction;
 
 use crate::{
-    app::config_init::update_config_field,
+    app::config_init::{get_config, update_config_field},
     env::{load_config, SettingsConfig},
-    pumpfun::instructions::pumpfun_program::instructions::CreateIxData,
+    pumpfun::{
+        executor::pump_swap,
+        pump_interface::{builder::PumpFunDirection, instructions::CreateIxData},
+    },
     raydium_amm::{
         subscribe::auto_sniper_stream,
-        swap::{
-            metadata::decode_metadata, raydium_amm_sniper::RAYDIUM_AMM_FEE_COLLECTOR,
-        },
+        swap::{metadata::decode_metadata, raydium_amm_sniper::RAYDIUM_AMM_FEE_COLLECTOR},
     },
     router::{grpc_pair_sub, SniperRoute},
-    user_inputs::{
-        amounts::sol_amount,
-        tokens::token_env,
-    },
+    user_inputs::{amounts::sol_amount, tokens::token_env},
 };
 
 pub const PUMPFUN_CONTRACT: &str = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
@@ -98,16 +98,13 @@ pub async fn pumpfun_sniper(manual_snipe: bool, route: SniperRoute) -> eyre::Res
 }
 
 pub async fn pumpfun_parser(
-    rpc_client: Arc<RpcClient>,
     args: SettingsConfig,
     tx: SubscribeUpdateTransaction,
-    manual_snipe: bool,
     base_mint: Option<Pubkey>,
-    subscribe_tx: tokio::sync::MutexGuard<
-        '_,
-        impl Sink<SubscribeRequest, Error = SendError> + std::marker::Unpin,
-    >,
 ) -> eyre::Result<()> {
+    let config = get_config().await?;
+    let wallet = Keypair::from_base58_string(&config.engine.payer_keypair);
+
     let info = tx.clone().transaction.unwrap_or_default();
     let accounts = info
         .transaction
@@ -129,12 +126,6 @@ pub async fn pumpfun_parser(
         let message = transaction.message.unwrap_or_default();
         let instructions = message.instructions.iter();
         instructions.cloned().collect::<Vec<_>>()
-    };
-
-    let inner_instructions = {
-        let transaction = info.meta.unwrap_or_default();
-        let message = transaction.inner_instructions;
-        message
     };
 
     let mut coin_found = false;
@@ -165,7 +156,7 @@ pub async fn pumpfun_parser(
         }
     }
 
-    info!(
+    println!(
         "Transaction: {}\nCoin: {:?}\nMaker: {}\nMint: {}",
         &signature.to_string(),
         coin_args.as_ref().unwrap().0,
@@ -173,13 +164,25 @@ pub async fn pumpfun_parser(
         accounts[1]
     );
 
-    // match pump_swap(&Arc::new(wallet), args, PumpFunDirection::Buy).await {
-    //     Ok(s) => s,
-    //     Err(e) => {
-    //         log::error!("Error: {}", e);
-    //         return Ok(());
-    //     }
-    // };
+    let config = get_config().await?;
+
+    let amount = sol_to_lamports(config.trading.buy_amount);
+
+    match pump_swap(
+        &Arc::new(wallet),
+        args,
+        PumpFunDirection::Buy,
+        accounts[1],
+        amount,
+    )
+    .await
+    {
+        Ok(s) => s,
+        Err(e) => {
+            log::error!("Error: {}", e);
+            return Ok(());
+        }
+    };
 
     Ok(())
 }

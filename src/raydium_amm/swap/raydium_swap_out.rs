@@ -1,6 +1,7 @@
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
 use log::{error, info};
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_client::rpc_request::TokenAccountsFilter;
 use solana_program::pubkey::Pubkey;
@@ -17,20 +18,22 @@ use crate::app::config_init::get_config;
 use crate::liquidity::utils::tip_account;
 use crate::raydium_amm::subscribe::PoolKeysSniper;
 use crate::raydium_amm::swap::instructions::{swap_base_out, SOLC_MINT};
+use crate::raydium_amm::swap::raydium_swap_in::{raydium_in, TradeDirection};
 use crate::rpc::HTTP_CLIENT;
 
 use super::swapper::auth_keypair;
 
-pub async fn raydium_txn_backrun(pool_keys: PoolKeysSniper, token_amount: u64) -> eyre::Result<()> {
+pub async fn raydium_txn_backrun(
+    rpc_client: &Arc<RpcClient>,
+    wallet: &Arc<Keypair>,
+    pool_keys: PoolKeysSniper,
+    percentage: u64,
+) -> eyre::Result<()> {
     let config = get_config().await?;
 
-    let wallet = Keypair::from_base58_string(&config.engine.payer_keypair);
     let start = Instant::now();
     let mut token_balance = 0;
-    let rpc_client = {
-        let http_client = HTTP_CLIENT.lock().unwrap();
-        http_client.get("http_client").unwrap().clone()
-    };
+
     info!("BaseMint: {:?}", pool_keys.base_mint);
     while start.elapsed() < Duration::from_secs(15) {
         let token_accounts = rpc_client
@@ -74,13 +77,28 @@ pub async fn raydium_txn_backrun(pool_keys: PoolKeysSniper, token_amount: u64) -
         return Ok(());
     }
 
-    let token_amount = token_balance * (token_amount / 100);
+    let token_amount = token_balance * percentage / 100;
 
     info!("Token Amount: {:?}", token_amount);
 
     info!("Tokens: {:?}", token_balance);
 
-    let _ = raydium_out(pool_keys.clone(), token_amount, 1).await?;
+    // let _ = raydium_out(wallet, pool_keys.clone(), token_amount, 1, fees, args).await?;
+
+    let _swap = match raydium_in(
+        rpc_client,
+        wallet,
+        pool_keys,
+        token_amount,
+        0,
+        config,
+        TradeDirection::Sell,
+    )
+    .await
+    {
+        Ok(_) => {}
+        Err(e) => error!("{}", e),
+    };
 
     Ok(())
 }

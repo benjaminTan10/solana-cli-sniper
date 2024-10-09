@@ -1,19 +1,23 @@
 use std::sync::Arc;
+use std::time::Duration;
 
-use super::instructions::instructions::{
+use crate::app::config_init::get_config;
+use crate::env::utils::read_keys;
+use crate::env::SettingsConfig;
+use crate::input::gas_input;
+use crate::liquidity::utils::tip_account;
+use crate::pumpfun::pump_interface::builder::{
     generate_pump_buy_ix, generate_pump_sell_ix, PumpFunDirection,
 };
-use crate::{
-    env::{utils::read_keys, SettingsConfig},
-    liquidity::{pool_ixs::token_percentage, utils::tip_account},
-    raydium_amm::{swap::swapper::auth_keypair, volume_pinger::volume::buy_amount},
-    rpc::HTTP_CLIENT,
-    user_inputs::{amounts::bundle_priority_tip, tokens::token_env},
-};
+use crate::raydium_amm::swap::swapper::auth_keypair;
+
+use borsh::BorshDeserialize;
 use jito_protos::searcher::SubscribeBundleResultsRequest;
 use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
 use log::{error, info};
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcSendTransactionConfig;
+use solana_sdk::pubkey::Pubkey;
 use solana_sdk::system_instruction::transfer;
 use solana_sdk::{
     commitment_config::CommitmentLevel,
@@ -24,52 +28,24 @@ use solana_sdk::{
 use spl_associated_token_account::{
     get_associated_token_address, instruction::create_associated_token_account_idempotent,
 };
+use tokio::time::sleep;
 
+use super::pump_interface::accounts::BondingCurve;
+use super::pump_interface::builder::{calculate_sell_price, get_bonding_curve, PUMP_PROGRAM};
+
+#[async_recursion::async_recursion]
 pub async fn pump_swap(
     wallet: &Arc<Keypair>,
     args: SettingsConfig,
     direction: PumpFunDirection,
+    token_address: Pubkey,
+    amount: u64,
 ) -> eyre::Result<()> {
-    let rpc_client = {
-        let http_client = HTTP_CLIENT.lock().unwrap();
-        http_client.get("http_client").unwrap().clone()
-    };
-
-    let token_address = token_env("Token Address: ").await;
-
-    let mut amount = 0;
-    if direction == PumpFunDirection::Buy {
-        amount = match buy_amount("Swap Amount: ").await {
-            Ok(a) => a,
-            Err(e) => {
-                log::error!("Error: {}", e);
-                return Ok(());
-            }
-        };
-    } else if direction == PumpFunDirection::Sell {
-        let tokens = (token_percentage() * 100.0).round() as u64;
-        let tokens_amount = rpc_client
-            .get_token_account_balance(&get_associated_token_address(
-                &wallet.pubkey(),
-                &token_address,
-            ))
-            .await?;
-        let token_amount = match tokens_amount.amount.parse::<u64>() {
-            Ok(a) => a,
-            Err(e) => {
-                error!("Error: {}", e);
-                return Ok(());
-            }
-        };
-
-        amount = token_amount * tokens / 100;
-    }
-
-    info!("Tokens Amount: {}", amount);
+    let rpc_client = Arc::new(RpcClient::new(args.network.rpc_url));
 
     let mut bundle_tip = 0;
     if args.engine.use_bundles {
-        bundle_tip = bundle_priority_tip().await;
+        bundle_tip = gas_input("Bundle Priority Tip: ").await;
     }
 
     let user_source_owner = wallet.pubkey();
@@ -207,32 +183,78 @@ pub async fn pump_swap(
         }
     }
 
-    // let pool_keys_clone = pool_keys.clone();
-    // let args_clone = args.clone();
-    // let fees_clone = fees.clone();
-    // let wallet_clone = Arc::clone(&wallet);
-    // let (mut stop_tx, mut stop_rx) = tokio::sync::mpsc::channel::<()>(100);
-
-    // let handle = thread::spawn(move || {
-    //     let runtime = tokio::runtime::Runtime::new().unwrap();
-    //     runtime.block_on(async {
-    //         read_single_key_impl(
-    //             &mut stop_tx,
-    //             pool_keys_clone,
-    //             args_clone,
-    //             fees_clone,
-    //             &wallet_clone,
-    //         )
-    //         .await
-    //         .unwrap();
-    //     });
-    // });
-
-    // price_logger(&mut stop_rx, amount, pool_keys, wallet.clone()).await;
-
-    // handle.join().unwrap();
-
+    if direction == PumpFunDirection::Buy {
+        pump_tracker(amount, token_address).await?;
+    }
     let _ = read_keys();
 
     Ok(())
+}
+
+pub async fn pump_tracker(init_buy: u64, base_mint: Pubkey) -> eyre::Result<()> {
+    let config = get_config().await?;
+    let wallet = Arc::new(Keypair::from_base58_string(&config.engine.payer_keypair));
+    let rpc_client = Arc::new(RpcClient::new(config.clone().network.rpc_url));
+    loop {
+        sleep(Duration::from_secs(5)).await;
+        let token_account = get_associated_token_address(&wallet.pubkey(), &base_mint);
+
+        let tokens_amount = rpc_client
+            .get_token_account_balance(&token_account)
+            .await?
+            .amount
+            .parse::<u128>()?;
+        let bonding_curve_pda = get_bonding_curve(base_mint, &PUMP_PROGRAM);
+        let account_data = rpc_client.get_account_data(&bonding_curve_pda).await?;
+
+        let sliced_data: &mut &[u8] = &mut account_data.as_slice();
+
+        let reserves = BondingCurve::deserialize_reader(sliced_data)?;
+
+        let reserves = (
+            reserves.real_token_reserves as u128,
+            reserves.virtual_sol_reserves as u128,
+            reserves.real_sol_reserves as u128,
+        );
+
+        let price = calculate_sell_price(tokens_amount, reserves);
+
+        println!("{price:#?}");
+
+        let profit_percentage = (price.0 as u64 - init_buy) / init_buy * 100;
+
+        if profit_percentage >= config.trading.profit_threshold_percentage as u64 {
+            match pump_swap(
+                &wallet,
+                config.clone(),
+                PumpFunDirection::Sell,
+                base_mint,
+                tokens_amount as u64,
+            )
+            .await
+            {
+                Ok(s) => s,
+                Err(e) => {
+                    log::error!("Error: {}", e);
+                    return Ok(());
+                }
+            };
+        } else if profit_percentage <= config.trading.loss_threshold_percentage as u64 {
+            match pump_swap(
+                &wallet,
+                config.clone(),
+                PumpFunDirection::Sell,
+                base_mint,
+                tokens_amount as u64,
+            )
+            .await
+            {
+                Ok(s) => s,
+                Err(e) => {
+                    log::error!("Error: {}", e);
+                    return Ok(());
+                }
+            };
+        }
+    }
 }

@@ -5,57 +5,36 @@ use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::signature::Keypair;
 
 use crate::{
-    env::load_config,
+    app::config_init::get_config,
     raydium_amm::{
-        pool_searcher::amm_keys::pool_keys_fetcher,
-        swap::{raydium_swap_in::price_logger, swap_in::PriorityTip},
+        pool_searcher::amm_keys::pool_keys_fetcher, swap::raydium_swap_in::price_logger,
     },
-    user_inputs::{
-        amounts::{bundle_priority_tip, priority_fee, sol_amount},
-        tokens::token_env,
-    },
+    user_inputs::{amounts::sol_amount, tokens::token_env},
     utils::read_single_key_impl,
 };
 
 pub async fn track_trades() -> eyre::Result<()> {
-    let args = match load_config().await {
-        Ok(args) => args,
-        Err(e) => {
-            error!("Error: {:?}", e);
-            return Err(e.into());
-        }
-    };
-
     let amount_in = sol_amount("Track Trade Amount: ").await;
-    let mut bundle_tip = 0;
-    let mut priority_fee_value = 0;
 
-    if args.engine.use_bundles {
-        priority_fee_value = priority_fee().await;
-        bundle_tip = bundle_priority_tip().await;
-    } else {
-        priority_fee_value = priority_fee().await;
-    }
     let token_out = token_env("Pool Address").await;
 
-    let rpc_client = Arc::new(RpcClient::new(args.clone().network.rpc_url));
-
     info!("Fetching pool keys...");
-    let pool_keys = pool_keys_fetcher(token_out, rpc_client).await?;
+    let pool_keys = pool_keys_fetcher(token_out).await?;
 
     let (mut stop_tx, mut stop_rx) = tokio::sync::mpsc::channel::<()>(100);
 
-    let fees = PriorityTip {
-        bundle_tip,
-        priority_fee_value,
-    };
-    let private_key =
-        Keypair::from_bytes(&bs58::decode(&args.engine.payer_keypair).into_vec().unwrap())?;
-    let wallet = Arc::new(private_key);
     let pool_keys_clone = pool_keys.clone();
-    let wallet_clone = wallet.clone();
     tokio::spawn(async move {
-        match read_single_key_impl(&mut stop_tx, pool_keys_clone).await {
+        let config = get_config().await.unwrap();
+        match read_single_key_impl(
+            &Arc::new(RpcClient::new(config.clone().network.rpc_url)),
+            &mut stop_tx,
+            pool_keys_clone,
+            config.clone(),
+            &Arc::new(Keypair::from_base58_string(&config.engine.payer_keypair)),
+        )
+        .await
+        {
             Ok(_) => {}
             Err(e) => {
                 error!("Error: {}", e);

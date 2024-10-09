@@ -7,18 +7,21 @@ use borsh::BorshDeserialize;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::pubkey;
 use solana_sdk::{
-    instruction::Instruction, pubkey::Pubkey, signature::Keypair, signer::Signer, system_program,
+    compute_budget::ComputeBudgetInstruction, instruction::Instruction,
+    native_token::sol_to_lamports, pubkey::Pubkey, signature::Keypair, signer::Signer,
+    system_program,
 };
 use spl_associated_token_account::get_associated_token_address;
 
-use crate::pumpfun::instructions::pumpfun_program::instructions::{
-    buy_ix_with_program_id, BuyIxArgs, BuyKeys,
+use crate::{
+    app::config_init::get_config,
+    pumpfun::pump_interface::{
+        accounts::BondingCurve,
+        instructions::{buy_ix_with_program_id, BuyIxArgs, BuyKeys},
+    },
 };
 
-use super::pumpfun_program::{
-    accounts::BondingCurve,
-    instructions::{sell_ix_with_program_id, SellIxArgs, SellKeys},
-};
+use super::instructions::{sell_ix_with_program_id, SellIxArgs, SellKeys};
 
 pub const GLOBAL_STATE: Pubkey = pubkey!("4wTV1YmiEkRvAtNtsSGPtUrqRYQMe5SKy2uB4Jjaxnjf");
 pub const FEE_RECEPIENT: Pubkey = pubkey!("CebN5WGQ4jvEPvsVU4EoHEpgzq1VV7AbicfhtW4xC9iM");
@@ -37,6 +40,9 @@ pub async fn generate_pump_buy_ix(
     sol_amount: u64,
     main_signer: Arc<Keypair>,
 ) -> eyre::Result<Vec<Instruction>> {
+    let config = get_config().await?;
+    let priority_fee = sol_to_lamports(config.trading.priority_fee);
+
     let bonding_curve_pda = get_bonding_curve(token, &PUMP_PROGRAM);
     let bonding_curve_ata = get_associated_token_address(&bonding_curve_pda, &token);
     let signer_ata = get_associated_token_address(&main_signer.pubkey(), &token);
@@ -59,7 +65,15 @@ pub async fn generate_pump_buy_ix(
     let amount = (price.0) as u64;
     let fee_bps = sol_amount * 1 / 100;
 
-    let buy_ix = buy_ix_with_program_id(
+    let mut swap_instructions = Vec::new();
+
+    let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(80000);
+    let compute_price = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
+
+    swap_instructions.push(unit_limit);
+    swap_instructions.push(compute_price);
+
+    swap_instructions.push(buy_ix_with_program_id(
         PUMP_PROGRAM,
         BuyKeys {
             global: GLOBAL_STATE,
@@ -79,9 +93,9 @@ pub async fn generate_pump_buy_ix(
             amount,
             max_sol_cost: sol_amount + fee_bps,
         },
-    )?;
+    )?);
 
-    Ok([buy_ix].to_vec())
+    Ok(swap_instructions)
 }
 
 pub async fn generate_pump_multi_buy_ix(

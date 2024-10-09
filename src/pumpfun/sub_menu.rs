@@ -1,15 +1,15 @@
-use std::{error::Error, sync::Arc};
+use std::error::Error;
 
 use demand::{DemandOption, Select};
-use solana_sdk::signature::Keypair;
 
 use crate::{
     app::{main_menu, theme},
-    env::load_config,
+    router::SniperRoute,
 };
 
 use super::{
-    instructions::instructions::PumpFunDirection, pump_swap_in::pump_swap, sniper::pumpfun_sniper,
+    sniper::pumpfun_sniper,
+    swap::{pump_swap_in, pump_swap_out},
 };
 
 pub async fn pump_main() -> Result<(), Box<dyn Error + Send>> {
@@ -52,50 +52,6 @@ pub async fn pump_main() -> Result<(), Box<dyn Error + Send>> {
         }
         _ => {}
     }
-
-    Ok(())
-}
-
-pub async fn pump_swap_in() -> eyre::Result<()> {
-    let settings = match load_config().await {
-        Ok(s) => s,
-        Err(e) => {
-            log::error!("Error: {}", e);
-            return Ok(());
-        }
-    };
-
-    let wallet = Keypair::from_base58_string(&settings.engine.payer_keypair);
-
-    match pump_swap(&Arc::new(wallet), settings, PumpFunDirection::Buy).await {
-        Ok(s) => s,
-        Err(e) => {
-            log::error!("Error: {}", e);
-            return Ok(());
-        }
-    };
-
-    Ok(())
-}
-
-pub async fn pump_swap_out() -> eyre::Result<()> {
-    let settings = match load_config().await {
-        Ok(s) => s,
-        Err(e) => {
-            log::error!("Error: {}", e);
-            return Ok(());
-        }
-    };
-
-    let wallet = Keypair::from_base58_string(&settings.engine.payer_keypair);
-
-    match pump_swap(&Arc::new(wallet), settings, PumpFunDirection::Sell).await {
-        Ok(s) => s,
-        Err(e) => {
-            log::error!("Error: {}", e);
-            return Ok(());
-        }
-    };
 
     Ok(())
 }

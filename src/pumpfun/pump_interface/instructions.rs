@@ -9,7 +9,8 @@ use solana_program::{
 };
 use std::io::Read;
 
-use crate::pumpfun::instructions::instructions::PUMP_PROGRAM;
+use super::builder::PUMP_PROGRAM;
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum PumpProgramIx {
     Initialize,

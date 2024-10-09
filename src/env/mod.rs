@@ -54,9 +54,9 @@ pub struct TradingSettings {
     pub slippage: bool,
     pub spam: bool,
     pub spam_count: i32,
-    pub copytrade_accounts: Vec<String>,
     pub loss_threshold_percentage: f64,
     pub profit_threshold_percentage: f64,
+    pub copytrade_accounts: Vec<String>,
 }
 
 pub async fn load_config() -> eyre::Result<SettingsConfig> {
@@ -131,7 +131,7 @@ pub async fn load_config() -> eyre::Result<SettingsConfig> {
                 spam: false,
                 spam_count: 15,
                 slippage: false,
-                loss_threshold_percentage: 50.0,
+                loss_threshold_percentage: -50.0,
                 profit_threshold_percentage: 100.0,
                 copytrade_accounts: vec![],
             },

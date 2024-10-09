@@ -1,21 +1,25 @@
 use std::sync::Arc;
 
-use solana_client::nonblocking::rpc_client::{RpcClient};
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::pubkey::Pubkey;
 
-use crate::raydium_amm::{
+use crate::{
+    app::config_init::get_config,
+    raydium_amm::{
         subscribe::PoolKeysSniper,
         swap::instructions::SOLC_MINT,
         utils::utils::{
             market_authority, program_address, LIQUIDITY_STATE_LAYOUT_V4, MARKET_STATE_LAYOUT_V3,
             SPL_MINT_LAYOUT,
         },
-    };
+    },
+};
 
-pub async fn pool_keys_fetcher(
-    id: Pubkey,
-    rpc_client: Arc<RpcClient>,
-) -> eyre::Result<PoolKeysSniper> {
+pub async fn pool_keys_fetcher(id: Pubkey) -> eyre::Result<PoolKeysSniper> {
+    let config = get_config().await?;
+
+    let rpc_client = Arc::new(RpcClient::new(config.network.rpc_url));
+
     let mut retries = 0;
     let max_retries = 1000;
     let mut account = None;

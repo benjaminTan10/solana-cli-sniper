@@ -15,7 +15,7 @@ use termcolor::{Color, ColorSpec};
 use crate::app::embeds::embed;
 use crate::copytrade::copytrade;
 use crate::env::load_config;
-use crate::pumpfun::pump::pump_main;
+use crate::pumpfun::sub_menu::pump_main;
 use crate::raydium_amm::swap::swap_in::{swap_in, swap_out, PriorityTip};
 use crate::raydium_amm::swap::trades::track_trades;
 use crate::rpc::rpc_key;

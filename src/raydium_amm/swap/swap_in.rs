@@ -6,17 +6,20 @@ use solana_sdk::{bs58, signature::Keypair};
 
 use crate::{
     env::load_config,
-    raydium_amm::pool_searcher::amm_keys::pool_keys_fetcher,
+    input::{amount_input, mint_input, percentage_input},
+    raydium_amm::{
+        pool_searcher::amm_keys::pool_keys_fetcher, swap::raydium_swap_in::TradeDirection,
+    },
     rpc::HTTP_CLIENT,
     user_inputs::{
-        amounts::{amount_percentage, bundle_priority_tip, priority_fee, sol_amount},
+        amounts::{amount_percentage, sol_amount},
         tokens::token_env,
     },
 };
 
 use super::{raydium_swap_in::raydium_in, raydium_swap_out::raydium_txn_backrun};
 
-pub async fn swap_in() -> eyre::Result<()> {
+pub async fn swap_in() -> Result<(), Box<dyn std::error::Error>> {
     let args = match load_config().await {
         Ok(args) => args,
         Err(e) => {
@@ -25,36 +28,31 @@ pub async fn swap_in() -> eyre::Result<()> {
         }
     };
 
-    let sol_amount = sol_amount("Swap Amount:").await;
+    let rpc_client = &Arc::new(RpcClient::new(args.network.rpc_url.clone()));
 
-    let mut bundle_tip = 0;
-    let mut priority_fee_value = 0;
+    let sol_amount = amount_input("Swap Amount:").await;
 
-    if args.engine.use_bundles {
-        priority_fee_value = priority_fee().await;
-        bundle_tip = bundle_priority_tip().await;
-    } else {
-        priority_fee_value = priority_fee().await;
-    }
-
-    let token_out = token_env("Pool Address").await;
+    let token_out = mint_input("Pool Address").await;
 
     let private_key =
         Keypair::from_bytes(&bs58::decode(&args.engine.payer_keypair).into_vec().unwrap())?;
 
-    let rpc_client = Arc::new(RpcClient::new(args.clone().network.rpc_url));
-
     info!("Fetching pool keys...");
-    let pool_keys = pool_keys_fetcher(token_out, rpc_client).await?;
-
-    let fees = PriorityTip {
-        bundle_tip,
-        priority_fee_value,
-    };
+    let pool_keys = pool_keys_fetcher(token_out).await?;
 
     info!("---------------------------------------------------");
 
-    let _swap = match raydium_in(pool_keys, sol_amount.into(), 0).await {
+    let _swap = match raydium_in(
+        rpc_client,
+        &Arc::new(private_key),
+        pool_keys,
+        sol_amount,
+        0,
+        args,
+        TradeDirection::Buy,
+    )
+    .await
+    {
         Ok(_) => {}
         Err(e) => error!("{}", e),
     };
@@ -68,7 +66,7 @@ pub struct PriorityTip {
     pub priority_fee_value: u64,
 }
 
-pub async fn swap_out() -> eyre::Result<()> {
+pub async fn swap_out() -> Result<(), Box<dyn std::error::Error>> {
     let args = match load_config().await {
         Ok(args) => args,
         Err(e) => {
@@ -77,19 +75,25 @@ pub async fn swap_out() -> eyre::Result<()> {
         }
     };
 
-    let token_out = token_env("Pool Address").await;
-    let sol_amount = amount_percentage().await;
+    let rpc_client = &Arc::new(RpcClient::new(args.network.rpc_url.clone()));
+
+    let token_out = mint_input("Pool Address").await;
 
     let private_key =
         Keypair::from_bytes(&bs58::decode(&args.engine.payer_keypair).into_vec().unwrap())?;
-    let rpc_client = {
-        let http_client = HTTP_CLIENT.lock().unwrap();
-        http_client.get("http_client").unwrap().clone()
-    };
 
-    let pool_keys = pool_keys_fetcher(token_out, rpc_client).await?;
+    let pool_keys = pool_keys_fetcher(token_out).await?;
 
-    let swap = match raydium_txn_backrun(pool_keys, sol_amount).await {
+    let percentage = percentage_input().await;
+
+    let _swap = match raydium_txn_backrun(
+        rpc_client,
+        &Arc::new(private_key),
+        pool_keys,
+        percentage as u64,
+    )
+    .await
+    {
         Ok(_) => {}
         Err(e) => error!("{}", e),
     };

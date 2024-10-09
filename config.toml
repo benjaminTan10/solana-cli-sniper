@@ -1,6 +1,6 @@
 [user]
-username = "taimurey"
-license_key = "MEVARIK-N3SvVm-MYhUfu-goMRao-tUHhTG"
+username = "he"
+license_key = "MEVARIK-oIGO8U-kdoEj9-cWtytU-sCglKk"
 
 [network]
 block_engine_url = "https://ny.mainnet.block-engine.jito.wtf"
@@ -10,7 +10,7 @@ grpc_url = "http://160.202.128.179:10000"
 regions = ["ny"]
 
 [engine]
-payer_keypair = "4ULY3jziGvx8d3r2K8AmpwYhN4oSAv5FJqNgxiC7ZVtG8Q4e5ksU3tVZFy1wcK1z2Gq24J7zTKFS7iFWmEHhFhtQ"
+payer_keypair = ""
 subscribe_bundle_results = false
 use_bundles = false
 
@@ -21,6 +21,8 @@ bundle_tip = 0.0001
 slippage = false
 spam = false
 spam_count = 15
+loss_threshold_percentage = -50.0
+profit_threshold_percentage = 100.0
 copytrade_accounts = [
     "5iywveQKkidqPDKt2CExJcWKex2EXz9kbGcYiZvhuXWs",
     "EP7bbErAipyxFqibUDwkPNrwcsN7zNPoz7o5EoNQM9qd",
@@ -28,5 +30,3 @@ copytrade_accounts = [
     "9yMwSPk9mrXSN7yDHUuZurAh1sjbJsfpUqjZ7SvVtdco",
     "Ai9RV1Cxq71DREpzYo9ACdRzBwAAYKtBBULvvcfSbaSP",
 ]
-loss_threshold_percentage = -50.0
-profit_threshold_percentage = 100.0

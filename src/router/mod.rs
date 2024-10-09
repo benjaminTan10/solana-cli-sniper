@@ -152,16 +152,7 @@ pub async fn grpc_pair_sub(
                                 }
                             };
                         } else if route == SniperRoute::PumpFun {
-                            let _ = match pumpfun_parser(
-                                rpc_client.clone(),
-                                args,
-                                tx,
-                                manual_snipe,
-                                base_mint,
-                                subscribe_tx,
-                            )
-                            .await
-                            {
+                            let _ = match pumpfun_parser(args, tx, base_mint).await {
                                 Ok(_) => {}
                                 Err(e) => {
                                     error!("Error: {:?}", e);
