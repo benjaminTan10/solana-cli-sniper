@@ -31,7 +31,7 @@ use std::{mem::size_of, str::FromStr};
 
 use crate::{
     app::config_init::get_config,
-    env::{load_config, minter::load_minter_settings, SettingsConfig},
+    env::{load_config, minter::load_minter_settings},
     liquidity::utils::{tip_account, tip_txn},
     raydium_amm::subscribe::PoolKeysSniper,
 };

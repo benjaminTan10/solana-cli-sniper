@@ -2,10 +2,7 @@ use std::error::Error;
 
 use demand::{DemandOption, Select};
 
-use crate::{
-    app::{main_menu, theme},
-    router::SniperRoute,
-};
+use crate::app::{main_menu, theme};
 
 use super::{
     sniper::pumpfun_sniper,

@@ -13,10 +13,8 @@ use solana_sdk::transaction::{Transaction, VersionedTransaction};
 use solana_sdk::{signature::Keypair, signer::Signer};
 use std::str::FromStr;
 use std::sync::Arc;
-use std::thread;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::{self};
-use tokio::time::{self, sleep};
 
 use crate::app::config_init::get_config;
 use crate::env::SettingsConfig;
@@ -27,7 +25,6 @@ use crate::raydium_amm::swap::raydium_amm_sniper::clear_previous_line;
 use crate::raydium_amm::swap::swapper::auth_keypair;
 use crate::router::SniperRoute;
 use crate::rpc::HTTP_CLIENT;
-use crate::utils::read_single_key_impl;
 
 use super::instructions::token_price_data;
 use super::raydium_swap_out::raydium_out;
@@ -210,7 +207,7 @@ pub async fn raydium_in(
         }
     }
 
-    let (mut stop_tx, mut stop_rx) = tokio::sync::mpsc::channel::<()>(100);
+    let (stop_tx, mut stop_rx) = tokio::sync::mpsc::channel::<()>(100);
 
     price_logger(
         &mut stop_rx,

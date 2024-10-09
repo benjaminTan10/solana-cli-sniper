@@ -10,11 +10,6 @@ use crate::{
     raydium_amm::{
         pool_searcher::amm_keys::pool_keys_fetcher, swap::raydium_swap_in::TradeDirection,
     },
-    rpc::HTTP_CLIENT,
-    user_inputs::{
-        amounts::{amount_percentage, sol_amount},
-        tokens::token_env,
-    },
 };
 
 use super::{raydium_swap_in::raydium_in, raydium_swap_out::raydium_txn_backrun};

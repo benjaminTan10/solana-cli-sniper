@@ -13,7 +13,7 @@ use {
         commitment_config::CommitmentConfig,
         hash::Hash,
         pubkey,
-        signature::{read_keypair_file, Keypair, Signer},
+        signature::{Keypair, Signer},
     },
     spl_token::{amount_to_ui_amount, ui_amount_to_amount},
 };
