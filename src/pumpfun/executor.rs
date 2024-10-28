@@ -223,38 +223,38 @@ pub async fn pump_tracker(init_buy: u64, base_mint: Pubkey) -> eyre::Result<()> 
 
         let profit_percentage = (price.0 as u64 - init_buy) / init_buy * 100;
 
-        if profit_percentage >= config.trading.profit_threshold_percentage as u64 {
-            match pump_swap(
-                &wallet,
-                config.clone(),
-                PumpFunDirection::Sell,
-                base_mint,
-                tokens_amount as u64,
-            )
-            .await
-            {
-                Ok(s) => s,
-                Err(e) => {
-                    log::error!("Error: {}", e);
-                    return Ok(());
-                }
-            };
-        } else if profit_percentage <= config.trading.loss_threshold_percentage as u64 {
-            match pump_swap(
-                &wallet,
-                config.clone(),
-                PumpFunDirection::Sell,
-                base_mint,
-                tokens_amount as u64,
-            )
-            .await
-            {
-                Ok(s) => s,
-                Err(e) => {
-                    log::error!("Error: {}", e);
-                    return Ok(());
-                }
-            };
-        }
+        // if profit_percentage >= config.trading.profit_threshold_percentage as u64 {
+        //     match pump_swap(
+        //         &wallet,
+        //         config.clone(),
+        //         PumpFunDirection::Sell,
+        //         base_mint,
+        //         tokens_amount as u64,
+        //     )
+        //     .await
+        //     {
+        //         Ok(s) => s,
+        //         Err(e) => {
+        //             log::error!("Error: {}", e);
+        //             return Ok(());
+        //         }
+        //     };
+        // } else if profit_percentage <= config.trading.loss_threshold_percentage as u64 {
+        //     match pump_swap(
+        //         &wallet,
+        //         config.clone(),
+        //         PumpFunDirection::Sell,
+        //         base_mint,
+        //         tokens_amount as u64,
+        //     )
+        //     .await
+        //     {
+        //         Ok(s) => s,
+        //         Err(e) => {
+        //             log::error!("Error: {}", e);
+        //             return Ok(());
+        //         }
+        //     };
+        // }
     }
 }

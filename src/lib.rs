@@ -13,6 +13,7 @@ pub mod raydium_amm;
 pub mod router;
 pub mod rpc;
 // pub mod screen;
+pub mod daos_fun;
 pub mod input;
 pub mod user_inputs;
 pub mod utils;

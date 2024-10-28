@@ -14,7 +14,9 @@ use termcolor::{Color, ColorSpec};
 
 use crate::app::embeds::embed;
 use crate::copytrade::copytrade;
+use crate::daos_fun::menu::daosfun_menu;
 use crate::env::load_config;
+use crate::env::utils::read_keys;
 use crate::pumpfun::sub_menu::pump_main;
 use crate::raydium_amm::swap::swap_in::{swap_in, swap_out, PriorityTip};
 use crate::raydium_amm::swap::trades::track_trades;
@@ -101,6 +103,7 @@ pub async fn main_menu(mainmenu: bool) -> Result<(), Box<dyn std::error::Error +
         .option(DemandOption::new("RaydiumAMM").label("▪ Raydium AMM Mode"))
         // .option(DemandOption::new("RaydiumCPMM").label("▪ Raydium CPMM Mode"))
         .option(DemandOption::new("PumpFun").label("▪ PumpFun Mode"))
+        .option(DemandOption::new("DaosFun").label("▪ DaosFun Mode"))
         .option(DemandOption::new("CopyTrade").label("▪ CopyTrade Mode"))
         // .option(DemandOption::new("MoonShot").label("▪ MoonShot Mode"))
         .option(DemandOption::new("Wrap Sol Mode").label("📦 Wrap SOL"))
@@ -112,29 +115,38 @@ pub async fn main_menu(mainmenu: bool) -> Result<(), Box<dyn std::error::Error +
     match selected_option {
         "RaydiumAMM" => {
             let _ = raydium_amm_mode().await;
+            let _ = read_keys().await;
         }
 
         "PumpFun" => {
             let _ = pump_main().await;
+            let _ = read_keys().await;
+        }
+        "DaosFun" => {
+            let _ = daosfun_menu().await;
+            let _ = read_keys().await;
         }
         "CopyTrade" => {
             let _ = copytrade().await;
+            let _ = read_keys().await;
         }
         "Wrap Sol Mode" => {
             let _ = wrap_sol_call().await;
+            let _ = read_keys().await;
         }
         "Unwrap Sol Mode" => {
             let _ = unwrap_sol_call().await;
+            let _ = read_keys().await;
         }
         "Wallet Details" => {
             let _ = wallet_logger().await;
+            let _ = read_keys().await;
         }
         _ => {
             // Handle unexpected option here
         }
     }
 
-    sleep(tokio::time::Duration::from_secs(3)).await;
     //clear the terminal
     clear_screen();
     embed();

@@ -44,6 +44,7 @@ dependencies = [
  "indicatif",
  "itertools 0.13.0",
  "jito-protos",
+ "jito-sdk-rust",
  "jito-searcher-client",
  "keyauth",
  "lazy_static",
@@ -2783,6 +2784,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "jito-sdk-rust"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6db230a3c6c255775431517c1da38760b748490210ba1801a36190349af64c1c"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "bs58 0.4.0",
+ "rand 0.8.5",
+ "reqwest 0.11.27",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "jito-searcher-client"
 version = "0.1.0"
 dependencies = [
@@ -4725,9 +4742,9 @@ checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 
 [[package]]
 name = "serde"
-version = "1.0.203"
+version = "1.0.210"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7253ab4de971e72fb7be983802300c30b5a7f0c2e56fab8abfc6a214307c0094"
+checksum = "c8e3592472072e6e22e0a54d5904d9febf8508f65fb8552499a1abc7d1078c3a"
 dependencies = [
  "serde_derive",
 ]
@@ -4743,9 +4760,9 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.203"
+version = "1.0.210"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "500cbc0ebeb6f46627f50f3f5811ccf6bf00643be300b4c3eabc0ef55dc5b5ba"
+checksum = "243902eda00fad750862fc144cea25caca5e20d615af0a81bee94ca738f1df1f"
 dependencies = [
  "proc-macro2",
  "quote",

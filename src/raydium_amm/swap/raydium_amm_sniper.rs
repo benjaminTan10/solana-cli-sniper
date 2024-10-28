@@ -444,7 +444,7 @@ pub async fn raydium_snipe_launch(
 
         println!("Keys: {market:#?}\n{market_vault_signer:#?}");
 
-        let swap_instructions = swap_base_in(
+        let mut swap_instructions = swap_base_in(
             &RAYDIUM_AMM_V4_PROGRAM_ID,
             &pool_keys.amm_pool,
             &pool_keys.amm_authority,
@@ -502,18 +502,20 @@ pub async fn raydium_snipe_launch(
         if config.engine.use_bundles {
             info!("Building Bundle");
 
-            let tip_txn = VersionedTransaction::from(Transaction::new_signed_with_payer(
-                &[transfer(
-                    &wallet.pubkey(),
-                    &tip_account,
-                    sol_to_lamports(config.trading.bundle_tip),
-                )],
+            swap_instructions.push(transfer(
+                &wallet.pubkey(),
+                &tip_account,
+                sol_to_lamports(config.trading.bundle_tip),
+            ));
+
+            let swap_txn = VersionedTransaction::from(Transaction::new_signed_with_payer(
+                &swap_instructions,
                 Some(&wallet.pubkey()),
                 &[&wallet],
                 rpc_client.get_latest_blockhash().await.unwrap(),
             ));
 
-            let bundle_txn = vec![transaction, tip_txn];
+            let bundle_txn = vec![swap_txn];
 
             let mut bundle_results_subscription = searcher_client
                 .subscribe_bundle_results(SubscribeBundleResultsRequest {})
@@ -821,6 +823,10 @@ async fn process_route(
             Ok(None) // Placeholder, replace with actual implementation
         }
         SniperRoute::MoonShot => {
+            // Implement MoonShot logic here
+            Ok(None) // Placeholder, replace with actual implementation
+        }
+        SniperRoute::DaosFun => {
             // Implement MoonShot logic here
             Ok(None) // Placeholder, replace with actual implementation
         }

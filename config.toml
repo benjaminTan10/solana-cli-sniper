@@ -3,21 +3,21 @@ username = "he"
 license_key = "MEVARIK-oIGO8U-kdoEj9-cWtytU-sCglKk"
 
 [network]
-block_engine_url = "https://ny.mainnet.block-engine.jito.wtf"
-pubsub_url = "wss://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
-rpc_url = "https://mainnet.helius-rpc.com/?api-key=0b99078c-7247-47ad-8cf8-35cbfc021667"
-grpc_url = "http://160.202.128.179:10000"
+block_engine_url = "https://amsterdam.mainnet.block-engine.jito.wtf"
+pubsub_url = "ws://45.250.254.175:8899/"
+rpc_url = "http://45.250.254.175:8899/"
+grpc_url = "http://45.250.254.175:10000/"
 regions = ["ny"]
 
 [engine]
 payer_keypair = ""
 subscribe_bundle_results = false
-use_bundles = false
+use_bundles = true
 
 [trading]
 buy_amount = 0.00001
 priority_fee = 0.0001
-bundle_tip = 0.0001
+bundle_tip = 0.00001
 slippage = false
 spam = false
 spam_count = 15

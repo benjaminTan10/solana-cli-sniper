@@ -20,6 +20,7 @@ use yellowstone_grpc_proto::geyser::{
 };
 
 use crate::{
+    daos_fun::daosfun_snipe::daosfun_parser,
     env::SettingsConfig,
     moonshot::sniper::moonshot_parser,
     plugins::yellowstone_plugin::lib::GeyserGrpcClient,
@@ -35,6 +36,7 @@ pub enum SniperRoute {
     PumpFunMigration,
     MoonShot,
     Jupiter,
+    DaosFun,
 }
 
 pub async fn grpc_pair_sub(
@@ -153,6 +155,13 @@ pub async fn grpc_pair_sub(
                             };
                         } else if route == SniperRoute::PumpFun {
                             let _ = match pumpfun_parser(args, tx, base_mint).await {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    error!("Error: {:?}", e);
+                                }
+                            };
+                        } else if route == SniperRoute::DaosFun {
+                            let _ = match daosfun_parser(args, tx, base_mint).await {
                                 Ok(_) => {}
                                 Err(e) => {
                                     error!("Error: {:?}", e);
