@@ -417,7 +417,7 @@ pub async fn raydium_snipe_launch(
                     base_vault: market.baseVault,
                     quote_vault: market.quoteMint,
                 };
-                (market_struct, market_vault_signer)
+                (market_struct, *market_vault_signer)
             }
             RouteData::PumpFunMigration {
                 market_accounts,
@@ -430,6 +430,10 @@ pub async fn raydium_snipe_launch(
                     .cloned()
                     .unwrap_or_default();
 
+                let serum_vault_signer_str = serum_vault_signer.to_string();
+                // Create a longer-lived value before taking its reference
+                let vault_signer_pubkey = Pubkey::from_str(&serum_vault_signer_str).unwrap();
+
                 let market_struct = MarketAccounts {
                     market: market_accounts.market_account,
                     bids: market_accounts.bids,
@@ -438,7 +442,7 @@ pub async fn raydium_snipe_launch(
                     base_vault: market_accounts.coin_vault,
                     quote_vault: market_accounts.pc_vault,
                 };
-                (market_struct, &serum_vault_signer.clone())
+                (market_struct, vault_signer_pubkey)
             }
         };
 
@@ -533,7 +537,7 @@ pub async fn raydium_snipe_launch(
             {
                 Ok(_) => {}
                 Err(e) => {
-                    panic!("Error: {}", e);
+                    error!("Error: {}", e);
                 }
             };
 

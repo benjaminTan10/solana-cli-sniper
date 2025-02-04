@@ -15,7 +15,10 @@ use yellowstone_grpc_proto::geyser::SubscribeUpdateTransaction;
 use crate::{
     app::config_init::{get_config, update_config_field},
     daos_fun::{
-        dao_burned_interface::{InitializeIxData, InitializeKeys, INITIALIZE_IX_ACCOUNTS_LEN},
+        dao_burned_interface::{
+            InitCurveKeys, InitializeIxData, InitializeKeys, INITIALIZE_IX_ACCOUNTS_LEN,
+            INIT_CURVE_IX_ACCOUNTS_LEN,
+        },
         daos_transaction::daosfun_sender,
     },
     env::{load_config, SettingsConfig},
@@ -55,29 +58,25 @@ pub async fn daosfun_sniper(manual_snipe: bool, route: SniperRoute) -> eyre::Res
     if manual_snipe {
         token = Some(token_env("Base Mint").await);
 
-        let (token, data) = mpl_token_metadata::accounts::Metadata::find_pda(&token.unwrap());
-        let metadata = match decode_metadata(&token).await {
-            Ok(metadata) => Some(metadata),
-            Err(e) => {
-                error!("Error: {:?}", e);
-                None
-            }
-        };
+        // let (token, data) = mpl_token_metadata::accounts::Metadata::find_pda(&token.unwrap());
+        // let metadata = match decode_metadata(&token).await {
+        //     Ok(metadata) => Some(metadata),
+        //     Err(e) => {
+        //         error!("Error: {:?}", e);
+        //         None
+        //     }
+        // };
 
-        let token_name = metadata
-            .clone()
-            .and_then(|m| Some(m.name))
-            .unwrap_or_else(|| "Unknown".to_string());
-        let token_symbol = metadata
-            .clone()
-            .and_then(|m| Some(m.symbol))
-            .unwrap_or_else(|| "Unknown".to_string());
+        // let token_name = metadata
+        //     .clone()
+        //     .and_then(|m| Some(m.name))
+        //     .unwrap_or_else(|| "Unknown".to_string());
+        // let token_symbol = metadata
+        //     .clone()
+        //     .and_then(|m| Some(m.symbol))
+        //     .unwrap_or_else(|| "Unknown".to_string());
 
-        println!(
-            "Name: {}\nSymb: {}",
-            colorize::AnsiColor::bold(token_name.to_string()).white(),
-            colorize::AnsiColor::bold(token_name.to_string()).b_cyan(),
-        );
+        println!("Mint Address: {}", token.unwrap());
 
         info!("Listening for the Launch...")
     } else {
@@ -129,29 +128,6 @@ pub async fn daosfun_parser(
         instructions.cloned().collect::<Vec<_>>()
     };
 
-    let mut daosfun_accounts: Option<InitializeKeys> = None;
-    for (index, instructions) in outer_instructions.iter().enumerate() {
-        for (index, instructions) in outer_instructions.iter().enumerate() {
-            if instructions.accounts.len() >= INITIALIZE_IX_ACCOUNTS_LEN {
-                daosfun_accounts = Some(InitializeKeys {
-                    admin: accounts[instructions.accounts[0] as usize],
-                    state: accounts[instructions.accounts[1] as usize],
-                    wallet: accounts[instructions.accounts[2] as usize],
-                    dao_mint: accounts[instructions.accounts[3] as usize],
-                    funding_mint: accounts[instructions.accounts[4] as usize],
-                    dao_mint_vault: accounts[instructions.accounts[5] as usize],
-                    token_program: spl_token::id(),
-                    system_program: system_program::id(),
-                    associated_token_program: spl_associated_token_account::id(),
-                    fundraise_state: accounts[instructions.accounts[6] as usize],
-                    fundraise_token_vault: accounts[instructions.accounts[7] as usize],
-                    fundraise_program: accounts[instructions.accounts[8] as usize],
-                });
-            }
-            break;
-        }
-    }
-
     let mut coin_found = false;
 
     let mut coin_args: Option<InitializeIxData> = None;
@@ -160,12 +136,37 @@ pub async fn daosfun_parser(
             Ok(decode_new_coin) => {
                 coin_found = true;
                 coin_args = Some(decode_new_coin);
+                println!("{coin_args:#?}");
                 break;
             }
             Err(_) => {
                 continue;
             }
         };
+    }
+
+    let mut daosfun_accounts: Option<InitCurveKeys> = None;
+    for (index, instructions) in outer_instructions.iter().enumerate() {
+        for (index, instructions) in outer_instructions.iter().enumerate() {
+            if instructions.accounts.len() >= INIT_CURVE_IX_ACCOUNTS_LEN {
+                daosfun_accounts = Some(InitCurveKeys {
+                    payer: accounts[instructions.accounts[0] as usize],
+                    dao_mint: accounts[instructions.accounts[1] as usize],
+                    funding_mint: accounts[instructions.accounts[2] as usize],
+                    state: accounts[instructions.accounts[3] as usize],
+                    fundraise_state: accounts[instructions.accounts[4] as usize],
+                    dao_mint_vault: accounts[instructions.accounts[5] as usize],
+                    curve: accounts[instructions.accounts[6] as usize],
+                    curve_dao_mint_ata: accounts[instructions.accounts[7] as usize],
+                    fee_authority: accounts[instructions.accounts[8] as usize],
+                    system_program: system_program::id(),
+                    token_program: spl_token::id(),
+                    associated_token_program: spl_associated_token_account::id(),
+                    virtual_xyk_program: accounts[instructions.accounts[9] as usize],
+                });
+            }
+            break;
+        }
     }
 
     if !coin_found {
@@ -191,7 +192,7 @@ pub async fn daosfun_parser(
         &signature.to_string(),
         coin_args.as_ref().unwrap().0,
         accounts[0],
-        accounts[1]
+        daosfun_accounts.unwrap().dao_mint
     );
 
     let config = get_config().await?;

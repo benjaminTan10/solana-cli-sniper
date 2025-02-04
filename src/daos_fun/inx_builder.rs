@@ -2,21 +2,23 @@ use anchor_lang::prelude::ProgramError;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey;
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
+use spl_associated_token_account::instruction::create_associated_token_account_idempotent;
 use spl_associated_token_account::{
     get_associated_token_address, get_associated_token_address_with_program_id,
 };
+use spl_token::instruction::sync_native;
 
+use super::virtual_xyk_interface::{buy_token_ix_with_program_id, BuyTokenIxArgs, BuyTokenKeys};
 use crate::app::config_init::get_config;
 use crate::daos_fun::virtual_xyk_interface::{
     sell_token_ix_with_program_id, SellTokenIxArgs, SellTokenKeys,
 };
 use crate::raydium_amm::swap::instructions::SOLC_MINT;
-
-use super::virtual_xyk_interface::{buy_token_ix_with_program_id, BuyTokenIxArgs, BuyTokenKeys};
+use solana_sdk::system_instruction::transfer;
 
 pub const DAOS_PROGRAM: Pubkey = pubkey!("5jnapfrAN47UYkLkEf7HnprPPBCQLvkYWGZDeKkaP5hv");
 pub const DAOS_BURNED_PROGRAM: Pubkey = pubkey!("4FqThZWv3QKWkSyXCDmATpWkpEiCHq5yhkdGWpSEDAZM");
-pub const SIMPLE_PROGRAM: Pubkey = pubkey!("ETK5PUmiqVDRsd1TPFqCu84bsrLNG4YySZND96PEjW97");
+pub const FUND_RAISE_PROGRAM: Pubkey = pubkey!("ETK5PUmiqVDRsd1TPFqCu84bsrLNG4YySZND96PEjW97");
 
 pub fn create_buy_instruction(
     program_id: &Pubkey,
@@ -25,7 +27,7 @@ pub fn create_buy_instruction(
     token_mint_program: &Pubkey,
     amount: u64,
     min_token_amount: u64,
-) -> Result<Instruction, ProgramError> {
+) -> Result<Vec<Instruction>, ProgramError> {
     let depositor = Pubkey::find_program_address(
         &[b"state".as_ref(), token_mint.as_ref()],
         &DAOS_BURNED_PROGRAM,
@@ -39,6 +41,12 @@ pub fn create_buy_instruction(
     let token_vault =
         get_associated_token_address_with_program_id(&curve_pda, token_mint, token_mint_program);
     let funding_vault = get_associated_token_address(&curve_pda, &SOLC_MINT);
+
+    let account =
+        create_associated_token_account_idempotent(&signer, &signer, &SOLC_MINT, &spl_token::id());
+    let sol_amount = transfer(signer, &signer_funding_ata, amount);
+
+    let sol_native = sync_native(&spl_token::id(), &signer_funding_ata)?;
 
     let accounts = BuyTokenKeys {
         signer: *signer,
@@ -62,9 +70,15 @@ pub fn create_buy_instruction(
         min_token_amount: min_token_amount,
     };
 
+    let mut inxs = vec![];
     let inx = buy_token_ix_with_program_id(DAOS_PROGRAM, accounts, args)?;
 
-    Ok(inx)
+    inxs.push(account);
+    inxs.push(sol_amount);
+    inxs.push(sol_native);
+    inxs.push(inx);
+
+    Ok(inxs)
 }
 
 pub async fn create_sell_instruction(

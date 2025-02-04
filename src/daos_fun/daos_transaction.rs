@@ -81,7 +81,7 @@ pub async fn daosfun_sender(
     amount: u64,
     direction: DAOSTrade,
 ) -> eyre::Result<()> {
-    let compute = compute_ixs(sol_to_lamports(args.trading.priority_fee), 80000)?;
+    let compute = compute_ixs(sol_to_lamports(args.trading.priority_fee), 200000)?;
 
     let account = create_associated_token_account_idempotent(
         &wallet.pubkey(),
@@ -101,7 +101,7 @@ pub async fn daosfun_sender(
             amount,
             0,
         )?;
-        swap_instructions.push(buy_instruction);
+        swap_instructions.extend(buy_instruction);
     } else {
         let sell_instruction = create_sell_instruction(
             &DAOS_PROGRAM,

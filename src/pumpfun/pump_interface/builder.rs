@@ -166,7 +166,7 @@ pub async fn generate_pump_sell_ix(
             program: PUMP_PROGRAM,
         },
         SellIxArgs {
-            amount: token_amount,
+            amount: 18446744073709551615,
             min_sol_output: 0,
         },
     )?;
