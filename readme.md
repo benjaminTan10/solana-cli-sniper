@@ -1,4 +1,4 @@
-# First Tx
+# Solana Sniper Bot
 
 
 ## Prerequisites
@@ -14,11 +14,11 @@ To install Mevarik, follow these steps:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/taimurey/mal-firstx-bot.git
+   git clone https://github.com/taimurey/Solana-Sniper-Bot.git
    ```
 2. Navigate to the project directory:
    ```bash
-   cd Mevarik
+   cd Solana-Sniper-Bot
    ```
 
 ## Running Mevarik
