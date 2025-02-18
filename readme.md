@@ -35,7 +35,3 @@ To run Mevarik, follow these steps:
    ```
 
 
-## Contact
-
-If you want to contact me you can reach me at `martian599@gmail.com`.
-
