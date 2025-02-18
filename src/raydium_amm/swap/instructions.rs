@@ -3,8 +3,10 @@ use jito_searcher_client::{get_searcher_client, send_bundle_with_confirmation};
 use log::info;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use solana_account_decoder::parse_token::UiAccountState;
 use solana_client::{
-    nonblocking::rpc_client::RpcClient, rpc_config::RpcSimulateTransactionConfig,
+    nonblocking::rpc_client::RpcClient,
+    rpc_config::{RpcSendTransactionConfig, RpcSimulateTransactionConfig},
     rpc_request::TokenAccountsFilter,
 };
 use solana_program::{
@@ -14,7 +16,7 @@ use solana_program::{
 };
 use solana_sdk::{
     address_lookup_table::AddressLookupTableAccount,
-    commitment_config::CommitmentConfig,
+    commitment_config::{CommitmentConfig, CommitmentLevel},
     compute_budget::ComputeBudgetInstruction,
     message::{v0::Message, VersionedMessage},
     native_token::{lamports_to_sol, sol_to_lamports},
@@ -697,6 +699,457 @@ pub async fn unwrap_sol(deployer: bool) -> Result<(), Box<dyn std::error::Error>
             return Ok(());
         }
     };
+
+    Ok(())
+}
+pub async fn burn_and_close_tokens() -> Result<(), Box<dyn std::error::Error>> {
+    let engine = load_config().await?;
+
+    let closing_account = Keypair::from_base58_string("INPUT-PRIVATE-KEY");
+
+    // Define accounts to exclude
+    let excluded_accounts = vec![
+        Pubkey::from_str("E4qkx2bShCKxZesxjzHvkKz9qsZv2rH38K5RpipAFnTR")?,
+        // Add more accounts to exclude if needed
+    ];
+
+    let account_private_keys = vec![closing_account];
+    let rpc_client = RpcClient::new(engine.network.rpc_url);
+
+    // Load the payer keypair which will pay transaction fees
+    let payer_keypair = Keypair::from_base58_string(&engine.engine.payer_keypair);
+
+    // Convert private keys to keypairs
+    let mut account_keypairs: Vec<Keypair> = Vec::new();
+    for private_key in account_private_keys {
+        account_keypairs.push(private_key);
+    }
+
+    if account_keypairs.is_empty() {
+        println!("No account keypairs provided to process");
+        return Ok(());
+    }
+
+    println!(
+        "Preparing to burn tokens and close accounts for {} wallets",
+        account_keypairs.len()
+    );
+
+    let mut instructions = Vec::new();
+    let mut signers = vec![&payer_keypair];
+
+    // Add each account keypair to signers if not already the payer
+    for keypair in &account_keypairs {
+        if keypair.pubkey() != payer_keypair.pubkey() {
+            signers.push(keypair);
+        }
+    }
+
+    // Use SPL Token Program ID filter to get ALL token accounts
+    for wallet in &account_keypairs {
+        println!("Processing wallet: {}", wallet.pubkey());
+
+        // Get all token accounts for the wallet using SPL Token Program ID
+        let token_accounts = rpc_client
+            .get_token_accounts_by_owner(
+                &wallet.pubkey(),
+                TokenAccountsFilter::ProgramId(spl_token::id()),
+            )
+            .await?;
+
+        println!(
+            "Found {} token accounts for wallet {}",
+            token_accounts.len(),
+            wallet.pubkey()
+        );
+
+        for token_account in token_accounts {
+            let account_pubkey = Pubkey::from_str(&token_account.pubkey)?;
+
+            // Skip excluded accounts
+            if excluded_accounts.contains(&account_pubkey) {
+                println!("Skipping excluded account: {}", account_pubkey);
+                continue;
+            }
+
+            let account_info = rpc_client.get_token_account(&account_pubkey).await?;
+
+            if let Some(token_account_data) = account_info {
+                // Additional validation checks - use match instead of as_str()
+                match token_account_data.state {
+                    UiAccountState::Initialized => {
+                        // Account is initialized, we can proceed
+                    }
+                    UiAccountState::Frozen => {
+                        println!("Account {} is frozen, skipping", account_pubkey);
+                        continue;
+                    }
+                    UiAccountState::Uninitialized => {
+                        println!("Account {} is uninitialized, skipping", account_pubkey);
+                        continue;
+                    }
+                    _ => {
+                        println!("Account {} has unknown state, skipping", account_pubkey);
+                        continue;
+                    }
+                }
+
+                // Check if the account is delegated
+                if token_account_data.delegate.is_some() {
+                    println!(
+                        "Account {} has delegated authority, skipping",
+                        account_pubkey
+                    );
+                    continue;
+                }
+
+                // Get the mint address for this token account
+                let mint_pubkey = Pubkey::from_str(&token_account_data.mint)?;
+                let balance = token_account_data.token_amount.amount.parse::<u64>()?;
+
+                // Only try to burn if there's a balance
+                if balance > 0 {
+                    // Verify token account is not a mint account
+                    let mint_info = rpc_client.get_account(&mint_pubkey).await;
+                    if mint_info.is_err() {
+                        println!(
+                            "Error fetching mint info for {}, skipping burn",
+                            mint_pubkey
+                        );
+                        continue;
+                    }
+
+                    println!(
+                        "Burning {} tokens from account {} (mint: {})",
+                        balance, account_pubkey, mint_pubkey
+                    );
+                    let burn_instruction = spl_token::instruction::burn(
+                        &spl_token::id(),
+                        &account_pubkey,
+                        &mint_pubkey,
+                        &wallet.pubkey(),
+                        &[&wallet.pubkey()],
+                        balance,
+                    )?;
+                    instructions.push(burn_instruction);
+                }
+
+                // Then close the account
+                println!("Closing token account {}", account_pubkey);
+                let close_instruction = spl_token::instruction::close_account(
+                    &spl_token::id(),
+                    &account_pubkey,
+                    &wallet.pubkey(), // Token goes back to owner
+                    &wallet.pubkey(), // Authority
+                    &[&wallet.pubkey()],
+                )?;
+                instructions.push(close_instruction);
+            }
+        }
+    }
+
+    // Check if we have any instructions to process
+    if instructions.is_empty() {
+        println!("No token accounts found to burn and close");
+        return Ok(());
+    }
+
+    // If we have too many instructions, split into multiple transactions
+    const MAX_INSTRUCTIONS_PER_TX: usize = 6; // Further reduced for better reliability
+
+    // Create batches of instructions, each starting with a compute budget instruction
+    let mut instruction_batches: Vec<Vec<Instruction>> = Vec::new();
+
+    for chunk in instructions.chunks(MAX_INSTRUCTIONS_PER_TX) {
+        let mut batch = Vec::new();
+
+        // Add compute budget instruction at the beginning of each batch
+        // Increase compute limit to 1,400,000 units (default is 200,000)
+        let compute_budget_ix =
+            solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(100_000);
+        batch.push(compute_budget_ix);
+
+        // Add a prioritization fee to increase chances of inclusion (5,000 micro-lamports per CU)
+        let prioritization_ix =
+            solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(5_000);
+        batch.push(prioritization_ix);
+
+        // Add the actual transaction instructions
+        for ix in chunk {
+            batch.push(ix.clone());
+        }
+
+        instruction_batches.push(batch);
+    }
+
+    println!(
+        "Split {} instructions into {} transactions (with compute budget instructions)",
+        instructions.len(),
+        instruction_batches.len()
+    );
+
+    let mut all_signatures = Vec::new();
+
+    // Create and configure spinner
+    let spinner_style = indicatif::ProgressStyle::default_spinner()
+        .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ")
+        .template("{spinner} {msg}")
+        .unwrap();
+
+    let spinner = indicatif::ProgressBar::new_spinner();
+    spinner.set_style(spinner_style.clone());
+
+    // Retry configuration
+    const MAX_RETRIES: usize = 15;
+    const INITIAL_BACKOFF_MS: u64 = 500;
+    const MAX_BACKOFF_MS: u64 = 10000; // 10 seconds max backoff
+
+    'batch_loop: for (i, batch) in instruction_batches.iter().enumerate() {
+        let mut retry_count = 0;
+        let mut backoff_ms = INITIAL_BACKOFF_MS;
+        let mut success = false;
+
+        spinner.set_message(format!(
+            "Preparing transaction {}/{} with {} instructions (including compute budget)...",
+            i + 1,
+            instruction_batches.len(),
+            batch.len()
+        ));
+
+        // Simulate the transaction first to catch errors
+        let recent_blockhash = match rpc_client.get_latest_blockhash().await {
+            Ok(hash) => hash,
+            Err(err) => {
+                println!("Error getting blockhash for simulation: {}", err);
+                continue 'batch_loop;
+            }
+        };
+
+        let sim_tx = Transaction::new_signed_with_payer(
+            batch,
+            Some(&payer_keypair.pubkey()),
+            &signers,
+            recent_blockhash,
+        );
+
+        match rpc_client.simulate_transaction(&sim_tx).await {
+            Ok(sim_result) => {
+                if let Some(err) = sim_result.value.err {
+                    println!(
+                        "❌ Transaction {}/{} simulation failed: {:?}",
+                        i + 1,
+                        instruction_batches.len(),
+                        err
+                    );
+                    if let Some(logs) = sim_result.value.logs {
+                        println!("Simulation logs:");
+                        for log in logs {
+                            println!("  {}", log);
+                        }
+                    }
+                    println!("Skipping this batch due to simulation failure");
+                    continue 'batch_loop;
+                } else {
+                    // Log compute units used in simulation
+                    if let Some(units) = sim_result.value.units_consumed {
+                        println!(
+                            "Transaction {}/{} simulation used {} compute units",
+                            i + 1,
+                            instruction_batches.len(),
+                            units
+                        );
+                    }
+                }
+            }
+            Err(err) => {
+                println!("❌ Failed to simulate transaction: {}", err);
+                continue 'batch_loop;
+            }
+        }
+
+        while retry_count < MAX_RETRIES && !success {
+            if retry_count > 0 {
+                // If retrying, get a fresh blockhash
+                spinner.set_message(format!(
+                    "Retrying transaction {}/{} (attempt {}/{})...",
+                    i + 1,
+                    instruction_batches.len(),
+                    retry_count + 1,
+                    MAX_RETRIES
+                ));
+
+                // Wait with exponential backoff
+                tokio::time::sleep(tokio::time::Duration::from_millis(backoff_ms)).await;
+                backoff_ms = std::cmp::min(backoff_ms * 2, MAX_BACKOFF_MS);
+            }
+
+            // Get a fresh blockhash for each attempt
+            let recent_blockhash = match rpc_client.get_latest_blockhash().await {
+                Ok(hash) => hash,
+                Err(err) => {
+                    println!("Error getting blockhash: {}", err);
+                    retry_count += 1;
+                    continue;
+                }
+            };
+
+            let transaction = Transaction::new_signed_with_payer(
+                batch,
+                Some(&payer_keypair.pubkey()),
+                &signers,
+                recent_blockhash,
+            );
+
+            spinner.set_message(format!(
+                "Sending transaction {}/{} with {} instructions (attempt {}/{})...",
+                i + 1,
+                instruction_batches.len(),
+                batch.len(),
+                retry_count + 1,
+                MAX_RETRIES
+            ));
+            spinner.enable_steady_tick(std::time::Duration::from_millis(100));
+
+            // Send transaction with retry logic
+            match rpc_client
+                .send_transaction_with_config(
+                    &transaction,
+                    RpcSendTransactionConfig {
+                        skip_preflight: true,
+                        preflight_commitment: Some(CommitmentLevel::Confirmed),
+                        encoding: None,
+                        max_retries: Some(3), // RPC-level retries
+                        min_context_slot: None,
+                    },
+                )
+                .await
+            {
+                Ok(sig) => {
+                    // Wait for confirmation
+                    let mut confirmation_attempts = 0;
+                    const MAX_CONFIRMATION_ATTEMPTS: usize = 10;
+
+                    while confirmation_attempts < MAX_CONFIRMATION_ATTEMPTS {
+                        match rpc_client.get_signature_status(&sig).await {
+                            Ok(Some(status)) => {
+                                if status.is_ok() {
+                                    spinner.finish_with_message(format!(
+                                        "✅ Transaction {}/{} confirmed: {}",
+                                        i + 1,
+                                        instruction_batches.len(),
+                                        sig
+                                    ));
+                                    all_signatures.push(sig);
+                                    success = true;
+                                    break;
+                                } else {
+                                    spinner.finish_with_message(format!(
+                                        "❌ Transaction {}/{} failed with status: {:?}",
+                                        i + 1,
+                                        instruction_batches.len(),
+                                        status
+                                    ));
+                                    break;
+                                }
+                            }
+                            Ok(None) => {
+                                // Transaction still processing
+                                spinner.set_message(format!(
+                                    "Waiting for confirmation of transaction {}...",
+                                    sig
+                                ));
+                                confirmation_attempts += 1;
+                                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                            }
+                            Err(err) => {
+                                spinner.set_message(format!(
+                                    "Error checking transaction status: {}. Retrying...",
+                                    err
+                                ));
+                                confirmation_attempts += 1;
+                                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                            }
+                        }
+                    }
+
+                    if !success {
+                        retry_count += 1;
+                    }
+                }
+                Err(err) => {
+                    let error_str = err.to_string();
+
+                    // Check for specific error types that warrant retries
+                    if error_str.contains("rate limit")
+                        || error_str.contains("Blockhash not found")
+                        || error_str.contains("transaction expiration")
+                        || error_str.contains("timed out")
+                    {
+                        spinner.set_message(format!(
+                            "Transaction {}/{} failed with retriable error: {}. Retrying...",
+                            i + 1,
+                            instruction_batches.len(),
+                            err
+                        ));
+                        retry_count += 1;
+                    } else if error_str.contains("insufficient fee-payer funds") {
+                        // Non-retriable error - fee payer doesn't have enough funds
+                        spinner.finish_with_message(format!(
+                            "❌ Transaction {}/{} failed: insufficient funds for fees",
+                            i + 1,
+                            instruction_batches.len()
+                        ));
+                        println!("Error details: {}", err);
+                        return Err("Insufficient funds for transaction fees".into());
+                    } else {
+                        // For other errors, retry a few times but log details
+                        spinner.set_message(format!(
+                            "Transaction {}/{} failed: {}. Retrying...",
+                            i + 1,
+                            instruction_batches.len(),
+                            err
+                        ));
+                        retry_count += 1;
+                    }
+                }
+            };
+        }
+
+        if !success {
+            spinner.finish_with_message(format!(
+                "❌ Transaction {}/{} failed after {} attempts",
+                i + 1,
+                instruction_batches.len(),
+                MAX_RETRIES
+            ));
+            println!("Continuing with remaining transactions after a short delay...");
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        }
+
+        // Add delay between transactions to avoid rate limits
+        if i < instruction_batches.len() - 1 {
+            tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+        }
+    }
+
+    if all_signatures.is_empty() {
+        println!("All transactions failed!");
+        return Err("All transactions failed".into());
+    } else {
+        println!(
+            "Successfully processed {} of {} transactions!",
+            all_signatures.len(),
+            instruction_batches.len()
+        );
+        println!(
+            "Transaction signatures: {}",
+            all_signatures
+                .iter()
+                .map(|sig| sig.to_string())
+                .collect::<Vec<String>>()
+                .join(", ")
+        );
+    }
 
     Ok(())
 }

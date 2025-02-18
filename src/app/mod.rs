@@ -18,6 +18,7 @@ use crate::daos_fun::menu::daosfun_menu;
 use crate::env::load_config;
 use crate::env::utils::read_keys;
 use crate::pumpfun::sub_menu::pump_main;
+use crate::raydium_amm::swap::instructions::burn_and_close_tokens;
 use crate::raydium_amm::swap::swap_in::{swap_in, swap_out, PriorityTip};
 use crate::raydium_amm::swap::trades::track_trades;
 use crate::rpc::rpc_key;
@@ -106,6 +107,7 @@ pub async fn main_menu(mainmenu: bool) -> Result<(), Box<dyn std::error::Error +
         .option(DemandOption::new("DaosFun").label("▪ DaosFun Mode"))
         .option(DemandOption::new("CopyTrade").label("▪ CopyTrade Mode"))
         // .option(DemandOption::new("MoonShot").label("▪ MoonShot Mode"))
+        .option(DemandOption::new("Burnandclose").label("🔥 Burn and Close Accounts"))
         .option(DemandOption::new("Wrap Sol Mode").label("📦 Wrap SOL"))
         .option(DemandOption::new("Unwrap Sol Mode").label("🪤  Unwrap SOL"))
         .option(DemandOption::new("Wallet Details").label("🍄 Wallet Details"));
@@ -128,6 +130,10 @@ pub async fn main_menu(mainmenu: bool) -> Result<(), Box<dyn std::error::Error +
         }
         "CopyTrade" => {
             let _ = copytrade().await;
+            let _ = read_keys().await;
+        }
+        "Burnandclose" => {
+            let _ = burn_and_close_tokens().await;
             let _ = read_keys().await;
         }
         "Wrap Sol Mode" => {
